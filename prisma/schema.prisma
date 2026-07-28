@@ -1,0 +1,323 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users & Profiles
+// ---------------------------------------------------------------------------
+
+enum ProfileType {
+  DRIVER
+  CREW
+  ENGINEER
+  SPONSOR
+  TEAM_MANAGER
+  INDUSTRY_PRO
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+}
+
+model User {
+  id                 String             @id @default(cuid())
+  email              String             @unique
+  authProviderId     String             @unique // Clerk user id
+  profileTypes       ProfileType[]
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  profile              Profile?
+  teamMemberships      TeamMembership[]
+  applications         Application[]
+  sponsorshipProfile   SponsorshipProfile?
+  raceReports          RaceReport[]
+  endorsementsGiven    Endorsement[]       @relation("EndorsementFrom")
+  endorsementsReceived Endorsement[]       @relation("EndorsementTo")
+  opportunitiesPosted  Opportunity[]       @relation("OpportunityPostedByUser")
+  raceEntries          RaceEntry[]
+  media                Media[]
+
+  @@index([verificationStatus])
+}
+
+model Profile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  displayName  String
+  bio          String?  @db.Text
+  location     String?
+  availability String?
+  // Per-platform sim stats, e.g. { "iracing": { "iRating": 3200, "sr": "A 4.2", "licenseClass": "A" } }
+  simStats     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  realWorldCredentials RealWorldCredential[]
+  industryExperience   IndustryExperience[]
+
+  @@index([location])
+}
+
+model RealWorldCredential {
+  id        String   @id @default(cuid())
+  profileId String
+  // e.g. "FIA_LICENSE", "KARTING", "SAFETY_CERT"
+  kind      String
+  title     String
+  issuer    String?
+  year      Int?
+  details   String?  @db.Text
+  createdAt DateTime @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model IndustryExperience {
+  id        String   @id @default(cuid())
+  profileId String
+  role      String
+  company   String
+  years     Int
+  summary   String?  @db.Text
+  createdAt DateTime @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  ownerId   String
+  url       String
+  // e.g. "image", "video", "telemetry"
+  kind      String
+  title     String?
+  createdAt DateTime @default(now())
+
+  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  raceReports RaceReport[]
+
+  @@index([ownerId])
+}
+
+// ---------------------------------------------------------------------------
+// Teams
+// ---------------------------------------------------------------------------
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  logoUrl     String?
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  roster        TeamMembership[]
+  opportunities Opportunity[]    @relation("OpportunityPostedByTeam")
+}
+
+enum TeamRole {
+  OWNER
+  MANAGER
+  DRIVER
+  CREW
+  ENGINEER
+  MEMBER
+}
+
+model TeamMembership {
+  id        String    @id @default(cuid())
+  teamId    String
+  userId    String
+  role      TeamRole  @default(MEMBER)
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Opportunities marketplace
+// ---------------------------------------------------------------------------
+
+enum OpportunityType {
+  SEAT
+  CREW_JOB
+  SPONSORSHIP
+}
+
+enum OpportunityStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+model Opportunity {
+  id             String            @id @default(cuid())
+  type           OpportunityType
+  status         OpportunityStatus @default(OPEN)
+  title          String
+  description    String            @db.Text
+  requirements   Json?
+  compensation   String?
+  location       String?
+  series         String?
+  postedByTeamId String?
+  postedByUserId String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  postedByTeam Team?         @relation("OpportunityPostedByTeam", fields: [postedByTeamId], references: [id], onDelete: SetNull)
+  postedByUser User?         @relation("OpportunityPostedByUser", fields: [postedByUserId], references: [id], onDelete: SetNull)
+  applications Application[]
+
+  @@index([type, status])
+  @@index([postedByTeamId])
+  @@index([postedByUserId])
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  REVIEWING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+model Application {
+  id            String            @id @default(cuid())
+  opportunityId String
+  applicantId   String
+  status        ApplicationStatus @default(SUBMITTED)
+  coverNote     String?           @db.Text
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  applicant   User        @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+
+  @@unique([opportunityId, applicantId])
+  @@index([applicantId])
+}
+
+model SponsorshipProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  budgetNeed      String?
+  audienceMetrics Json?
+  pitchDeckUrl    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Racing events, content & strategy
+// ---------------------------------------------------------------------------
+
+model RaceEvent {
+  id        String   @id @default(cuid())
+  name      String
+  series    String
+  date      DateTime
+  // Real-world venue or sim platform name ("iRacing", "Le Mans Ultimate", ...)
+  platform  String
+  createdAt DateTime @default(now())
+
+  participants  RaceEntry[]
+  strategyPlans StrategyPlan[]
+
+  @@index([series, date])
+}
+
+model RaceEntry {
+  id      String  @id @default(cuid())
+  eventId String
+  userId  String
+  carClass String?
+  result   Json?
+
+  event RaceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([userId])
+}
+
+model RaceReport {
+  id        String   @id @default(cuid())
+  authorId  String
+  title     String
+  body      String   @db.Text
+  tags      String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author           User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  mediaAttachments Media[]
+
+  @@index([authorId])
+  @@index([tags])
+}
+
+model StrategyPlan {
+  id             String   @id @default(cuid())
+  eventId        String
+  name           String
+  stintPlan      Json?
+  fuelStrategy   Json?
+  driverRotation Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  event RaceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+// ---------------------------------------------------------------------------
+// Social
+// ---------------------------------------------------------------------------
+
+enum EndorsementCategory {
+  RACECRAFT
+  ENGINEERING
+  TEAMWORK
+  STRATEGY
+  PROFESSIONALISM
+  SPONSORSHIP_VALUE
+}
+
+model Endorsement {
+  id         String              @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  note       String?             @db.Text
+  category   EndorsementCategory
+  createdAt  DateTime            @default(now())
+
+  fromUser User @relation("EndorsementFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User @relation("EndorsementTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([fromUserId, toUserId, category])
+  @@index([toUserId])
+}
