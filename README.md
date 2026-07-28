@@ -32,6 +32,32 @@ rate limiting is a no-op; without `ANTHROPIC_API_KEY` the AI gateway returns a
 configuration error; Stripe/Clerk webhooks respond 500 until their secrets are
 set.
 
+## Deploying to Vercel
+
+Import the repo into Vercel, then set these in **Project Settings →
+Environment Variables** (all environments):
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | ✅ | From the Clerk dashboard (API Keys). Inlined at **build time** — redeploy after changing. |
+| `CLERK_SECRET_KEY` | ✅ | Clerk dashboard → API Keys |
+| `DATABASE_URL` | ✅ | Neon/Supabase Postgres connection string |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | for user sync | Clerk dashboard → Webhooks, endpoint `/api/webhooks/clerk` |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | for rate limiting | No-op without them |
+| `ANTHROPIC_API_KEY` | for AI features | Gateway returns 502 without it |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Phase 2 | Webhook endpoint `/api/webhooks/stripe` |
+
+Then run the migrations against the production database once:
+
+```bash
+DATABASE_URL="<prod url>" npx prisma migrate deploy
+```
+
+**If every route returns `500 MIDDLEWARE_INVOCATION_FAILED`**, the Clerk keys
+are missing or invalid — the middleware now responds with an explicit 503
+message naming the missing variables instead. Set them and redeploy
+(`NEXT_PUBLIC_*` values are baked into the build, so a redeploy is required).
+
 ## Scripts
 
 | Command | Purpose |
