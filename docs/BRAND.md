@@ -4,9 +4,13 @@
 red-and-black checkered-flag accent, paired with the "RaceOps" wordmark
 (black "Race" + red "Ops"). Use as-is: no recoloring, no stretching.
 
-> ⚠️ The files currently in `public/brand/` are **generated placeholders**
-> (`npm run brand:generate`) that follow this description. Replace them with
-> the canonical asset when it is provided, keeping the same paths.
+The canonical source export lives at `assets/brand/raceops-logo-source.png`.
+`npm run brand:generate` derives every deployed asset from it: the source was
+exported with its transparency flattened onto a checkerboard, so the script
+restores the transparent background (no recoloring of the artwork), trims
+margins, crops the square "R" mark, and renders the favicon and
+apple-touch-icon. If the logo is ever updated, replace the source file and
+re-run the script.
 
 ## Palette
 

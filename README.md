@@ -80,9 +80,9 @@ limits).
 
 ## Brand
 
-See `docs/BRAND.md`. The logo in `public/brand/` is a **generated placeholder**
-matching the brand spec (the canonical PNG was not present in the repo); swap
-in the real asset when available.
+See `docs/BRAND.md`. All deployed assets in `public/` are derived from the
+canonical logo (`assets/brand/raceops-logo-source.png`) via
+`npm run brand:generate`.
 
 ## Security posture
 
