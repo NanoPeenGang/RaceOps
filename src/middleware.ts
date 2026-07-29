@@ -26,16 +26,27 @@ export default clerkConfigured
       }
     })
   : function missingAuthConfig() {
+      const missing = [
+        !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
+          "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+        !process.env.CLERK_SECRET_KEY && "CLERK_SECRET_KEY",
+        !process.env.DATABASE_URL && "DATABASE_URL",
+      ].filter((name): name is string => Boolean(name));
       return new NextResponse(
         [
           "RaceOps deployment is missing its authentication configuration.",
           "",
-          "Set the following environment variables (Vercel: Project Settings -> Environment Variables), then redeploy:",
-          "  - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
-          "  - CLERK_SECRET_KEY",
-          "  - DATABASE_URL",
+          "Environment variables NOT visible to this deployment:",
+          ...missing.map((name) => `  - ${name}`),
           "",
-          "NEXT_PUBLIC_* values are inlined at build time, so a redeploy after setting them is required.",
+          "Checklist (Vercel: Project Settings -> Environment Variables):",
+          "  1. The variable names match exactly (no typos, no surrounding quotes in the value).",
+          "  2. Each variable is enabled for the Production environment.",
+          "  3. After adding/changing them, trigger a NEW deployment and, in the",
+          "     Redeploy dialog, UNCHECK 'Use existing Build Cache' —",
+          "     NEXT_PUBLIC_* values are baked in at build time, so a cached",
+          "     build keeps the old (empty) value.",
+          "",
           "See README.md -> 'Deploying to Vercel'.",
         ].join("\n"),
         { status: 503, headers: { "content-type": "text/plain" } },
