@@ -57,6 +57,9 @@ model User {
   penaltiesIssued        Penalty[]           @relation("PenaltyIssuer")
   appealsFiled           PenaltyAppeal[]     @relation("AppealFiler")
   appealsDecided         PenaltyAppeal[]     @relation("AppealDecider")
+  documentsUploaded      RaceDocument[]
+  announcements          Announcement[]
+  chatMessages           ChatMessage[]
 
   @@index([verificationStatus])
 }
@@ -134,14 +137,15 @@ model Media {
   teamId    String?
   penaltyId String?
   appealId  String?
+  reportId  String?
 
-  owner       User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  raceReports RaceReport[]
-  series      Series?        @relation(fields: [seriesId], references: [id], onDelete: Cascade)
-  event       RaceEvent?     @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  team        Team?          @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  penalty     Penalty?       @relation(fields: [penaltyId], references: [id], onDelete: Cascade)
-  appeal      PenaltyAppeal? @relation(fields: [appealId], references: [id], onDelete: Cascade)
+  owner   User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  series  Series?        @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  event   RaceEvent?     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team    Team?          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  penalty Penalty?       @relation(fields: [penaltyId], references: [id], onDelete: Cascade)
+  appeal  PenaltyAppeal? @relation(fields: [appealId], references: [id], onDelete: Cascade)
+  report  RaceReport?    @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@index([ownerId])
   @@index([seriesId])
@@ -149,6 +153,7 @@ model Media {
   @@index([teamId])
   @@index([penaltyId])
   @@index([appealId])
+  @@index([reportId])
 }
 
 // ---------------------------------------------------------------------------
@@ -359,9 +364,11 @@ model Series {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  organizers SeriesMembership[]
-  events     RaceEvent[]
-  media      Media[]
+  organizers    SeriesMembership[]
+  events        RaceEvent[]
+  media         Media[]
+  documents     RaceDocument[]
+  announcements Announcement[]
 }
 
 enum SeriesRole {
@@ -400,6 +407,8 @@ model RaceEvent {
   seriesLabel String
   seriesId    String?
   date        DateTime
+  /// Final day for a multi-day meeting; null for a single-day event.
+  endDate     DateTime?
   // Real-world venue or sim platform name ("iRacing", "Le Mans Ultimate", ...)
   platform    String
   venue       String?
@@ -422,6 +431,11 @@ model RaceEvent {
   results         EventResult[]
   penalties       Penalty[]
   media           Media[]
+  sessions        EventSession[]
+  documents       RaceDocument[]
+  announcements   Announcement[]
+  chatMessages    ChatMessage[]
+  raceReports     RaceReport[]
 
   @@index([seriesLabel, date])
   @@index([seriesId, date])
@@ -453,18 +467,205 @@ model EventRegistration {
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
-  event       RaceEvent    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  team        Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  entrantUser User?        @relation("RegistrationEntrant", fields: [entrantUserId], references: [id], onDelete: Cascade)
-  submittedBy User         @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
-  result      EventResult?
-  penalties   Penalty[]
+  event         RaceEvent     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team          Team?         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  entrantUser   User?         @relation("RegistrationEntrant", fields: [entrantUserId], references: [id], onDelete: Cascade)
+  submittedBy   User          @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+  result        EventResult?
+  penalties     Penalty[]
+  timingEntries TimingEntry[]
 
   @@unique([eventId, teamId])
   @@unique([eventId, entrantUserId])
   @@unique([eventId, carNumber])
   @@index([eventId, status])
   @@index([submittedById])
+}
+
+// ---------------------------------------------------------------------------
+// Event schedule (multi-day running order) & live timing
+// ---------------------------------------------------------------------------
+
+enum SessionType {
+  PRACTICE
+  QUALIFYING
+  RACE
+  WARMUP
+  SCRUTINEERING
+  DRIVER_BRIEFING
+  MEDIA
+  SUPPORT
+  OTHER
+}
+
+enum SessionStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+  CANCELED
+}
+
+enum FlagState {
+  NONE
+  GREEN
+  YELLOW
+  SAFETY_CAR
+  VIRTUAL_SAFETY_CAR
+  RED
+  CHECKERED
+}
+
+/**
+ * One item in an event's running order. Real-world weekends span several days
+ * (scrutineering Friday, practice/qualifying Saturday, race Sunday), so
+ * sessions carry their own start/end and are grouped by day in the UI.
+ */
+model EventSession {
+  id        String        @id @default(cuid())
+  eventId   String
+  type      SessionType
+  name      String
+  startsAt  DateTime
+  endsAt    DateTime
+  location  String?
+  notes     String?       @db.Text
+  status    SessionStatus @default(SCHEDULED)
+  flagState FlagState     @default(NONE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  event         RaceEvent     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  timingEntries TimingEntry[]
+
+  @@index([eventId, startsAt])
+}
+
+enum TimingStatus {
+  RUNNING
+  PIT
+  OUT
+  STOPPED
+  FINISHED
+  DNS
+}
+
+/**
+ * Live timing row for one entry in one session.
+ */
+model TimingEntry {
+  id             String       @id @default(cuid())
+  sessionId      String
+  registrationId String
+  position       Int?
+  lapsCompleted  Int          @default(0)
+  /// Milliseconds — formatted for display client-side.
+  lastLapMs      Int?
+  bestLapMs      Int?
+  /// Gap to the leader in milliseconds; null for the leader.
+  gapMs          Int?
+  status         TimingStatus @default(RUNNING)
+  updatedAt      DateTime     @updatedAt
+
+  session      EventSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, registrationId])
+  @@index([sessionId, position])
+}
+
+// ---------------------------------------------------------------------------
+// Documents, announcements & community content
+// ---------------------------------------------------------------------------
+
+enum DocumentType {
+  RULEBOOK
+  SUPPLEMENTARY_REGS
+  TECH_SHEET
+  BULLETIN
+  ENTRY_LIST
+  SCHEDULE
+  APPROVED_MEDIA
+  OTHER
+}
+
+enum DocumentVisibility {
+  PUBLIC
+  COMPETITORS
+  ORGANIZERS
+}
+
+/**
+ * Regulations, technical sheets, race-control bulletins and approved media
+ * kits. Attached to a series (season-long) or a single event.
+ */
+model RaceDocument {
+  id           String             @id @default(cuid())
+  seriesId     String?
+  eventId      String?
+  uploadedById String
+  type         DocumentType
+  title        String
+  description  String?            @db.Text
+  fileUrl      String
+  /// Free-text revision label, e.g. "v2.1" or "Issue 3".
+  version      String?
+  visibility   DocumentVisibility @default(PUBLIC)
+  /// Set when a newer revision replaces this one.
+  supersededAt DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  series     Series?    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  event      RaceEvent? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  uploadedBy User       @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([seriesId, type])
+  @@index([eventId, type])
+}
+
+enum AnnouncementUrgency {
+  INFO
+  IMPORTANT
+  URGENT
+}
+
+/**
+ * Notices from organizers to competitors — paddock notes, schedule changes.
+ */
+model Announcement {
+  id        String              @id @default(cuid())
+  seriesId  String?
+  eventId   String?
+  authorId  String
+  title     String
+  body      String              @db.Text
+  urgency   AnnouncementUrgency @default(INFO)
+  pinned    Boolean             @default(false)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  series Series?    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  event  RaceEvent? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  author User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([seriesId, createdAt])
+  @@index([eventId, createdAt])
+}
+
+/**
+ * Live paddock chat during a race weekend.
+ */
+model ChatMessage {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  event RaceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt])
 }
 
 enum ResultStatus {
@@ -656,17 +857,21 @@ model RaceEntry {
 model RaceReport {
   id        String   @id @default(cuid())
   authorId  String
+  eventId   String?
   title     String
   body      String   @db.Text
   tags      String[]
+  published Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  author           User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author           User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  event            RaceEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
   mediaAttachments Media[]
 
   @@index([authorId])
   @@index([tags])
+  @@index([published, createdAt])
 }
 
 model StrategyPlan {

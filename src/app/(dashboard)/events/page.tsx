@@ -21,6 +21,8 @@ export default function EventsPage() {
         </p>
       </div>
 
+      <LiveNow />
+
       {myRegistrations.data && myRegistrations.data.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">My entries</h2>
@@ -133,5 +135,43 @@ export default function EventsPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+/** Sessions running right now, anywhere on the platform. */
+function LiveNow() {
+  const live = api.session.liveNow.useQuery(undefined, {
+    refetchInterval: 30000,
+  });
+  if (!live.data || live.data.length === 0) return null;
+
+  return (
+    <section className="space-y-3">
+      <h2 className="flex items-center gap-2 text-xl font-semibold">
+        <span className="inline-block h-2 w-2 rounded-full bg-brand-red" />
+        Live now
+      </h2>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {live.data.map((session) => (
+          <Card key={session.id} className="border-brand-red/40">
+            <CardContent className="flex flex-wrap items-center justify-between gap-2 p-4">
+              <div>
+                <p className="font-medium">{session.name}</p>
+                <p className="text-xs text-brand-black/60">
+                  {[session.event.series?.name, session.event.name]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+              <Link href={`/events/${session.event.id}/timing`}>
+                <Button size="sm" variant="primary">
+                  Live timing
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </section>
   );
 }

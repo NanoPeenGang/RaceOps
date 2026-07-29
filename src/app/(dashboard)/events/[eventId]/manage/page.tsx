@@ -20,6 +20,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ResultsPanel, PenaltiesPanel } from "./race-control";
 import { ResultsImportPanel } from "./results-import";
+import { SchedulePanel } from "./schedule";
+import { TimingConsole } from "./timing-console";
+import { AnnouncementsPanel } from "@/components/announcements-panel";
+import { DocumentsPanel } from "@/components/documents-panel";
 import { DangerZone } from "@/components/danger-zone";
 import { useRouter } from "next/navigation";
 
@@ -109,11 +113,32 @@ export default function ManageEventPage({
         <p className="text-sm text-brand-red">{setStatus.error.message}</p>
       )}
 
+      <div className="flex flex-wrap gap-2">
+        <Link href={`/events/${eventId}/timing`}>
+          <Button size="sm" variant="outline">
+            View live timing board
+          </Button>
+        </Link>
+        <Link href={`/events/${eventId}/penalties`}>
+          <Button size="sm" variant="outline">
+            Public penalty record
+          </Button>
+        </Link>
+      </div>
+
+      <SchedulePanel eventId={eventId} />
+      <TimingConsole eventId={eventId} />
       <RegistrationsPanel eventId={eventId} capacity={data.entryCapacity} />
       <ResultsPanel eventId={eventId} />
       <ResultsImportPanel eventId={eventId} />
       <PenaltiesPanel eventId={eventId} />
       <ShiftsPanel eventId={eventId} />
+      <AnnouncementsPanel scope={{ eventId }} canManage title="Event notices" />
+      <DocumentsPanel
+        scope={{ eventId }}
+        canManage
+        title="Event documents"
+      />
 
       {canDelete && (
         <DangerZone

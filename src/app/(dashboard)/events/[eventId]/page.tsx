@@ -11,9 +11,14 @@ import {
   VOLUNTEER_ROLE_LABELS,
   shiftCoverage,
 } from "@/lib/events";
+import { SESSION_TYPE_LABELS, groupSessionsByDay } from "@/lib/schedule";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AnnouncementsPanel } from "@/components/announcements-panel";
+import { DocumentsPanel } from "@/components/documents-panel";
+import { MediaPanel } from "@/components/media-panel";
+import { PaddockChat } from "@/components/paddock-chat";
 
 const WINDOW_MESSAGES: Record<string, string> = {
   not_published: "Registration has not opened — this event is still a draft.",
@@ -60,6 +65,11 @@ export default function EventDetailPage({
           >
             {EVENT_STATUS_LABELS[data.status]}
           </Badge>
+          <Link href={`/events/${eventId}/timing`}>
+            <Button size="sm" variant="outline">
+              Live timing
+            </Button>
+          </Link>
           <Link href={`/events/${eventId}/penalties`}>
             <Button size="sm" variant="outline">
               Penalties
@@ -81,11 +91,83 @@ export default function EventDetailPage({
         </p>
       )}
 
+      <RunningOrder eventId={eventId} />
+
       <div className="grid gap-6 lg:grid-cols-2">
         <RegistrationPanel event={data} onChanged={refresh} />
         <VolunteerPanel event={data} onChanged={refresh} />
       </div>
+
+      <AnnouncementsPanel
+        scope={{ eventId }}
+        canManage={false}
+        title="Event notices"
+      />
+      <DocumentsPanel
+        scope={{ eventId }}
+        canManage={false}
+        title="Event documents"
+      />
+      <MediaPanel
+        scope={{ eventId }}
+        title="Event media"
+        description="Post-race coverage and approved imagery."
+        canManage={Boolean(data.myRole)}
+        allowOrganizerOnly={Boolean(data.myRole)}
+      />
+      <PaddockChat eventId={eventId} />
     </div>
+  );
+}
+
+/** Public running order, grouped by day for multi-day meetings. */
+function RunningOrder({ eventId }: { eventId: string }) {
+  const sessions = api.session.forEvent.useQuery({ eventId });
+  const rows = sessions.data ?? [];
+  if (rows.length === 0) return null;
+  const days = groupSessionsByDay(rows);
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xl font-semibold">Running order</h2>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {days.map((day) => (
+          <Card key={day.dayKey}>
+            <CardHeader>
+              <CardTitle>
+                {day.date.toLocaleDateString(undefined, {
+                  weekday: "long",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {day.sessions.map((session) => (
+                <div
+                  key={session.id}
+                  className="flex items-baseline justify-between gap-2 text-sm"
+                >
+                  <div>
+                    <p className="font-medium">{session.name}</p>
+                    <p className="text-xs text-brand-black/60">
+                      {SESSION_TYPE_LABELS[session.type]}
+                      {session.location ? ` · ${session.location}` : ""}
+                    </p>
+                  </div>
+                  <span className="shrink-0 tabular-nums text-brand-black/70">
+                    {new Date(session.startsAt).toLocaleTimeString(undefined, {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </section>
   );
 }
 

@@ -13,6 +13,7 @@ type Scope = {
   teamId?: string;
   penaltyId?: string;
   appealId?: string;
+  reportId?: string;
 };
 
 /**

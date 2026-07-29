@@ -11,7 +11,7 @@ race-strategy tools.
 - **tRPC v11** for type-safe client/server contracts · TanStack Query
 - **PostgreSQL** via **Prisma** (Neon/Supabase in production)
 - **Clerk** authentication (Google + Discord OAuth)
-- **Upstash Redis** for rate limiting
+- **Upstash Redis** for rate limiting · **Pusher** for realtime (optional)
 - **Stripe** for subscriptions & marketplace fees (Phase 2)
 - **Anthropic API** behind a single internal gateway (`/api/ai/*`) —
   `claude-opus-4-8` for high-value reasoning, `claude-sonnet-5` for
@@ -49,6 +49,7 @@ Environment Variables** (all environments):
 | `STRIPE_PRICE_RECRUITER` / `STRIPE_PRICE_SPONSOR` | for billing | Recurring price ids from Stripe → Products |
 | `NEXT_PUBLIC_APP_URL` | for billing | Absolute site URL used in Stripe redirects |
 | `RESEND_API_KEY` / `RESEND_FROM` | for email | Notification emails; in-app notifications work without them |
+| `PUSHER_APP_ID` / `PUSHER_KEY` / `PUSHER_SECRET` / `PUSHER_CLUSTER` | for instant live timing | All four or none; without them boards poll instead |
 
 **Database:** the easiest path is Vercel → your project → **Storage →
 Create Database → Neon (Postgres)** — linking it injects `DATABASE_URL`
@@ -156,14 +157,46 @@ block the write rather than risk classifying the wrong competitor. Re-running
 an import updates existing results, so corrections are a re-upload. Imported
 results feed the championship standings immediately.
 
+**Phase 4 — race weekend operations (done):**
+
+- **Multi-day schedules** — an event is a list of sessions (scrutineering,
+  practice, qualifying, race, briefings, support races, media), each with its
+  own start/end and location. The organizer view groups them into days and
+  warns about overlaps rather than blocking them, since support paddocks run
+  activities in parallel on purpose. Entrants read the running order without
+  signing in.
+- **Live timing** — every session carries a timing board and a flag state
+  (green / yellow / safety car / VSC / red / checkered). Race control seeds the
+  board from the confirmed entry list, then posts positions, laps and lap times
+  from the console; a personal best is only lowered when the new lap is
+  actually quicker. The public board is polled while a session is live and
+  shows gaps, laps down and the session's fastest lap. A **Live now** strip on
+  the events page links straight into whatever is running.
+- **Regulations library** — rule books, supplementary regulations, technical
+  sheets, race-control bulletins, entry lists and approved media kits attach to
+  a series for the season or to a single event. Each item carries a revision
+  label and can be superseded by a newer one, which keeps the old file
+  readable but visibly retired. Visibility is public, entrants-only or
+  organizers-only.
+- **Notices** — organizers post announcements (info / important / urgent,
+  optionally pinned) and can push them to everyone entered as notifications.
+- **Race reports** — long-form post-race writeups with tags, an optional link
+  to the event, and their own media gallery. Drafts stay private to the author
+  until published.
+- **Paddock chat** — a per-event room for entrants, volunteers and organizers.
+  Authors delete their own messages; organizers moderate the room.
+
+> Realtime is optional. With Pusher credentials set, boards and chat update
+> instantly; without them everything polls and still works.
+
 **Phase 3 (in progress):** Pit Wall strategy plans now persist against an
 event and can be shared with a team (author-only edit, team read). Remaining:
 iRacing auto-sync (blocked on partner API approval) and the verified-badge
 pipeline. The CSV/JSON import above is the shipped stopgap.
 
-**Phases 4–6** (community, AI layer, launch hardening) are scaffolded where
-cross-cutting: the schema models reports and endorsements, and the AI gateway
-exists with the production security posture.
+**Phases 5–6** (AI layer, launch hardening) are scaffolded where
+cross-cutting: the AI gateway exists with the production security posture.
+Discord guild sync is deferred until OAuth credentials are available.
 
 ### Integration tests
 

@@ -32,10 +32,11 @@ const scopeSchema = z
     teamId: z.string().cuid().optional(),
     penaltyId: z.string().cuid().optional(),
     appealId: z.string().cuid().optional(),
+    reportId: z.string().cuid().optional(),
   })
   .refine(
     (scope) => Object.values(scope).filter(Boolean).length === 1,
-    "Attach media to exactly one of a series, event, team, penalty or appeal.",
+    "Attach media to exactly one of a series, event, team, penalty, appeal or report.",
   );
 
 type Scope = z.infer<typeof scopeSchema>;
@@ -105,6 +106,21 @@ async function assertCanManageScope(
       throw new TRPCError({
         code: "FORBIDDEN",
         message: "Only the competitor who filed the appeal can add evidence.",
+      });
+    }
+    return;
+  }
+  if (scope.reportId) {
+    // A report's gallery belongs to whoever wrote it.
+    const report = await ctx.db.raceReport.findUnique({
+      where: { id: scope.reportId },
+      select: { authorId: true },
+    });
+    if (!report) throw new TRPCError({ code: "NOT_FOUND" });
+    if (report.authorId !== ctx.user.id) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Only the author can manage a report's media.",
       });
     }
     return;
@@ -195,6 +211,7 @@ export const mediaRouter = createTRPCRouter({
           teamId: media.teamId ?? undefined,
           penaltyId: media.penaltyId ?? undefined,
           appealId: media.appealId ?? undefined,
+          reportId: media.reportId ?? undefined,
         });
       }
       await ctx.db.media.delete({ where: { id: media.id } });

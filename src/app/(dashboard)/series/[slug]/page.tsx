@@ -8,6 +8,9 @@ import { EVENT_STATUS_LABELS } from "@/lib/events";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AnnouncementsPanel } from "@/components/announcements-panel";
+import { DocumentsPanel } from "@/components/documents-panel";
+import { MediaPanel } from "@/components/media-panel";
 import { DangerZone } from "@/components/danger-zone";
 import { useRouter } from "next/navigation";
 
@@ -43,6 +46,11 @@ export default function SeriesDashboardPage({
   }
   const data = series.data!;
   const canManage = Boolean(data.myRole);
+  // Publishing regs and notices is an event-running role, not every organizer.
+  const canPublish =
+    data.myRole === "OWNER" ||
+    data.myRole === "ADMIN" ||
+    data.myRole === "RACE_CONTROL";
 
   const totalConfirmed = data.events.reduce(
     (sum, e) => sum + e.confirmedEntries,
@@ -164,6 +172,11 @@ export default function SeriesDashboardPage({
                       View
                     </Button>
                   </Link>
+                  <Link href={`/events/${event.id}/timing`}>
+                    <Button size="sm" variant="outline">
+                      Timing
+                    </Button>
+                  </Link>
                   {canManage && (
                     <Link href={`/events/${event.id}/manage`}>
                       <Button size="sm" variant="primary">
@@ -177,6 +190,24 @@ export default function SeriesDashboardPage({
           ))}
         </div>
       </section>
+
+      <AnnouncementsPanel
+        scope={{ seriesId: data.id }}
+        canManage={canPublish}
+        title="Series announcements"
+      />
+      <DocumentsPanel
+        scope={{ seriesId: data.id }}
+        canManage={canPublish}
+        title="Regulations & documents"
+      />
+      <MediaPanel
+        scope={{ seriesId: data.id }}
+        title="Series media"
+        description="Season coverage and approved imagery."
+        canManage={canPublish}
+        allowOrganizerOnly={canPublish}
+      />
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Organizers</h2>

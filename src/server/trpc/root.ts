@@ -12,6 +12,10 @@ import { eventRouter } from "@/server/trpc/routers/event";
 import { strategyRouter } from "@/server/trpc/routers/strategy";
 import { penaltyRouter } from "@/server/trpc/routers/penalty";
 import { mediaRouter } from "@/server/trpc/routers/media";
+import { sessionRouter } from "@/server/trpc/routers/session";
+import { documentRouter } from "@/server/trpc/routers/document";
+import { reportRouter } from "@/server/trpc/routers/report";
+import { chatRouter } from "@/server/trpc/routers/chat";
 
 export const appRouter = createTRPCRouter({
   user: userRouter,
@@ -27,6 +31,10 @@ export const appRouter = createTRPCRouter({
   strategy: strategyRouter,
   penalty: penaltyRouter,
   media: mediaRouter,
+  session: sessionRouter,
+  document: documentRouter,
+  report: reportRouter,
+  chat: chatRouter,
 });
 
 export type AppRouter = typeof appRouter;

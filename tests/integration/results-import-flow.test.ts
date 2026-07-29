@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PrismaClient, SeriesDiscipline, SeriesRole } from "@prisma/client";
+import { PrismaClient, SeriesDiscipline } from "@prisma/client";
 import { createCaller } from "@/server/trpc/root";
 
 /** Bulk results import end-to-end. Opt in with RUN_DB_TESTS=1. */
