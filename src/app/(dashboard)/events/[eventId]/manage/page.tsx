@@ -19,6 +19,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ResultsPanel, PenaltiesPanel } from "./race-control";
+import { DangerZone } from "@/components/danger-zone";
+import { useRouter } from "next/navigation";
 
 export default function ManageEventPage({
   params,
@@ -26,10 +28,27 @@ export default function ManageEventPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = use(params);
+  const router = useRouter();
   const utils = api.useUtils();
   const event = api.event.byId.useQuery({ eventId });
   const setStatus = api.event.setStatus.useMutation({
     onSuccess: () => utils.event.byId.invalidate({ eventId }),
+  });
+
+  // Deletion is owner/admin only; race control can run an event, not erase it.
+  const canDelete =
+    event.data?.myRole === "OWNER" || event.data?.myRole === "ADMIN";
+  const impact = api.event.deletionImpact.useQuery(
+    { eventId },
+    { enabled: canDelete, retry: false },
+  );
+  const deleteEvent = api.event.delete.useMutation({
+    onSuccess: (result) => {
+      utils.series.bySlug.invalidate();
+      router.push(
+        result.seriesId ? `/series` : "/events",
+      );
+    },
   });
 
   if (event.isLoading) return <p className="text-brand-black/60">Loading…</p>;
@@ -93,6 +112,20 @@ export default function ManageEventPage({
       <ResultsPanel eventId={eventId} />
       <PenaltiesPanel eventId={eventId} />
       <ShiftsPanel eventId={eventId} />
+
+      {canDelete && (
+        <DangerZone
+          title="Delete this event"
+          description="Removes the event and every entry, result, penalty and volunteer shift attached to it. To call off a race while keeping the record, cancel it instead."
+          impact={impact.data}
+          isLoadingImpact={impact.isLoading}
+          isDeleting={deleteEvent.isPending}
+          error={deleteEvent.error?.message ?? null}
+          onDelete={(confirmName) =>
+            deleteEvent.mutate({ eventId, confirmName })
+          }
+        />
+      )}
     </div>
   );
 }

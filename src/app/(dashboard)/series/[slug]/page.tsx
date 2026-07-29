@@ -8,6 +8,8 @@ import { EVENT_STATUS_LABELS } from "@/lib/events";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DangerZone } from "@/components/danger-zone";
+import { useRouter } from "next/navigation";
 
 export default function SeriesDashboardPage({
   params,
@@ -15,9 +17,23 @@ export default function SeriesDashboardPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
+  const router = useRouter();
   const utils = api.useUtils();
   const series = api.series.bySlug.useQuery({ slug });
   const [showEventForm, setShowEventForm] = useState(false);
+
+  const isOwner = series.data?.myRole === "OWNER";
+  const impact = api.series.deletionImpact.useQuery(
+    { seriesId: series.data?.id ?? "" },
+    { enabled: Boolean(series.data?.id) && isOwner, retry: false },
+  );
+  const deleteSeries = api.series.delete.useMutation({
+    onSuccess: () => {
+      utils.series.mine.invalidate();
+      utils.series.list.invalidate();
+      router.push("/series");
+    },
+  });
 
   if (series.isLoading) {
     return <p className="text-brand-black/60">Loading…</p>;
@@ -173,6 +189,20 @@ export default function SeriesDashboardPage({
           ))}
         </div>
       </section>
+
+      {isOwner && (
+        <DangerZone
+          title="Delete this series"
+          description="Removes the series, its whole calendar and every entry, result and penalty under it. This cannot be undone."
+          impact={impact.data}
+          isLoadingImpact={impact.isLoading}
+          isDeleting={deleteSeries.isPending}
+          error={deleteSeries.error?.message ?? null}
+          onDelete={(confirmName) =>
+            deleteSeries.mutate({ seriesId: data.id, confirmName })
+          }
+        />
+      )}
     </div>
   );
 }

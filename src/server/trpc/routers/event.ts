@@ -19,6 +19,7 @@ import {
   assertSeriesRole,
   eventOrganizerIds,
   getSeriesRole,
+  SERIES_ADMIN_ROLES,
   SERIES_EVENT_ROLES,
   SERIES_VOLUNTEER_ROLES,
 } from "@/server/services/series-auth";
@@ -247,6 +248,113 @@ export const eventRouter = createTRPCRouter({
         );
       }
       return updated;
+    }),
+
+  /** What deleting this event would destroy. */
+  deletionImpact: protectedProcedure
+    .input(z.object({ eventId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      await assertEventOrganizer(
+        ctx.db,
+        input.eventId,
+        ctx.user.id,
+        SERIES_ADMIN_ROLES,
+      );
+      const event = await ctx.db.raceEvent.findUnique({
+        where: { id: input.eventId },
+        select: { name: true },
+      });
+      if (!event) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [registrations, results, penalties, volunteerShifts, media] =
+        await Promise.all([
+          ctx.db.eventRegistration.count({ where: { eventId: input.eventId } }),
+          ctx.db.eventResult.count({ where: { eventId: input.eventId } }),
+          ctx.db.penalty.count({ where: { eventId: input.eventId } }),
+          ctx.db.volunteerShift.count({ where: { eventId: input.eventId } }),
+          ctx.db.media.count({ where: { eventId: input.eventId } }),
+        ]);
+      return {
+        name: event.name,
+        registrations,
+        results,
+        penalties,
+        volunteerShifts,
+        media,
+      };
+    }),
+
+  /**
+   * Permanently delete an event and its entries, results, penalties,
+   * volunteer shifts and media. Restricted to series owners/admins — race
+   * control can run an event but not erase it — and guarded by retyping the
+   * event name. Cancelling (setStatus) is the reversible alternative.
+   */
+  delete: protectedProcedure
+    .input(
+      z.object({
+        eventId: z.string().cuid(),
+        confirmName: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertEventOrganizer(
+        ctx.db,
+        input.eventId,
+        ctx.user.id,
+        SERIES_ADMIN_ROLES,
+      );
+      const event = await ctx.db.raceEvent.findUnique({
+        where: { id: input.eventId },
+        select: { id: true, name: true, seriesId: true },
+      });
+      if (!event) throw new TRPCError({ code: "NOT_FOUND" });
+      if (input.confirmName !== event.name) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "The name you typed does not match this event.",
+        });
+      }
+
+      const affected = await ctx.db.eventRegistration.findMany({
+        where: {
+          eventId: input.eventId,
+          status: {
+            in: [
+              RegistrationStatus.PENDING,
+              RegistrationStatus.CONFIRMED,
+              RegistrationStatus.WAITLISTED,
+            ],
+          },
+        },
+        select: { submittedById: true },
+      });
+      const volunteers = await ctx.db.volunteerSignup.findMany({
+        where: {
+          shift: { eventId: input.eventId },
+          status: { not: VolunteerSignupStatus.CANCELED },
+        },
+        select: { userId: true },
+      });
+
+      await ctx.db.raceEvent.delete({ where: { id: input.eventId } });
+
+      const recipients = new Set<string>([
+        ...affected.map((r) => r.submittedById),
+        ...volunteers.map((v) => v.userId),
+      ]);
+      recipients.delete(ctx.user.id);
+      await Promise.all(
+        [...recipients].map((userId) =>
+          notify(ctx.db, {
+            userId,
+            type: NotificationType.SYSTEM,
+            title: `Event deleted: ${event.name}`,
+            body: "Your entry or volunteer shift has been removed.",
+          }),
+        ),
+      );
+      return { deleted: true, name: event.name, seriesId: event.seriesId };
     }),
 
   // -------------------------------------------------------------------------

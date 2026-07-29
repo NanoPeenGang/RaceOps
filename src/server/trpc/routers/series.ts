@@ -2,11 +2,13 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
   EventStatus,
+  NotificationType,
   RegistrationStatus,
   SeriesDiscipline,
   SeriesRole,
   VolunteerSignupStatus,
 } from "@prisma/client";
+import { notify } from "@/server/services/notifications";
 import {
   createTRPCRouter,
   protectedProcedure,
@@ -303,6 +305,129 @@ export const seriesRouter = createTRPCRouter({
       );
       const { seriesId, ...data } = input;
       return ctx.db.series.update({ where: { id: seriesId }, data });
+    }),
+
+  /**
+   * What deleting this series would destroy. Shown before the irreversible
+   * action so an organizer can see the blast radius.
+   */
+  deletionImpact: protectedProcedure
+    .input(z.object({ seriesId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      await assertSeriesRole(ctx.db, input.seriesId, ctx.user.id, [
+        SeriesRole.OWNER,
+      ]);
+      const series = await ctx.db.series.findUnique({
+        where: { id: input.seriesId },
+        select: { name: true },
+      });
+      if (!series) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const eventIds = (
+        await ctx.db.raceEvent.findMany({
+          where: { seriesId: input.seriesId },
+          select: { id: true },
+        })
+      ).map((e) => e.id);
+
+      const [registrations, results, penalties, volunteerShifts, media] =
+        await Promise.all([
+          ctx.db.eventRegistration.count({
+            where: { eventId: { in: eventIds } },
+          }),
+          ctx.db.eventResult.count({ where: { eventId: { in: eventIds } } }),
+          ctx.db.penalty.count({ where: { eventId: { in: eventIds } } }),
+          ctx.db.volunteerShift.count({ where: { eventId: { in: eventIds } } }),
+          ctx.db.media.count({
+            where: {
+              OR: [
+                { seriesId: input.seriesId },
+                { eventId: { in: eventIds } },
+              ],
+            },
+          }),
+        ]);
+
+      return {
+        name: series.name,
+        events: eventIds.length,
+        registrations,
+        results,
+        penalties,
+        volunteerShifts,
+        media,
+      };
+    }),
+
+  /**
+   * Permanently delete a series and everything under it. Owner-only and
+   * guarded by retyping the series name.
+   *
+   * Events are removed explicitly rather than left to the database: the
+   * RaceEvent -> Series relation is SET NULL, so a bare series delete would
+   * orphan its events, and an event with no series has no organizer chain —
+   * nobody could manage or remove it afterwards.
+   */
+  delete: protectedProcedure
+    .input(
+      z.object({
+        seriesId: z.string().cuid(),
+        /** Must match the series name exactly. */
+        confirmName: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertSeriesRole(ctx.db, input.seriesId, ctx.user.id, [
+        SeriesRole.OWNER,
+      ]);
+      const series = await ctx.db.series.findUnique({
+        where: { id: input.seriesId },
+        include: { organizers: { select: { userId: true } } },
+      });
+      if (!series) throw new TRPCError({ code: "NOT_FOUND" });
+      if (input.confirmName !== series.name) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "The name you typed does not match this series.",
+        });
+      }
+
+      // Tell entrants before their events disappear.
+      const affected = await ctx.db.eventRegistration.findMany({
+        where: {
+          event: { seriesId: input.seriesId },
+          status: {
+            in: [
+              RegistrationStatus.PENDING,
+              RegistrationStatus.CONFIRMED,
+              RegistrationStatus.WAITLISTED,
+            ],
+          },
+        },
+        select: { submittedById: true },
+      });
+
+      await ctx.db.$transaction([
+        ctx.db.raceEvent.deleteMany({ where: { seriesId: input.seriesId } }),
+        ctx.db.series.delete({ where: { id: input.seriesId } }),
+      ]);
+
+      const recipients = new Set<string>([
+        ...affected.map((r) => r.submittedById),
+        ...series.organizers.map((o) => o.userId),
+      ]);
+      recipients.delete(ctx.user.id);
+      await Promise.all(
+        [...recipients].map((userId) =>
+          notify(ctx.db, {
+            userId,
+            type: NotificationType.SYSTEM,
+            title: `Series deleted: ${series.name}`,
+            body: "All of its events and entries have been removed.",
+          }),
+        ),
+      );
+      return { deleted: true, name: series.name };
     }),
 
   /** Add or change an organizer's role. */
