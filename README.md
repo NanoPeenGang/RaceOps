@@ -148,10 +148,18 @@ calendar.
 > attach the delivered URL. Direct browser upload lands once object-storage
 > credentials are configured.
 
+**Bulk results import (done):** organizers paste or upload a CSV/TSV or JSON
+export from their timing system instead of typing each classification.
+Entries are matched on car number, falling back to competitor name; the
+import is previewed as a dry run first, and ambiguous or duplicated matches
+block the write rather than risk classifying the wrong competitor. Re-running
+an import updates existing results, so corrections are a re-upload. Imported
+results feed the championship standings immediately.
+
 **Phase 3 (in progress):** Pit Wall strategy plans now persist against an
 event and can be shared with a team (author-only edit, team read). Remaining:
-iRacing auto-sync (blocked on partner API approval — CSV/JSON import is the
-planned stopgap) and the verified-badge pipeline.
+iRacing auto-sync (blocked on partner API approval) and the verified-badge
+pipeline. The CSV/JSON import above is the shipped stopgap.
 
 **Phases 4–6** (community, AI layer, launch hardening) are scaffolded where
 cross-cutting: the schema models reports and endorsements, and the AI gateway

@@ -25,6 +25,11 @@ import {
 } from "@/server/services/series-auth";
 import { notify } from "@/server/services/notifications";
 import {
+  matchResultRows,
+  parseResultsImport,
+  type MatchableEntry,
+} from "@/lib/results-import";
+import {
   canOrganizerSetRegistrationStatus,
   canTransitionEvent,
   hasCapacityForConfirm,
@@ -678,6 +683,103 @@ export const eventRouter = createTRPCRouter({
       });
     }),
 
+  /**
+   * Dry-run a bulk results import: parse, validate and match rows to entries
+   * without writing anything, so the organizer can see exactly what would
+   * change before committing.
+   */
+  previewResultsImport: protectedProcedure
+    .input(
+      z.object({
+        eventId: z.string().cuid(),
+        payload: z.string().min(1).max(1_000_000),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      await assertEventOrganizer(
+        ctx.db,
+        input.eventId,
+        ctx.user.id,
+        SERIES_EVENT_ROLES,
+      );
+      return buildImportPlan(ctx.db, input.eventId, input.payload);
+    }),
+
+  /** Apply a bulk results import. Re-parses server-side; never trusts a
+   *  client-supplied plan. */
+  importResults: protectedProcedure
+    .input(
+      z.object({
+        eventId: z.string().cuid(),
+        payload: z.string().min(1).max(1_000_000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertEventOrganizer(
+        ctx.db,
+        input.eventId,
+        ctx.user.id,
+        SERIES_EVENT_ROLES,
+      );
+      const plan = await buildImportPlan(ctx.db, input.eventId, input.payload);
+
+      // Conflicts are ambiguous or duplicated matches — importing anyway
+      // could classify the wrong competitor.
+      if (plan.conflicts.length > 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Resolve ${plan.conflicts.length} conflict(s) before importing.`,
+        });
+      }
+      if (plan.matched.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No rows matched an entry in this event.",
+        });
+      }
+
+      // One fastest lap per event: clear existing flags when the import sets one.
+      const setsFastestLap = plan.matched.some((m) => m.fastestLap);
+
+      await ctx.db.$transaction([
+        ...(setsFastestLap
+          ? [
+              ctx.db.eventResult.updateMany({
+                where: { eventId: input.eventId, fastestLap: true },
+                data: { fastestLap: false },
+              }),
+            ]
+          : []),
+        ...plan.matched.map((row) =>
+          ctx.db.eventResult.upsert({
+            where: { registrationId: row.registrationId },
+            create: {
+              registrationId: row.registrationId,
+              eventId: input.eventId,
+              finishPosition: row.finishPosition,
+              status: row.status,
+              lapsCompleted: row.lapsCompleted,
+              fastestLap: row.fastestLap,
+              pointsOverride: row.pointsOverride,
+            },
+            update: {
+              finishPosition: row.finishPosition,
+              status: row.status,
+              lapsCompleted: row.lapsCompleted,
+              fastestLap: row.fastestLap,
+              pointsOverride: row.pointsOverride,
+            },
+          }),
+        ),
+      ]);
+
+      return {
+        imported: plan.matched.length,
+        skipped: plan.unmatched.length,
+        issues: plan.issues.length,
+      };
+    }),
+
   /** Events the caller has entered (or entered a team into). */
   myRegistrations: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db.eventRegistration.findMany({
@@ -914,4 +1016,60 @@ async function promoteVolunteerWaitlist(
     title: `Volunteer slot open — ${shift.title} (${shift.event.name})`,
     linkUrl: `/events/${shift.event.id}`,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Bulk results import
+// ---------------------------------------------------------------------------
+
+/**
+ * Parses an import payload and resolves it against the event's confirmed
+ * entries. Shared by the preview query and the mutation so what the organizer
+ * approves is exactly what gets written.
+ */
+async function buildImportPlan(db: Db, eventId: string, payload: string) {
+  const registrations = await db.eventRegistration.findMany({
+    where: { eventId, status: RegistrationStatus.CONFIRMED },
+    select: {
+      id: true,
+      carNumber: true,
+      team: { select: { name: true } },
+      entrantUser: { select: { profile: { select: { displayName: true } } } },
+    },
+  });
+
+  const entries: MatchableEntry[] = registrations.map((registration) => ({
+    registrationId: registration.id,
+    carNumber: registration.carNumber,
+    competitorLabel:
+      registration.team?.name ??
+      registration.entrantUser?.profile?.displayName ??
+      "",
+  }));
+
+  const parsed = parseResultsImport(payload);
+  const match = matchResultRows(parsed.rows, entries);
+
+  return {
+    issues: parsed.issues,
+    conflicts: match.conflicts,
+    unmatched: match.unmatched.map((row) => ({
+      rowNumber: row.rowNumber,
+      label: row.carNumber
+        ? `#${row.carNumber}`
+        : (row.competitor ?? `row ${row.rowNumber}`),
+    })),
+    matched: match.matched.map((m) => ({
+      registrationId: m.registrationId,
+      competitorLabel: m.competitorLabel,
+      matchedOn: m.matchedOn,
+      rowNumber: m.row.rowNumber,
+      finishPosition: m.row.position,
+      status: m.row.status,
+      lapsCompleted: m.row.laps ?? 0,
+      bestLapMs: m.row.bestLapMs,
+      fastestLap: m.row.fastestLap,
+      pointsOverride: m.row.pointsOverride,
+    })),
+  };
 }

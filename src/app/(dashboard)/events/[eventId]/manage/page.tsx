@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ResultsPanel, PenaltiesPanel } from "./race-control";
+import { ResultsImportPanel } from "./results-import";
 import { DangerZone } from "@/components/danger-zone";
 import { useRouter } from "next/navigation";
 
@@ -110,6 +111,7 @@ export default function ManageEventPage({
 
       <RegistrationsPanel eventId={eventId} capacity={data.entryCapacity} />
       <ResultsPanel eventId={eventId} />
+      <ResultsImportPanel eventId={eventId} />
       <PenaltiesPanel eventId={eventId} />
       <ShiftsPanel eventId={eventId} />
 
