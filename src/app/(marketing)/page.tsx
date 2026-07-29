@@ -20,8 +20,8 @@ const PILLARS = [
 export default function LandingPage() {
   return (
     <main>
-      <section className="mx-auto max-w-6xl px-4 py-24 text-center">
-        <h1 className="mx-auto max-w-3xl text-5xl font-bold tracking-tight text-brand-black">
+      <section className="mx-auto max-w-6xl px-4 py-16 text-center sm:py-24">
+        <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight text-brand-black sm:text-5xl">
           Where sim racing meets{" "}
           <span className="text-brand-red">real motorsport careers</span>
         </h1>
@@ -30,7 +30,7 @@ export default function LandingPage() {
           one networking, opportunity, and strategy platform — with a
           sim-to-real credibility pipeline no one else offers.
         </p>
-        <div className="mt-10 flex justify-center gap-4">
+        <div className="mt-10 flex flex-wrap justify-center gap-4">
           <Link href="/sign-up">
             <Button variant="primary" size="lg">
               Build your profile

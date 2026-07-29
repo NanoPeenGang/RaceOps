@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Header } from "@/components/header";
 import { TRPCProvider } from "@/lib/trpc/provider";
@@ -15,6 +15,13 @@ export const metadata: Metadata = {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Tints the mobile browser chrome to the app background.
+  themeColor: "#FAFAFA",
 };
 
 export default function RootLayout({

@@ -14,7 +14,7 @@ export default function MyPostingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold">My postings</h1>
         <Link href="/opportunities/new">
           <Button variant="primary">Post an opportunity</Button>
@@ -114,7 +114,7 @@ function ApplicationList({ opportunityId }: { opportunityId: string }) {
           {[ApplicationStatus.SUBMITTED, ApplicationStatus.REVIEWING].includes(
             application.status as never,
           ) && (
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               {application.status === ApplicationStatus.SUBMITTED && (
                 <Button
                   size="sm"

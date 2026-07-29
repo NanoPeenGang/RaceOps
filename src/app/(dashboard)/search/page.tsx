@@ -22,13 +22,13 @@ export default function SearchPage() {
       <h1 className="text-3xl font-bold">Discover people</h1>
       <div className="flex flex-wrap gap-3">
         <input
-          className="w-64 rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+          className="w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm sm:w-64"
           placeholder="Search names and bios…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         <select
-          className="rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+          className="min-w-0 flex-1 rounded-md border border-brand-black/20 px-3 py-2 text-sm sm:flex-none"
           value={profileType}
           onChange={(e) => setProfileType(e.target.value as ProfileType | "")}
         >
@@ -40,7 +40,7 @@ export default function SearchPage() {
           ))}
         </select>
         <input
-          className="w-48 rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+          className="min-w-0 flex-1 rounded-md border border-brand-black/20 px-3 py-2 text-sm sm:w-48 sm:flex-none"
           placeholder="Location"
           value={location}
           onChange={(e) => setLocation(e.target.value)}
