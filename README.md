@@ -47,11 +47,14 @@ Environment Variables** (all environments):
 | `ANTHROPIC_API_KEY` | for AI features | Gateway returns 502 without it |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Phase 2 | Webhook endpoint `/api/webhooks/stripe` |
 
-Then run the migrations against the production database once:
-
-```bash
-DATABASE_URL="<prod url>" npx prisma migrate deploy
-```
+**Database:** the easiest path is Vercel → your project → **Storage →
+Create Database → Neon (Postgres)** — linking it injects `DATABASE_URL`
+(and `DATABASE_URL_UNPOOLED`) into the project automatically. Migrations
+run during every Vercel build via the `vercel-build` script
+(`scripts/migrate-deploy.mjs`, idempotent `prisma migrate deploy` over the
+direct connection), so no manual migration step is needed. If you bring your
+own Postgres instead, set `DATABASE_URL` (runtime, pooled is fine) and
+optionally `DIRECT_URL` (migrations).
 
 **If every route returns `500 MIDDLEWARE_INVOCATION_FAILED`**, the Clerk keys
 are missing or invalid — the middleware now responds with an explicit 503
