@@ -108,10 +108,37 @@ marketplace payouts, and a notification system (in-app + optional Resend
 email). Paid gates: posting as a team requires the Recruiter tier; sponsor
 search requires Sponsor Discovery.
 
-**Phases 3–6** (iRacing sync + Pit Wall sharing, community, AI layer, launch
-hardening) are scaffolded where cross-cutting: the Prisma schema already
-models race events, reports, strategy plans, and endorsements; the strategy
-calculators and the AI gateway exist with the production security posture.
+**Race organizer module (done):** run a whole championship from one place.
+Create a **Series** (organizer roster with OWNER / ADMIN / RACE_CONTROL /
+VOLUNTEER_COORDINATOR roles), schedule **events** through a
+draft → published → completed lifecycle, take **team or individual entries**
+with a registration window, entry capacity, unique car numbers and automatic
+waitlisting, and staff **volunteer shifts** (marshal, flag, timing,
+scrutineering, medical, …) with per-shift capacity and its own waitlist.
+Freeing a confirmed slot — an entrant withdrawing, an organizer rejecting —
+automatically promotes the longest-waiting entry and notifies them. The
+series dashboard aggregates entries and volunteer coverage across the
+calendar.
+
+**Phase 3 (in progress):** Pit Wall strategy plans now persist against an
+event and can be shared with a team (author-only edit, team read). Remaining:
+iRacing auto-sync (blocked on partner API approval — CSV/JSON import is the
+planned stopgap) and the verified-badge pipeline.
+
+**Phases 4–6** (community, AI layer, launch hardening) are scaffolded where
+cross-cutting: the schema models reports and endorsements, and the AI gateway
+exists with the production security posture.
+
+### Integration tests
+
+Router-level tests run against a real Postgres and are opt-in, so CI (which
+has no database) stays green:
+
+```bash
+createdb raceops_test
+DATABASE_URL="postgresql://…/raceops_test" npx prisma migrate deploy
+RUN_DB_TESTS=1 DATABASE_URL="postgresql://…/raceops_test" npx vitest run tests/integration
+```
 
 > **iRacing API access requires partner approval — apply in Week 1.** Until
 > approved, sim stats are manual entry (already supported) with CSV import as

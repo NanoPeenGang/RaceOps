@@ -36,7 +36,7 @@ export function Header() {
               className="hidden h-8 w-auto sm:block md:h-9"
             />
           </Link>
-          <nav className="hidden items-center gap-6 md:flex">
+          <nav className="hidden items-center gap-5 lg:flex">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
@@ -64,20 +64,20 @@ export function Header() {
           <Show when="signed-in">
             <Link
               href="/applications"
-              className="hidden text-sm font-medium text-brand-black/70 hover:text-brand-red md:block"
+              className="hidden text-sm font-medium text-brand-black/70 hover:text-brand-red lg:block"
             >
               Applications
             </Link>
             <Link
               href="/billing"
-              className="hidden text-sm font-medium text-brand-black/70 hover:text-brand-red md:block"
+              className="hidden text-sm font-medium text-brand-black/70 hover:text-brand-red lg:block"
             >
               Billing
             </Link>
             <NotificationBell />
             <Link
               href="/profile"
-              className="hidden text-sm font-medium text-brand-black/70 hover:text-brand-red md:block"
+              className="hidden text-sm font-medium text-brand-black/70 hover:text-brand-red lg:block"
             >
               My profile
             </Link>

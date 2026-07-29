@@ -7,6 +7,9 @@ import { searchRouter } from "@/server/trpc/routers/search";
 import { endorsementRouter } from "@/server/trpc/routers/endorsement";
 import { billingRouter } from "@/server/trpc/routers/billing";
 import { notificationRouter } from "@/server/trpc/routers/notification";
+import { seriesRouter } from "@/server/trpc/routers/series";
+import { eventRouter } from "@/server/trpc/routers/event";
+import { strategyRouter } from "@/server/trpc/routers/strategy";
 
 export const appRouter = createTRPCRouter({
   user: userRouter,
@@ -17,6 +20,9 @@ export const appRouter = createTRPCRouter({
   endorsement: endorsementRouter,
   billing: billingRouter,
   notification: notificationRouter,
+  series: seriesRouter,
+  event: eventRouter,
+  strategy: strategyRouter,
 });
 
 export type AppRouter = typeof appRouter;

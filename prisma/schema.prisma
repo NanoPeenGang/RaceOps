@@ -37,18 +37,23 @@ model User {
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 
-  profile              Profile?
-  teamMemberships      TeamMembership[]
-  applications         Application[]
-  sponsorshipProfile   SponsorshipProfile?
-  raceReports          RaceReport[]
-  endorsementsGiven    Endorsement[]       @relation("EndorsementFrom")
-  endorsementsReceived Endorsement[]       @relation("EndorsementTo")
-  opportunitiesPosted  Opportunity[]       @relation("OpportunityPostedByUser")
-  raceEntries          RaceEntry[]
-  media                Media[]
-  subscriptions        Subscription[]
-  notifications        Notification[]
+  profile                Profile?
+  teamMemberships        TeamMembership[]
+  applications           Application[]
+  sponsorshipProfile     SponsorshipProfile?
+  raceReports            RaceReport[]
+  endorsementsGiven      Endorsement[]       @relation("EndorsementFrom")
+  endorsementsReceived   Endorsement[]       @relation("EndorsementTo")
+  opportunitiesPosted    Opportunity[]       @relation("OpportunityPostedByUser")
+  raceEntries            RaceEntry[]
+  media                  Media[]
+  subscriptions          Subscription[]
+  notifications          Notification[]
+  seriesMemberships      SeriesMembership[]
+  registrationsEntered   EventRegistration[] @relation("RegistrationEntrant")
+  registrationsSubmitted EventRegistration[] @relation("RegistrationSubmitter")
+  volunteerSignups       VolunteerSignup[]
+  strategyPlans          StrategyPlan[]
 
   @@index([verificationStatus])
 }
@@ -131,7 +136,9 @@ model Team {
   updatedAt   DateTime @updatedAt
 
   roster        TeamMembership[]
-  opportunities Opportunity[]    @relation("OpportunityPostedByTeam")
+  opportunities Opportunity[]       @relation("OpportunityPostedByTeam")
+  registrations EventRegistration[]
+  strategyPlans StrategyPlan[]
 }
 
 enum TeamRole {
@@ -293,25 +300,191 @@ model Notification {
 // Racing events, content & strategy
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Series & event organization
+// ---------------------------------------------------------------------------
+
+enum SeriesDiscipline {
+  REAL_WORLD
+  SIM
+}
+
+/**
+ * A championship/series run by organizers — the top-level organizer object.
+ */
+model Series {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  slug        String           @unique
+  description String?          @db.Text
+  discipline  SeriesDiscipline
+  // Sanctioning body (real world) or sim platform name.
+  platform    String
+  season      String?
+  logoUrl     String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  organizers SeriesMembership[]
+  events     RaceEvent[]
+}
+
+enum SeriesRole {
+  OWNER
+  ADMIN
+  RACE_CONTROL
+  VOLUNTEER_COORDINATOR
+}
+
+model SeriesMembership {
+  id        String     @id @default(cuid())
+  seriesId  String
+  userId    String
+  role      SeriesRole @default(ADMIN)
+  createdAt DateTime   @default(now())
+
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([seriesId, userId])
+  @@index([userId])
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  COMPLETED
+  CANCELED
+}
+
 model RaceEvent {
-  id        String   @id @default(cuid())
-  name      String
-  series    String
-  date      DateTime
+  id          String      @id @default(cuid())
+  name        String
+  // Free-text series label, kept for events not run through a managed Series.
+  seriesLabel String
+  seriesId    String?
+  date        DateTime
   // Real-world venue or sim platform name ("iRacing", "Le Mans Ultimate", ...)
-  platform  String
+  platform    String
+  venue       String?
+  description String?     @db.Text
+  status      EventStatus @default(DRAFT)
+
+  registrationOpensAt  DateTime?
+  registrationClosesAt DateTime?
+  /// Max confirmed entries; null means unlimited. Overflow is waitlisted.
+  entryCapacity        Int?
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  participants  RaceEntry[]
-  strategyPlans StrategyPlan[]
+  series          Series?             @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  participants    RaceEntry[]
+  strategyPlans   StrategyPlan[]
+  registrations   EventRegistration[]
+  volunteerShifts VolunteerShift[]
 
-  @@index([series, date])
+  @@index([seriesLabel, date])
+  @@index([seriesId, date])
+  @@index([status, date])
+}
+
+enum RegistrationStatus {
+  PENDING
+  CONFIRMED
+  WAITLISTED
+  REJECTED
+  WITHDRAWN
+}
+
+/**
+ * An entry request for an event, from either a team or an individual.
+ * Exactly one of teamId / entrantUserId is set (enforced in the router).
+ */
+model EventRegistration {
+  id            String             @id @default(cuid())
+  eventId       String
+  teamId        String?
+  entrantUserId String?
+  submittedById String
+  carNumber     String?
+  carClass      String?
+  notes         String?            @db.Text
+  status        RegistrationStatus @default(PENDING)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  event       RaceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team        Team?     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  entrantUser User?     @relation("RegistrationEntrant", fields: [entrantUserId], references: [id], onDelete: Cascade)
+  submittedBy User      @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, teamId])
+  @@unique([eventId, entrantUserId])
+  @@unique([eventId, carNumber])
+  @@index([eventId, status])
+  @@index([submittedById])
+}
+
+enum VolunteerRoleType {
+  MARSHAL
+  FLAG
+  TIMING
+  SCRUTINEER
+  MEDICAL
+  GRID
+  PIT_LANE
+  MEDIA
+  OTHER
+}
+
+model VolunteerShift {
+  id       String            @id @default(cuid())
+  eventId  String
+  role     VolunteerRoleType
+  title    String
+  startsAt DateTime
+  endsAt   DateTime
+  /// Number of volunteers needed; overflow signups are waitlisted.
+  capacity Int
+  notes    String?           @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event   RaceEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  signups VolunteerSignup[]
+
+  @@index([eventId, startsAt])
+}
+
+enum VolunteerSignupStatus {
+  SIGNED_UP
+  WAITLISTED
+  CONFIRMED
+  CANCELED
+}
+
+model VolunteerSignup {
+  id        String                @id @default(cuid())
+  shiftId   String
+  userId    String
+  status    VolunteerSignupStatus @default(SIGNED_UP)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  shift VolunteerShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([shiftId, userId])
+  @@index([userId])
+  @@index([shiftId, status])
 }
 
 model RaceEntry {
-  id      String  @id @default(cuid())
-  eventId String
-  userId  String
+  id       String  @id @default(cuid())
+  eventId  String
+  userId   String
   carClass String?
   result   Json?
 
@@ -339,8 +512,13 @@ model RaceReport {
 }
 
 model StrategyPlan {
-  id             String   @id @default(cuid())
-  eventId        String
+  id      String  @id @default(cuid())
+  eventId String
+  /// Author — always set; plans are private to the author unless shared.
+  ownerId String
+  /// When set, every active member of this team can read the plan.
+  teamId  String?
+
   name           String
   stintPlan      Json?
   fuelStrategy   Json?
@@ -349,8 +527,12 @@ model StrategyPlan {
   updatedAt      DateTime @updatedAt
 
   event RaceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  owner User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  team  Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
   @@index([eventId])
+  @@index([ownerId])
+  @@index([teamId])
 }
 
 // ---------------------------------------------------------------------------
