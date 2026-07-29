@@ -10,6 +10,8 @@ import { notificationRouter } from "@/server/trpc/routers/notification";
 import { seriesRouter } from "@/server/trpc/routers/series";
 import { eventRouter } from "@/server/trpc/routers/event";
 import { strategyRouter } from "@/server/trpc/routers/strategy";
+import { penaltyRouter } from "@/server/trpc/routers/penalty";
+import { mediaRouter } from "@/server/trpc/routers/media";
 
 export const appRouter = createTRPCRouter({
   user: userRouter,
@@ -23,6 +25,8 @@ export const appRouter = createTRPCRouter({
   series: seriesRouter,
   event: eventRouter,
   strategy: strategyRouter,
+  penalty: penaltyRouter,
+  media: mediaRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -54,6 +54,9 @@ model User {
   registrationsSubmitted EventRegistration[] @relation("RegistrationSubmitter")
   volunteerSignups       VolunteerSignup[]
   strategyPlans          StrategyPlan[]
+  penaltiesIssued        Penalty[]           @relation("PenaltyIssuer")
+  appealsFiled           PenaltyAppeal[]     @relation("AppealFiler")
+  appealsDecided         PenaltyAppeal[]     @relation("AppealDecider")
 
   @@index([verificationStatus])
 }
@@ -107,19 +110,45 @@ model IndustryExperience {
   @@index([profileId])
 }
 
-model Media {
-  id        String   @id @default(cuid())
-  ownerId   String
-  url       String
-  // e.g. "image", "video", "telemetry"
-  kind      String
-  title     String?
-  createdAt DateTime @default(now())
+enum MediaVisibility {
+  PUBLIC
+  ORGANIZERS_ONLY
+}
 
-  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+/**
+ * Media is scoped by optional attachment points: post-race coverage hangs off
+ * a series/event/team, while penalty and appeal evidence hangs off those.
+ */
+model Media {
+  id         String          @id @default(cuid())
+  ownerId    String
+  url        String
+  // e.g. "image", "video", "telemetry"
+  kind       String
+  title      String?
+  visibility MediaVisibility @default(PUBLIC)
+  createdAt  DateTime        @default(now())
+
+  seriesId  String?
+  eventId   String?
+  teamId    String?
+  penaltyId String?
+  appealId  String?
+
+  owner       User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   raceReports RaceReport[]
+  series      Series?        @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  event       RaceEvent?     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team        Team?          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  penalty     Penalty?       @relation(fields: [penaltyId], references: [id], onDelete: Cascade)
+  appeal      PenaltyAppeal? @relation(fields: [appealId], references: [id], onDelete: Cascade)
 
   @@index([ownerId])
+  @@index([seriesId])
+  @@index([eventId])
+  @@index([teamId])
+  @@index([penaltyId])
+  @@index([appealId])
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +168,7 @@ model Team {
   opportunities Opportunity[]       @relation("OpportunityPostedByTeam")
   registrations EventRegistration[]
   strategyPlans StrategyPlan[]
+  media         Media[]
 }
 
 enum TeamRole {
@@ -313,26 +343,32 @@ enum SeriesDiscipline {
  * A championship/series run by organizers — the top-level organizer object.
  */
 model Series {
-  id          String           @id @default(cuid())
-  name        String           @unique
-  slug        String           @unique
-  description String?          @db.Text
-  discipline  SeriesDiscipline
+  id               String           @id @default(cuid())
+  name             String           @unique
+  slug             String           @unique
+  description      String?          @db.Text
+  discipline       SeriesDiscipline
   // Sanctioning body (real world) or sim platform name.
-  platform    String
-  season      String?
-  logoUrl     String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  platform         String
+  season           String?
+  logoUrl          String?
+  /// Position -> points map, e.g. {"1": 25, "2": 18}. Null uses the default.
+  pointsScheme     Json?
+  /// Bonus points for the fastest lap, when the series awards one.
+  fastestLapPoints Int?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   organizers SeriesMembership[]
   events     RaceEvent[]
+  media      Media[]
 }
 
 enum SeriesRole {
   OWNER
   ADMIN
   RACE_CONTROL
+  STEWARD
   VOLUNTEER_COORDINATOR
 }
 
@@ -383,6 +419,9 @@ model RaceEvent {
   strategyPlans   StrategyPlan[]
   registrations   EventRegistration[]
   volunteerShifts VolunteerShift[]
+  results         EventResult[]
+  penalties       Penalty[]
+  media           Media[]
 
   @@index([seriesLabel, date])
   @@index([seriesId, date])
@@ -414,16 +453,135 @@ model EventRegistration {
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
-  event       RaceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  team        Team?     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  entrantUser User?     @relation("RegistrationEntrant", fields: [entrantUserId], references: [id], onDelete: Cascade)
-  submittedBy User      @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+  event       RaceEvent    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team        Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  entrantUser User?        @relation("RegistrationEntrant", fields: [entrantUserId], references: [id], onDelete: Cascade)
+  submittedBy User         @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+  result      EventResult?
+  penalties   Penalty[]
 
   @@unique([eventId, teamId])
   @@unique([eventId, entrantUserId])
   @@unique([eventId, carNumber])
   @@index([eventId, status])
   @@index([submittedById])
+}
+
+enum ResultStatus {
+  FINISHED
+  DNF
+  DNS
+  DSQ
+}
+
+/**
+ * Classified finish for one entry. Drives series standings.
+ */
+model EventResult {
+  id             String       @id @default(cuid())
+  eventId        String
+  registrationId String       @unique
+  finishPosition Int?
+  status         ResultStatus @default(FINISHED)
+  lapsCompleted  Int?
+  fastestLap     Boolean      @default(false)
+  /// Manual override; when null, points come from the series points scheme.
+  pointsOverride Int?
+  notes          String?      @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  event        RaceEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+enum PenaltyType {
+  TIME_PENALTY
+  DRIVE_THROUGH
+  STOP_GO
+  GRID_DROP
+  POINTS_DEDUCTION
+  DISQUALIFICATION
+  WARNING
+  FINE
+}
+
+enum PenaltyStatus {
+  ISSUED
+  UNDER_APPEAL
+  UPHELD
+  REDUCED
+  OVERTURNED
+}
+
+/**
+ * A penalty issued by race control against an entry. Public by design:
+ * penalties surface on the competitor's series profile.
+ */
+model Penalty {
+  id             String        @id @default(cuid())
+  eventId        String
+  registrationId String
+  issuedById     String
+  type           PenaltyType
+  status         PenaltyStatus @default(ISSUED)
+  summary        String
+  details        String?       @db.Text
+  /// Regulation or article the decision cites.
+  regulation     String?
+  lapNumber      Int?
+
+  // Magnitudes — only the field matching `type` is meaningful.
+  timeSeconds    Int?
+  gridPlaces     Int?
+  /// Championship points removed; feeds standings while the penalty stands.
+  pointsDeducted Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event        RaceEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  issuedBy     User              @relation("PenaltyIssuer", fields: [issuedById], references: [id], onDelete: Cascade)
+  appeal       PenaltyAppeal?
+  media        Media[]
+
+  @@index([eventId])
+  @@index([registrationId])
+  @@index([status])
+}
+
+enum AppealStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  UPHELD
+  REJECTED
+}
+
+/**
+ * A competitor's challenge to a penalty. One appeal per penalty.
+ */
+model PenaltyAppeal {
+  id          String       @id @default(cuid())
+  penaltyId   String       @unique
+  filedById   String
+  statement   String       @db.Text
+  status      AppealStatus @default(SUBMITTED)
+  decision    String?      @db.Text
+  decidedById String?
+  decidedAt   DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  penalty   Penalty @relation(fields: [penaltyId], references: [id], onDelete: Cascade)
+  filedBy   User    @relation("AppealFiler", fields: [filedById], references: [id], onDelete: Cascade)
+  decidedBy User?   @relation("AppealDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  media     Media[]
+
+  @@index([filedById])
+  @@index([status])
 }
 
 enum VolunteerRoleType {

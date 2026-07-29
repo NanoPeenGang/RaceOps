@@ -120,6 +120,34 @@ automatically promotes the longest-waiting entry and notifies them. The
 series dashboard aggregates entries and volunteer coverage across the
 calendar.
 
+**Championship, stewarding & media (done):**
+
+- **Standings** — a points leaderboard per series, scored from completed
+  rounds with a configurable points scheme (FIA-style top-10 by default) plus
+  an optional fastest-lap bonus. Ties break on wins, then podiums, then best
+  finish.
+- **Penalties** — race control and stewards log decisions against an entry
+  (time, drive-through, stop & go, grid drop, points deduction, DSQ, warning,
+  fine) with the regulation cited and the lap number. Points deductions flow
+  straight into the standings.
+- **Appeals** — the competitor named in the entry (or their team's
+  owner/manager) files an appeal, which moves the penalty to *under appeal*.
+  Stewards rule: rejecting upholds the penalty, upholding either overturns it
+  or reduces it to a lesser sanction. Overturning restores the championship
+  points automatically. `RACE_CONTROL` is deliberately excluded from the
+  appeal panel so the officials who issue penalties are not the ones who hear
+  the challenge.
+- **Public record** — every penalty, its appeal and the steward's reasoning
+  appear on the competitor's series profile and the event's penalty page.
+- **Media** — attach images, video, telemetry or documents to a series,
+  event, team, penalty (evidence) or appeal. Penalty evidence is race
+  control's to manage; appeal evidence belongs to the competitor who filed.
+  Items can be marked organizers-only to keep them off the public record.
+
+> Media is registered by URL — upload to Cloudflare Images / R2 / S3 and
+> attach the delivered URL. Direct browser upload lands once object-storage
+> credentials are configured.
+
 **Phase 3 (in progress):** Pit Wall strategy plans now persist against an
 event and can be shared with a team (author-only edit, team read). Remaining:
 iRacing auto-sync (blocked on partner API approval — CSV/JSON import is the

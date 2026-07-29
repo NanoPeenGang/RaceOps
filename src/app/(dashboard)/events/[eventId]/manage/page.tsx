@@ -18,6 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ResultsPanel, PenaltiesPanel } from "./race-control";
 
 export default function ManageEventPage({
   params,
@@ -89,6 +90,8 @@ export default function ManageEventPage({
       )}
 
       <RegistrationsPanel eventId={eventId} capacity={data.entryCapacity} />
+      <ResultsPanel eventId={eventId} />
+      <PenaltiesPanel eventId={eventId} />
       <ShiftsPanel eventId={eventId} />
     </div>
   );

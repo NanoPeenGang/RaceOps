@@ -4,6 +4,7 @@ import {
   EventStatus,
   NotificationType,
   RegistrationStatus,
+  ResultStatus,
   TeamRole,
   VolunteerRoleType,
   VolunteerSignupStatus,
@@ -480,6 +481,93 @@ export const eventRouter = createTRPCRouter({
         linkUrl: `/events/${registration.eventId}`,
       });
       return updated;
+    }),
+
+  // -------------------------------------------------------------------------
+  // Results
+  // -------------------------------------------------------------------------
+
+  /** Classified results for an event — public. */
+  resultsFor: publicProcedure
+    .input(z.object({ eventId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.eventResult.findMany({
+        where: { eventId: input.eventId },
+        orderBy: [{ finishPosition: "asc" }, { status: "asc" }],
+        include: {
+          registration: {
+            select: {
+              id: true,
+              carNumber: true,
+              carClass: true,
+              team: { select: { id: true, name: true } },
+              entrantUser: {
+                select: { id: true, profile: { select: { displayName: true } } },
+              },
+            },
+          },
+        },
+      });
+    }),
+
+  /** Record or amend one entry's result (race control). */
+  recordResult: protectedProcedure
+    .input(
+      z.object({
+        registrationId: z.string().cuid(),
+        finishPosition: z.number().int().min(1).max(200).nullish(),
+        status: z.nativeEnum(ResultStatus).default(ResultStatus.FINISHED),
+        lapsCompleted: z.number().int().min(0).max(10000).nullish(),
+        fastestLap: z.boolean().default(false),
+        pointsOverride: z.number().int().min(0).max(1000).nullish(),
+        notes: z.string().max(2000).nullish(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const registration = await ctx.db.eventRegistration.findUnique({
+        where: { id: input.registrationId },
+        select: { eventId: true, status: true },
+      });
+      if (!registration) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertEventOrganizer(
+        ctx.db,
+        registration.eventId,
+        ctx.user.id,
+        SERIES_EVENT_ROLES,
+      );
+      if (registration.status !== RegistrationStatus.CONFIRMED) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Only confirmed entries can be classified.",
+        });
+      }
+      if (
+        input.status === ResultStatus.FINISHED &&
+        (input.finishPosition === null || input.finishPosition === undefined)
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "A finishing position is required for a classified finish.",
+        });
+      }
+
+      const { registrationId, ...data } = input;
+      // One fastest lap per event.
+      if (input.fastestLap) {
+        await ctx.db.eventResult.updateMany({
+          where: { eventId: registration.eventId, fastestLap: true },
+          data: { fastestLap: false },
+        });
+      }
+      return ctx.db.eventResult.upsert({
+        where: { registrationId },
+        create: {
+          registrationId,
+          eventId: registration.eventId,
+          ...data,
+        },
+        update: data,
+      });
     }),
 
   /** Events the caller has entered (or entered a team into). */

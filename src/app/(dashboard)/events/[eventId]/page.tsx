@@ -60,6 +60,11 @@ export default function EventDetailPage({
           >
             {EVENT_STATUS_LABELS[data.status]}
           </Badge>
+          <Link href={`/events/${eventId}/penalties`}>
+            <Button size="sm" variant="outline">
+              Penalties
+            </Button>
+          </Link>
           {data.myRole && (
             <Link href={`/events/${eventId}/manage`}>
               <Button size="sm" variant="primary">

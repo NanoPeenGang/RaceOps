@@ -51,11 +51,16 @@ export default function SeriesDashboardPage({
             {data.discipline === "SIM" ? "Sim racing" : "Real world"}
           </p>
         </div>
-        {canManage && (
-          <Button variant="primary" onClick={() => setShowEventForm((v) => !v)}>
-            {showEventForm ? "Cancel" : "Add event"}
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/series/${slug}/standings`}>
+            <Button variant="outline">Standings</Button>
+          </Link>
+          {canManage && (
+            <Button variant="primary" onClick={() => setShowEventForm((v) => !v)}>
+              {showEventForm ? "Cancel" : "Add event"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {data.description && (

@@ -22,6 +22,22 @@ export const SERIES_VOLUNTEER_ROLES: SeriesRole[] = [
   SeriesRole.VOLUNTEER_COORDINATOR,
 ];
 
+/** Roles allowed to issue penalties — race control and stewards. */
+export const SERIES_PENALTY_ROLES: SeriesRole[] = [
+  SeriesRole.OWNER,
+  SeriesRole.ADMIN,
+  SeriesRole.RACE_CONTROL,
+  SeriesRole.STEWARD,
+];
+
+/** Roles allowed to rule on appeals. Race control is deliberately excluded
+ *  so the officials who issue penalties are not the panel of appeal. */
+export const SERIES_APPEAL_ROLES: SeriesRole[] = [
+  SeriesRole.OWNER,
+  SeriesRole.ADMIN,
+  SeriesRole.STEWARD,
+];
+
 export async function getSeriesRole(
   db: PrismaClient,
   seriesId: string,
