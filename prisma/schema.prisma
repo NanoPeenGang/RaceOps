@@ -27,13 +27,15 @@ enum VerificationStatus {
 }
 
 model User {
-  id                 String             @id @default(cuid())
-  email              String             @unique
-  authProviderId     String             @unique // Clerk user id
-  profileTypes       ProfileType[]
-  verificationStatus VerificationStatus @default(UNVERIFIED)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  id                     String             @id @default(cuid())
+  email                  String             @unique
+  authProviderId         String             @unique // Clerk user id
+  profileTypes           ProfileType[]
+  verificationStatus     VerificationStatus @default(UNVERIFIED)
+  stripeCustomerId       String?            @unique
+  stripeConnectAccountId String?            @unique
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 
   profile              Profile?
   teamMemberships      TeamMembership[]
@@ -45,6 +47,8 @@ model User {
   opportunitiesPosted  Opportunity[]       @relation("OpportunityPostedByUser")
   raceEntries          RaceEntry[]
   media                Media[]
+  subscriptions        Subscription[]
+  notifications        Notification[]
 
   @@index([verificationStatus])
 }
@@ -228,6 +232,61 @@ model SponsorshipProfile {
   updatedAt       DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Billing (Stripe) & notifications
+// ---------------------------------------------------------------------------
+
+enum SubscriptionTier {
+  RECRUITER
+  SPONSOR_DISCOVERY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String
+  tier                 SubscriptionTier
+  status               SubscriptionStatus
+  stripeSubscriptionId String             @unique
+  currentPeriodEnd     DateTime
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tier])
+  @@index([userId, status])
+}
+
+enum NotificationType {
+  APPLICATION_RECEIVED
+  APPLICATION_STATUS_CHANGED
+  OPPORTUNITY_CLOSED
+  SYSTEM
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String?          @db.Text
+  linkUrl   String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
 }
 
 // ---------------------------------------------------------------------------

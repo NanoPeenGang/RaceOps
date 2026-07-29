@@ -7,6 +7,7 @@ import {
   UserButton,
 } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/notification-bell";
 
 const NAV_LINKS = [
   { href: "/search", label: "Discover" },
@@ -57,6 +58,19 @@ export function Header() {
             </SignUpButton>
           </Show>
           <Show when="signed-in">
+            <Link
+              href="/applications"
+              className="hidden text-sm font-medium text-brand-black/70 hover:text-brand-red sm:block"
+            >
+              Applications
+            </Link>
+            <Link
+              href="/billing"
+              className="hidden text-sm font-medium text-brand-black/70 hover:text-brand-red sm:block"
+            >
+              Billing
+            </Link>
+            <NotificationBell />
             <Link
               href="/profile"
               className="text-sm font-medium text-brand-black/70 hover:text-brand-red"

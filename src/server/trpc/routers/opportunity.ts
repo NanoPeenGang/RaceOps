@@ -2,13 +2,39 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
   ApplicationStatus,
+  NotificationType,
   OpportunityStatus,
   OpportunityType,
   Prisma,
+  SubscriptionTier,
   TeamRole,
 } from "@prisma/client";
+import { hasActiveTier } from "@/server/services/billing";
+import { notify } from "@/server/services/notifications";
+import { canPosterTransition, POSTER_SETTABLE_STATUSES } from "@/lib/applications";
+import type { TRPCContext } from "@/server/trpc/trpc";
 
 const POSTING_ROLES: TeamRole[] = [TeamRole.OWNER, TeamRole.MANAGER];
+
+/** True when the user posted the opportunity, or manages the posting team. */
+async function isPosterFor(
+  ctx: TRPCContext,
+  opportunity: { postedByUserId: string | null; postedByTeamId: string | null },
+  userId: string,
+): Promise<boolean> {
+  if (opportunity.postedByUserId === userId) return true;
+  if (!opportunity.postedByTeamId) return false;
+  const membership = await ctx.db.teamMembership.findUnique({
+    where: {
+      teamId_userId: { teamId: opportunity.postedByTeamId, userId },
+    },
+  });
+  return (
+    !!membership &&
+    membership.endDate === null &&
+    POSTING_ROLES.includes(membership.role)
+  );
+}
 import {
   createTRPCRouter,
   protectedProcedure,
@@ -95,6 +121,19 @@ export const opportunityRouter = createTRPCRouter({
             message: "Only team owners/managers can post for a team.",
           });
         }
+        // Paid tier (spec Section 5): team listings require the recruiter tier.
+        const entitled = await hasActiveTier(
+          ctx.db,
+          ctx.user.id,
+          SubscriptionTier.RECRUITER,
+        );
+        if (!entitled) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              "Posting team listings requires an active Recruiter subscription. Upgrade under Billing.",
+          });
+        }
       }
       return ctx.db.opportunity.create({
         data: {
@@ -174,14 +213,153 @@ export const opportunityRouter = createTRPCRouter({
           message: "You have already applied.",
         });
       }
-      return ctx.db.application.create({
+      const application = await ctx.db.application.create({
         data: {
           opportunityId: input.opportunityId,
           applicantId: ctx.user.id,
           coverNote: input.coverNote,
         },
+        include: {
+          opportunity: {
+            select: {
+              title: true,
+              postedByUserId: true,
+              postedByTeamId: true,
+            },
+          },
+        },
+      });
+
+      // Notify whoever reviews this listing: the individual poster, or the
+      // posting team's active owners/managers.
+      const recipientIds = new Set<string>();
+      if (application.opportunity.postedByUserId) {
+        recipientIds.add(application.opportunity.postedByUserId);
+      } else if (application.opportunity.postedByTeamId) {
+        const managers = await ctx.db.teamMembership.findMany({
+          where: {
+            teamId: application.opportunity.postedByTeamId,
+            role: { in: POSTING_ROLES },
+            endDate: null,
+          },
+          select: { userId: true },
+        });
+        for (const manager of managers) recipientIds.add(manager.userId);
+      }
+      recipientIds.delete(ctx.user.id);
+      await Promise.all(
+        [...recipientIds].map((userId) =>
+          notify(ctx.db, {
+            userId,
+            type: NotificationType.APPLICATION_RECEIVED,
+            title: `New application: ${application.opportunity.title}`,
+            body: input.coverNote,
+            linkUrl: "/opportunities/mine",
+          }),
+        ),
+      );
+
+      return application;
+    }),
+
+  /** Applications for a listing — poster/manager only. */
+  applicationsFor: protectedProcedure
+    .input(z.object({ opportunityId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      const opportunity = await ctx.db.opportunity.findUnique({
+        where: { id: input.opportunityId },
+        select: { postedByUserId: true, postedByTeamId: true },
+      });
+      if (!opportunity) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!(await isPosterFor(ctx, opportunity, ctx.user.id))) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      return ctx.db.application.findMany({
+        where: { opportunityId: input.opportunityId },
+        orderBy: { createdAt: "desc" },
+        include: {
+          applicant: {
+            select: {
+              id: true,
+              profileTypes: true,
+              verificationStatus: true,
+              profile: { select: { displayName: true, location: true } },
+            },
+          },
+        },
       });
     }),
+
+  /** Poster moves an application through review; applicant is notified. */
+  setApplicationStatus: protectedProcedure
+    .input(
+      z.object({
+        applicationId: z.string().cuid(),
+        status: z.enum(
+          POSTER_SETTABLE_STATUSES.map((s) => s.toString()) as [
+            string,
+            ...string[],
+          ],
+        ),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const application = await ctx.db.application.findUnique({
+        where: { id: input.applicationId },
+        include: {
+          opportunity: {
+            select: {
+              title: true,
+              postedByUserId: true,
+              postedByTeamId: true,
+            },
+          },
+        },
+      });
+      if (!application) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!(await isPosterFor(ctx, application.opportunity, ctx.user.id))) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const nextStatus = input.status as ApplicationStatus;
+      if (!canPosterTransition(application.status, nextStatus)) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Cannot move an application from ${application.status} to ${nextStatus}.`,
+        });
+      }
+      const updated = await ctx.db.application.update({
+        where: { id: application.id },
+        data: { status: nextStatus },
+      });
+      await notify(ctx.db, {
+        userId: application.applicantId,
+        type: NotificationType.APPLICATION_STATUS_CHANGED,
+        title: `Your application for "${application.opportunity.title}" is now ${nextStatus.toLowerCase()}`,
+        linkUrl: "/applications",
+      });
+      return updated;
+    }),
+
+  /** Listings the caller posted (directly or via teams they manage). */
+  myPostings: protectedProcedure.query(async ({ ctx }) => {
+    const managedTeams = await ctx.db.teamMembership.findMany({
+      where: { userId: ctx.user.id, role: { in: POSTING_ROLES }, endDate: null },
+      select: { teamId: true },
+    });
+    return ctx.db.opportunity.findMany({
+      where: {
+        OR: [
+          { postedByUserId: ctx.user.id },
+          { postedByTeamId: { in: managedTeams.map((m) => m.teamId) } },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        postedByTeam: { select: { name: true } },
+        _count: { select: { applications: true } },
+      },
+    });
+  }),
 
   myApplications: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db.application.findMany({

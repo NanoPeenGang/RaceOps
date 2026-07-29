@@ -24,8 +24,10 @@ export default function RootLayout({
     <html lang="en">
       <body className="min-h-screen antialiased">
         <ClerkProvider>
-          <Header />
-          <TRPCProvider>{children}</TRPCProvider>
+          <TRPCProvider>
+            <Header />
+            {children}
+          </TRPCProvider>
         </ClerkProvider>
       </body>
     </html>

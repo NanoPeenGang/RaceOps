@@ -45,7 +45,10 @@ Environment Variables** (all environments):
 | `CLERK_WEBHOOK_SIGNING_SECRET` | for user sync | Clerk dashboard → Webhooks, endpoint `/api/webhooks/clerk` |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | for rate limiting | No-op without them |
 | `ANTHROPIC_API_KEY` | for AI features | Gateway returns 502 without it |
-| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Phase 2 | Webhook endpoint `/api/webhooks/stripe` |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | for billing | Webhook endpoint `/api/webhooks/stripe` (subscribe: `checkout.session.completed`, `customer.subscription.*`) |
+| `STRIPE_PRICE_RECRUITER` / `STRIPE_PRICE_SPONSOR` | for billing | Recurring price ids from Stripe → Products |
+| `NEXT_PUBLIC_APP_URL` | for billing | Absolute site URL used in Stripe redirects |
+| `RESEND_API_KEY` / `RESEND_FROM` | for email | Notification emails; in-app notifications work without them |
 
 **Database:** the easiest path is Vercel → your project → **Storage →
 Create Database → Neon (Postgres)** — linking it injects `DATABASE_URL`
@@ -94,14 +97,21 @@ src/
 
 ## Build phases
 
-Phase 1 (this codebase): auth + onboarding, unified profiles with manual sim
+**Phase 1 (done):** auth + onboarding, unified profiles with manual sim
 stats, search/discovery with filters, team pages & roster management, CI.
-Phases 2–6 (marketplace/Stripe, iRacing sync + Pit Wall sharing, community,
-AI layer, launch hardening) are scaffolded where cross-cutting: the Prisma
-schema already models opportunities, applications, race events, reports,
-strategy plans, and endorsements; webhook handlers and the AI gateway exist
-with the production security posture (signature verification, auth, rate
-limits).
+
+**Phase 2 (done):** opportunities marketplace — posting (individual or team),
+application flow with poster-side review and status tracking, Stripe
+subscriptions (Recruiter + Sponsor Discovery tiers via Checkout, customer
+portal, webhook-synced state), Stripe Connect Express onboarding for
+marketplace payouts, and a notification system (in-app + optional Resend
+email). Paid gates: posting as a team requires the Recruiter tier; sponsor
+search requires Sponsor Discovery.
+
+**Phases 3–6** (iRacing sync + Pit Wall sharing, community, AI layer, launch
+hardening) are scaffolded where cross-cutting: the Prisma schema already
+models race events, reports, strategy plans, and endorsements; the strategy
+calculators and the AI gateway exist with the production security posture.
 
 > **iRacing API access requires partner approval — apply in Week 1.** Until
 > approved, sim stats are manual entry (already supported) with CSV import as

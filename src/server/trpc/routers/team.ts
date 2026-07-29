@@ -76,6 +76,19 @@ export const teamRouter = createTRPCRouter({
       return { teams, nextCursor };
     }),
 
+  /** Teams the caller can post/manage for (owner or manager). */
+  myManagedTeams: protectedProcedure.query(async ({ ctx }) => {
+    const memberships = await ctx.db.teamMembership.findMany({
+      where: {
+        userId: ctx.user.id,
+        role: { in: MANAGER_ROLES },
+        endDate: null,
+      },
+      include: { team: { select: { id: true, name: true } } },
+    });
+    return memberships.map((m) => m.team);
+  }),
+
   create: protectedProcedure
     .input(
       z.object({

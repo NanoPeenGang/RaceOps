@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { Prisma, ProfileType } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
+import { Prisma, ProfileType, SubscriptionTier } from "@prisma/client";
 import { createTRPCRouter, publicProcedure } from "@/server/trpc/trpc";
+import { hasActiveTier } from "@/server/services/billing";
 
 /**
  * Phase 1 discovery: filterable Postgres search over profiles.
@@ -20,6 +22,31 @@ export const searchRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
+      // Paid tier (spec Section 5): driver-side sponsor discovery is gated
+      // behind the Sponsor Discovery subscription.
+      if (input.profileType === ProfileType.SPONSOR) {
+        const localUser = ctx.clerkUserId
+          ? await ctx.db.user.findUnique({
+              where: { authProviderId: ctx.clerkUserId },
+              select: { id: true },
+            })
+          : null;
+        const entitled = localUser
+          ? await hasActiveTier(
+              ctx.db,
+              localUser.id,
+              SubscriptionTier.SPONSOR_DISCOVERY,
+            )
+          : false;
+        if (!entitled) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              "Sponsor discovery requires the Sponsor Discovery subscription. Upgrade under Billing.",
+          });
+        }
+      }
+
       const where: Prisma.UserWhereInput = {
         profile: { isNot: null },
         ...(input.profileType

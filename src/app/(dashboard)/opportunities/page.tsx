@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { OpportunityType } from "@prisma/client";
 import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +22,21 @@ export default function OpportunitiesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Opportunities</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Opportunities</h1>
+        <div className="flex gap-2">
+          <Link href="/opportunities/mine">
+            <Button variant="outline" size="sm">
+              My postings
+            </Button>
+          </Link>
+          <Link href="/opportunities/new">
+            <Button variant="primary" size="sm">
+              Post
+            </Button>
+          </Link>
+        </div>
+      </div>
       <div className="flex gap-2">
         <FilterChip active={type === ""} onClick={() => setType("")}>
           All
