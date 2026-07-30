@@ -202,6 +202,8 @@ export default async function EventLandingPage({
         </section>
       )}
 
+      <EntryList eventId={eventId} />
+
       <EntryPanels eventId={eventId} />
 
       <AnnouncementsPanel
@@ -223,6 +225,67 @@ export default async function EventLandingPage({
       />
       <PaddockChat scope={{ eventId }} />
     </div>
+  );
+}
+
+/** Public entry list with declared crews — who is driving what. */
+async function EntryList({ eventId }: { eventId: string }) {
+  const entries = await (await serverApi()).lineup.forEvent({ eventId });
+  if (entries.length === 0) return null;
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xl font-semibold">Entry list</h2>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="border-b border-brand-black/10 text-left text-xs uppercase tracking-wide text-brand-black/60">
+            <tr>
+              <th className="py-2 pr-3">No.</th>
+              <th className="py-2 pr-3">Entrant</th>
+              <th className="py-2 pr-3">Class</th>
+              <th className="py-2">Drivers</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((entry) => (
+              <tr
+                key={entry.id}
+                className="border-b border-brand-black/5 last:border-0"
+              >
+                <td className="py-2 pr-3 font-semibold tabular-nums">
+                  {entry.carNumber ?? "—"}
+                </td>
+                <td className="py-2 pr-3">
+                  {entry.team ? (
+                    <Link
+                      href={`/teams/${entry.team.slug}`}
+                      className="hover:text-brand-red"
+                    >
+                      {entry.team.name}
+                    </Link>
+                  ) : (
+                    (entry.entrantUser?.profile?.displayName ?? "Entry")
+                  )}
+                </td>
+                <td className="py-2 pr-3 text-brand-black/60">
+                  {entry.carClass ?? "—"}
+                </td>
+                <td className="py-2 text-brand-black/80">
+                  {entry.lineup.length === 0
+                    ? "—"
+                    : entry.lineup
+                        .map(
+                          (driver) =>
+                            driver.user.profile?.displayName ?? "Unnamed",
+                        )
+                        .join(", ")}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

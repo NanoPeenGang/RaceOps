@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/trpc/client";
 import { EVENT_STATUS_LABELS, REGISTRATION_STATUS_LABELS } from "@/lib/events";
@@ -8,6 +9,7 @@ import { splitSchedule } from "@/lib/team-season";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { LineupPanel } from "@/components/lineup-panel";
 import type { TeamDashboard } from "./types";
 
 /**
@@ -23,6 +25,7 @@ export function SchedulePanel({
   onChanged: () => void;
 }) {
   const canManage = isTeamManager(team.myRole);
+  const [openLineup, setOpenLineup] = useState<string | null>(null);
   const withdraw = api.event.withdrawRegistration.useMutation({
     onSuccess: onChanged,
   });
@@ -91,6 +94,17 @@ export function SchedulePanel({
                       Timing
                     </Button>
                   </Link>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setOpenLineup((current) =>
+                        current === entry.id ? null : entry.id,
+                      )
+                    }
+                  >
+                    {openLineup === entry.id ? "Hide crew" : "Crew"}
+                  </Button>
                   {canManage && entry.status !== "WITHDRAWN" && (
                     <Button
                       size="sm"
@@ -104,6 +118,16 @@ export function SchedulePanel({
                     </Button>
                   )}
                 </div>
+
+                {openLineup === entry.id && (
+                  <div className="w-full border-t border-brand-black/10 pt-3">
+                    <LineupPanel
+                      registrationId={entry.id}
+                      canManage={canManage}
+                      title="Driver line-up"
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))

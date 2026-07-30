@@ -22,6 +22,7 @@ import { ResultsPanel, PenaltiesPanel } from "./race-control";
 import { ResultsImportPanel } from "./results-import";
 import { SchedulePanel } from "./schedule";
 import { TimingConsole } from "./timing-console";
+import { LineupsPanel } from "./lineups";
 import { AnnouncementsPanel } from "@/components/announcements-panel";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { DangerZone } from "@/components/danger-zone";
@@ -129,6 +130,7 @@ export default function ManageEventPage({
       <SchedulePanel eventId={eventId} />
       <TimingConsole eventId={eventId} />
       <RegistrationsPanel eventId={eventId} capacity={data.entryCapacity} />
+      <LineupsPanel eventId={eventId} />
       <ResultsPanel eventId={eventId} />
       <ResultsImportPanel eventId={eventId} />
       <PenaltiesPanel eventId={eventId} />

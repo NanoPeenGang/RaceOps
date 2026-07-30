@@ -118,26 +118,27 @@ model User {
   applications           Application[]
   sponsorshipProfile     SponsorshipProfile?
   raceReports            RaceReport[]
-  endorsementsGiven      Endorsement[]       @relation("EndorsementFrom")
-  endorsementsReceived   Endorsement[]       @relation("EndorsementTo")
-  opportunitiesPosted    Opportunity[]       @relation("OpportunityPostedByUser")
+  endorsementsGiven      Endorsement[]        @relation("EndorsementFrom")
+  endorsementsReceived   Endorsement[]        @relation("EndorsementTo")
+  opportunitiesPosted    Opportunity[]        @relation("OpportunityPostedByUser")
   raceEntries            RaceEntry[]
   media                  Media[]
   subscriptions          Subscription[]
   notifications          Notification[]
   seriesMemberships      SeriesMembership[]
-  registrationsEntered   EventRegistration[] @relation("RegistrationEntrant")
-  registrationsSubmitted EventRegistration[] @relation("RegistrationSubmitter")
+  registrationsEntered   EventRegistration[]  @relation("RegistrationEntrant")
+  registrationsSubmitted EventRegistration[]  @relation("RegistrationSubmitter")
   volunteerSignups       VolunteerSignup[]
   strategyPlans          StrategyPlan[]
-  penaltiesIssued        Penalty[]           @relation("PenaltyIssuer")
-  appealsFiled           PenaltyAppeal[]     @relation("AppealFiler")
-  appealsDecided         PenaltyAppeal[]     @relation("AppealDecider")
+  penaltiesIssued        Penalty[]            @relation("PenaltyIssuer")
+  appealsFiled           PenaltyAppeal[]      @relation("AppealFiler")
+  appealsDecided         PenaltyAppeal[]      @relation("AppealDecider")
   documentsUploaded      RaceDocument[]
   announcements          Announcement[]
   chatMessages           ChatMessage[]
-  sponsorshipsOffered    Sponsorship[]       @relation("SponsorshipSponsor")
-  sponsorshipsCreated    Sponsorship[]       @relation("SponsorshipCreator")
+  lineupEntries          RegistrationDriver[]
+  sponsorshipsOffered    Sponsorship[]        @relation("SponsorshipSponsor")
+  sponsorshipsCreated    Sponsorship[]        @relation("SponsorshipCreator")
 
   @@index([verificationStatus])
 }
@@ -561,6 +562,19 @@ model RaceEvent {
   /// Max confirmed entries; null means unlimited. Overflow is waitlisted.
   entryCapacity        Int?
 
+  // Line-up regulations. All null for a sprint event with a single driver.
+  /// Drivers that must be declared before an entry can be confirmed.
+  minDriversPerEntry       Int?
+  maxDriversPerEntry       Int?
+  /// Longest a single driver may stay in the car, in minutes.
+  maxStintMinutes          Int?
+  /// Shortest countable stint, used to stop a token driver change.
+  minStintMinutes          Int?
+  /// Cap on one driver's total time across the event, in minutes.
+  maxDriveMinutesPerDriver Int?
+  /// Least time each declared driver must complete, in minutes.
+  minDriveMinutesPerDriver Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -608,19 +622,84 @@ model EventRegistration {
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
-  event         RaceEvent     @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  team          Team?         @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  entrantUser   User?         @relation("RegistrationEntrant", fields: [entrantUserId], references: [id], onDelete: Cascade)
-  submittedBy   User          @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+  event         RaceEvent            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team          Team?                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  entrantUser   User?                @relation("RegistrationEntrant", fields: [entrantUserId], references: [id], onDelete: Cascade)
+  submittedBy   User                 @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
   result        EventResult?
   penalties     Penalty[]
   timingEntries TimingEntry[]
+  lineup        RegistrationDriver[]
+  stints        Stint[]
 
   @@unique([eventId, teamId])
   @@unique([eventId, entrantUserId])
   @@unique([eventId, carNumber])
   @@index([eventId, status])
   @@index([submittedById])
+}
+
+// ---------------------------------------------------------------------------
+// Endurance line-ups & drive time
+// ---------------------------------------------------------------------------
+
+enum LineupRole {
+  /// Counts for the drivers' championship when a series awards to one driver.
+  DRIVER_OF_RECORD
+  DRIVER
+  /// Nominated but only drives if needed; does not block drive-time rules.
+  RESERVE
+}
+
+/**
+ * A driver declared on one entry. Endurance racing puts several drivers in a
+ * single car, so the crew is a list rather than the single `entrantUserId`
+ * that suits a sprint entry.
+ */
+model RegistrationDriver {
+  id             String     @id @default(cuid())
+  registrationId String
+  userId         String
+  role           LineupRole @default(DRIVER)
+  /// Driver rating/grade as the series classifies it, e.g. "Bronze", "Am".
+  grade          String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stints       Stint[]
+
+  @@unique([registrationId, userId])
+  @@index([userId])
+}
+
+/**
+ * One driver's time in the car. Logged by the team or race control and used to
+ * check drive-time regulations, which are enforced per driver across a session
+ * rather than per stint alone.
+ */
+model Stint {
+  id             String    @id @default(cuid())
+  registrationId String
+  /// Null once a driver is removed from the line-up; the stint still counts.
+  lineupDriverId String?
+  sessionId      String?
+  startedAt      DateTime
+  endedAt        DateTime?
+  /// Laps completed in this stint, when the team tracks them.
+  laps           Int?
+  notes          String?   @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  registration EventRegistration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  lineupDriver RegistrationDriver? @relation(fields: [lineupDriverId], references: [id], onDelete: SetNull)
+  session      EventSession?       @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([registrationId, startedAt])
+  @@index([lineupDriverId])
+  @@index([sessionId])
 }
 
 // ---------------------------------------------------------------------------
@@ -677,6 +756,7 @@ model EventSession {
 
   event         RaceEvent     @relation(fields: [eventId], references: [id], onDelete: Cascade)
   timingEntries TimingEntry[]
+  stints        Stint[]
 
   @@index([eventId, startsAt])
 }
