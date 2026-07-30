@@ -1,9 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { FlagState, SessionStatus, TimingStatus } from "@prisma/client";
+import {
+  FlagState,
+  SessionStatus,
+  TimingStatus,
+  TrackState,
+  WeatherKind,
+} from "@prisma/client";
 import { api } from "@/lib/trpc/client";
 import { SESSION_TYPE_LABELS } from "@/lib/schedule";
+import {
+  TRACK_STATE_LABELS,
+  WEATHER_LABELS,
+  currentConditions,
+  describeConditions,
+  sessionWasWet,
+} from "@/lib/conditions";
 import {
   FLAG_LABELS,
   FLAG_STYLES,
@@ -162,6 +175,12 @@ function SessionConsole({ sessionId }: { sessionId: string }) {
         </CardContent>
       </Card>
 
+      <ConditionsCard
+        sessionId={sessionId}
+        readings={board.data!.conditions}
+        onChanged={invalidate}
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-brand-black/60">
           {ordered.length} row{ordered.length === 1 ? "" : "s"} on the board
@@ -317,6 +336,206 @@ function TimingRowEditor({
             </Button>
           </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Track and air conditions, logged as readings rather than edited in place.
+ *
+ * A two-hour race that starts dry and ends in standing water is the normal
+ * case; overwriting the first reading with the second loses the fact anyone
+ * reviewing strategy — or contesting a lap record — actually needs.
+ */
+function ConditionsCard({
+  sessionId,
+  readings,
+  onChanged,
+}: {
+  sessionId: string;
+  readings: {
+    id: string;
+    recordedAt: Date;
+    trackState: TrackState;
+    weather: WeatherKind | null;
+    airTempC: number | null;
+    trackTempC: number | null;
+    humidityPct: number | null;
+    windKph: number | null;
+    windDirection: string | null;
+    notes: string | null;
+    recordedBy: { profile: { displayName: string } | null } | null;
+  }[];
+  onChanged: () => void;
+}) {
+  const [trackState, setTrackState] = useState<TrackState>(TrackState.DRY);
+  const [weather, setWeather] = useState<WeatherKind | "">("");
+  const [airTempC, setAirTempC] = useState("");
+  const [trackTempC, setTrackTempC] = useState("");
+  const [humidityPct, setHumidityPct] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const log = api.session.logConditions.useMutation({
+    onSuccess: () => {
+      onChanged();
+      setNotes("");
+    },
+  });
+  const remove = api.session.deleteConditions.useMutation({
+    onSuccess: onChanged,
+  });
+
+  const ordered = [...readings].map((reading) => ({
+    ...reading,
+    recordedAt: new Date(reading.recordedAt),
+  }));
+  const latest = currentConditions(ordered);
+  const wet = sessionWasWet(ordered);
+
+  return (
+    <Card>
+      <CardContent className="space-y-4 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-black/60">
+            Conditions
+          </p>
+          {latest && (
+            <p className="text-sm">
+              {describeConditions(latest)}
+              {wet && (
+                <span className="ml-2 text-xs text-brand-black/60">
+                  wet session — laps excluded from dry records
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="block text-sm font-medium">
+            Track
+            <select
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+              value={trackState}
+              onChange={(e) => setTrackState(e.target.value as TrackState)}
+            >
+              {Object.entries(TRACK_STATE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm font-medium">
+            Weather
+            <select
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+              value={weather}
+              onChange={(e) => setWeather(e.target.value as WeatherKind | "")}
+            >
+              <option value="">Not recorded</option>
+              {Object.entries(WEATHER_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm font-medium">
+            Air °C
+            <input
+              inputMode="decimal"
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+              value={airTempC}
+              onChange={(e) => setAirTempC(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Track °C
+            <input
+              inputMode="decimal"
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+              value={trackTempC}
+              onChange={(e) => setTrackTempC(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Humidity %
+            <input
+              inputMode="numeric"
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+              value={humidityPct}
+              onChange={(e) => setHumidityPct(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm font-medium sm:col-span-2 lg:col-span-3">
+            Note
+            <input
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Rain arriving from turn 8"
+            />
+          </label>
+        </div>
+
+        {log.error && <p className="text-sm text-brand-red">{log.error.message}</p>}
+
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={log.isPending}
+          onClick={() =>
+            log.mutate({
+              sessionId,
+              trackState,
+              weather: weather || undefined,
+              airTempC: airTempC.trim() ? Number(airTempC) : undefined,
+              trackTempC: trackTempC.trim() ? Number(trackTempC) : undefined,
+              humidityPct: humidityPct.trim()
+                ? Number(humidityPct)
+                : undefined,
+              notes: notes.trim() || undefined,
+            })
+          }
+        >
+          {log.isPending ? "Logging…" : "Log reading"}
+        </Button>
+
+        {ordered.length > 0 && (
+          <ul className="space-y-1 border-t border-brand-black/10 pt-3 text-sm">
+            {[...ordered]
+              .sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime())
+              .map((reading) => (
+                <li
+                  key={reading.id}
+                  className="flex flex-wrap items-baseline justify-between gap-2"
+                >
+                  <span>
+                    <span className="tabular-nums text-brand-black/60">
+                      {reading.recordedAt.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>{" "}
+                    {describeConditions(reading)}
+                    {reading.notes ? ` — ${reading.notes}` : ""}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={remove.isPending}
+                    onClick={() =>
+                      remove.mutate({ conditionId: reading.id })
+                    }
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+          </ul>
+        )}
       </CardContent>
     </Card>
   );

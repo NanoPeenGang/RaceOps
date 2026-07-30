@@ -5,6 +5,8 @@ import {
   SessionStatus,
   SessionType,
   TimingStatus,
+  TrackState,
+  WeatherKind,
 } from "@prisma/client";
 import {
   createTRPCRouter,
@@ -16,6 +18,7 @@ import {
   SERIES_EVENT_ROLES,
 } from "@/server/services/series-auth";
 import { parseLapTime } from "@/lib/lap-time";
+import { currentConditions, sessionWasWet } from "@/lib/conditions";
 import { broadcastTimingUpdate } from "@/server/services/realtime";
 
 /**
@@ -178,8 +181,21 @@ export const sessionRouter = createTRPCRouter({
         },
       });
 
+      const conditions = await ctx.db.sessionCondition.findMany({
+        where: { sessionId: input.sessionId },
+        orderBy: { recordedAt: "asc" },
+        include: {
+          recordedBy: {
+            select: { id: true, profile: { select: { displayName: true } } },
+          },
+        },
+      });
+
       return {
         session,
+        conditions,
+        currentConditions: currentConditions(conditions),
+        wet: sessionWasWet(conditions),
         entries: entries.map((entry) => ({
           ...entry,
           competitorLabel:
@@ -188,6 +204,65 @@ export const sessionRouter = createTRPCRouter({
             "Entry",
         })),
       };
+    }),
+
+  /**
+   * Log the conditions. A reading rather than an edit: conditions are a time
+   * series, and a race that starts dry and ends in standing water needs both
+   * facts kept, not the second overwriting the first.
+   */
+  logConditions: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.string().cuid(),
+        trackState: z.nativeEnum(TrackState),
+        weather: z.nativeEnum(WeatherKind).optional(),
+        // Bounds are generous on purpose: winter club events run below zero
+        // and a black track in Bahrain gets well past 50°C.
+        airTempC: z.number().min(-40).max(70).optional(),
+        trackTempC: z.number().min(-40).max(90).optional(),
+        humidityPct: z.number().int().min(0).max(100).optional(),
+        windKph: z.number().min(0).max(300).optional(),
+        windDirection: z.string().max(20).optional(),
+        notes: z.string().max(1000).optional(),
+        /// Backdating a reading someone wrote on paper at the post.
+        recordedAt: z.date().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const session = await ctx.db.eventSession.findUnique({
+        where: { id: input.sessionId },
+        select: { eventId: true },
+      });
+      if (!session) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertEventOrganizer(
+        ctx.db,
+        session.eventId,
+        ctx.user.id,
+        SERIES_EVENT_ROLES,
+      );
+      return ctx.db.sessionCondition.create({
+        data: { ...input, recordedById: ctx.user.id },
+      });
+    }),
+
+  /** Remove a reading that was logged in error. */
+  deleteConditions: protectedProcedure
+    .input(z.object({ conditionId: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const reading = await ctx.db.sessionCondition.findUnique({
+        where: { id: input.conditionId },
+        select: { session: { select: { eventId: true } } },
+      });
+      if (!reading) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertEventOrganizer(
+        ctx.db,
+        reading.session.eventId,
+        ctx.user.id,
+        SERIES_EVENT_ROLES,
+      );
+      await ctx.db.sessionCondition.delete({ where: { id: input.conditionId } });
+      return { deleted: true };
     }),
 
   /**

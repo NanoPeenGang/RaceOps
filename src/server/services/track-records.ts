@@ -1,5 +1,6 @@
 import { EventStatus, SessionStatus } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+import { sessionWasWet } from "@/lib/conditions";
 import { trackRecords } from "@/lib/tracks";
 import type { RecordLap, RecordOptions, TrackRecord } from "@/lib/tracks";
 
@@ -64,6 +65,7 @@ export async function trackRecordsForLayout(
           name: true,
           type: true,
           event: { select: { id: true, name: true, date: true } },
+          conditions: { select: { recordedAt: true, trackState: true } },
         },
       },
       registration: {
@@ -103,8 +105,9 @@ export async function trackRecordsForLayout(
       sessionType: entry.session.type,
       // Non-null by the query filter; Prisma still types it as nullable.
       lapMs: entry.bestLapMs ?? 0,
-      // Populated from the session's logged conditions once a session has any.
-      wet: null,
+      // Null when the session logged no conditions, which is not the same as
+      // dry — laps from before conditions were captured stay admissible.
+      wet: sessionWasWet(entry.session.conditions),
     };
   });
 

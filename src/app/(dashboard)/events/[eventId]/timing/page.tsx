@@ -16,6 +16,7 @@ import {
   lapsDown,
   sortTimingRows,
 } from "@/lib/timing";
+import { describeConditions } from "@/lib/conditions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -94,7 +95,7 @@ function TimingBoard({ sessionId }: { sessionId: string }) {
   if (board.error)
     return <p className="text-sm text-brand-red">{board.error.message}</p>;
 
-  const { session, entries } = board.data!;
+  const { session, entries, currentConditions, wet } = board.data!;
   const ordered = sortTimingRows(entries);
   const leader = ordered[0];
   const fastest = fastestLapOf(ordered);
@@ -110,11 +111,22 @@ function TimingBoard({ sessionId }: { sessionId: string }) {
             {new Date(session.startsAt).toLocaleString()}
           </p>
         </div>
-        <span
-          className={`rounded-md px-3 py-1 text-sm font-semibold ${FLAG_STYLES[session.flagState]}`}
-        >
-          {FLAG_LABELS[session.flagState]}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {currentConditions && (
+            <span className="rounded-md bg-brand-black/5 px-3 py-1 text-sm">
+              {describeConditions({
+                ...currentConditions,
+                recordedAt: new Date(currentConditions.recordedAt),
+              })}
+              {wet ? " · wet session" : ""}
+            </span>
+          )}
+          <span
+            className={`rounded-md px-3 py-1 text-sm font-semibold ${FLAG_STYLES[session.flagState]}`}
+          >
+            {FLAG_LABELS[session.flagState]}
+          </span>
+        </div>
       </div>
 
       {ordered.length === 0 ? (

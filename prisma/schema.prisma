@@ -146,6 +146,7 @@ model User {
   sponsorshipsOffered    Sponsorship[]        @relation("SponsorshipSponsor")
   sponsorshipsCreated    Sponsorship[]        @relation("SponsorshipCreator")
   tracksCreated          Track[]              @relation("TrackCreator")
+  conditionsRecorded     SessionCondition[]   @relation("ConditionRecorder")
 
   @@index([verificationStatus])
 }
@@ -834,10 +835,11 @@ model EventSession {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  event         RaceEvent     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event         RaceEvent          @relation(fields: [eventId], references: [id], onDelete: Cascade)
   timingEntries TimingEntry[]
   stints        Stint[]
   incidents     Incident[]
+  conditions    SessionCondition[]
 
   @@index([eventId, startsAt])
 }
@@ -1679,4 +1681,62 @@ model TrackSector {
   layout TrackLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
 
   @@unique([layoutId, number])
+}
+
+// ---------------------------------------------------------------------------
+// Session conditions
+// ---------------------------------------------------------------------------
+
+/**
+ * The state of the racing surface. Distinct from the weather: a track can be
+ * damp under a clear sky an hour after rain, which is exactly the situation
+ * tire regulations care about.
+ */
+enum TrackState {
+  DRY
+  DAMP
+  WET
+  STANDING_WATER
+  /// Winter club events and rally stages are run on it; ignoring it is worse.
+  SNOW_ICE
+}
+
+enum WeatherKind {
+  CLEAR
+  CLOUDY
+  OVERCAST
+  LIGHT_RAIN
+  HEAVY_RAIN
+  FOG
+  SNOW
+  WINDY
+}
+
+/**
+ * Conditions logged during a session.
+ * A time series rather than a single field on the session: a two-hour race
+ * that starts dry and ends in standing water is the normal case, and a
+ * strategy review a week later needs to know when it turned. The most recent
+ * reading is the session's current state.
+ */
+model SessionCondition {
+  id            String       @id @default(cuid())
+  sessionId     String
+  recordedAt    DateTime     @default(now())
+  recordedById  String?
+  trackState    TrackState
+  weather       WeatherKind?
+  /// Degrees Celsius. Air and track diverge by 20°C on a summer afternoon.
+  airTempC      Float?
+  trackTempC    Float?
+  humidityPct   Int?
+  windKph       Float?
+  /// Compass point or bearing as the timing crew records it: "NW", "290".
+  windDirection String?
+  notes         String?      @db.Text
+
+  session    EventSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  recordedBy User?        @relation("ConditionRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, recordedAt])
 }

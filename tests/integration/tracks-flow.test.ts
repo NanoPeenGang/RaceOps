@@ -5,6 +5,8 @@ import {
   SeriesDiscipline,
   SessionStatus,
   SessionType,
+  TrackState,
+  WeatherKind,
 } from "@prisma/client";
 import { createCaller } from "@/server/trpc/root";
 
@@ -238,5 +240,59 @@ describe.skipIf(!ENABLED)("tracks (integration)", () => {
   it("shows records to signed-out visitors", async () => {
     const records = await callerFor(null).track.records({ layoutId });
     expect(records?.overall?.lapMs).toBe(132_456);
+  });
+
+  it("excludes a wet session's laps from the dry record", async () => {
+    const session = await db.eventSession.findFirstOrThrow({
+      where: { eventId },
+    });
+
+    // With no conditions logged, dryOnly must not throw the lap out.
+    const before = await curator.caller.track.records({
+      layoutId,
+      dryOnly: true,
+    });
+    expect(before?.overall?.lapMs).toBe(132_456);
+
+    // The race started dry and turned. Any wet reading makes it a wet session.
+    await curator.caller.session.logConditions({
+      sessionId: session.id,
+      trackState: TrackState.DRY,
+      airTempC: 21,
+      trackTempC: 34,
+    });
+    await curator.caller.session.logConditions({
+      sessionId: session.id,
+      trackState: TrackState.STANDING_WATER,
+      weather: WeatherKind.HEAVY_RAIN,
+    });
+
+    const board = await curator.caller.session.timing({
+      sessionId: session.id,
+    });
+    expect(board.wet).toBe(true);
+    expect(board.currentConditions?.trackState).toBe(
+      TrackState.STANDING_WATER,
+    );
+
+    const dry = await curator.caller.track.records({ layoutId, dryOnly: true });
+    expect(dry?.overall).toBeNull();
+
+    // The outright record still stands — wet or not, it was the fastest lap.
+    const outright = await curator.caller.track.records({ layoutId });
+    expect(outright?.overall?.lapMs).toBe(132_456);
+    expect(outright?.overall?.wet).toBe(true);
+  });
+
+  it("keeps conditions logging to officials", async () => {
+    const session = await db.eventSession.findFirstOrThrow({
+      where: { eventId },
+    });
+    await expect(
+      entrant.caller.session.logConditions({
+        sessionId: session.id,
+        trackState: TrackState.DRY,
+      }),
+    ).rejects.toThrow(/permission/i);
   });
 });
