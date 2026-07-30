@@ -14,6 +14,7 @@ import {
   nextIncidentStatuses,
 } from "@/lib/incidents";
 import { PENALTY_TYPE_LABELS } from "@/lib/penalties";
+import { turnLabel } from "@/lib/tracks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -375,8 +376,14 @@ function ReportForm({
   const [description, setDescription] = useState("");
   const [lapNumber, setLapNumber] = useState("");
   const [location, setLocation] = useState("");
+  const [turnId, setTurnId] = useState("");
 
   const file = api.incident.file.useMutation({ onSuccess: onFiled });
+
+  // Corners are only offered when the event runs a layout that defines them;
+  // everywhere else the free-text "Where" field is the whole story.
+  const event = api.event.byId.useQuery({ eventId });
+  const turns = event.data?.trackLayout?.turns ?? [];
 
   // Only officials may file as race control or a marshal post.
   const sources = isOfficial
@@ -428,13 +435,33 @@ function ReportForm({
               onChange={(e) => setLapNumber(e.target.value)}
             />
           </label>
+          {turns.length > 0 && (
+            <label className="block text-sm font-medium">
+              Corner <span className="text-brand-black/50">(optional)</span>
+              <select
+                className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+                value={turnId}
+                onChange={(e) => setTurnId(e.target.value)}
+              >
+                <option value="">Not a corner</option>
+                {turns.map((turn) => (
+                  <option key={turn.id} value={turn.id}>
+                    {turnLabel(turn)}
+                    {turn.marshalPost ? ` · ${turn.marshalPost}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="block text-sm font-medium">
             Where <span className="text-brand-black/50">(optional)</span>
             <input
               className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              placeholder="Turn 5 · pit exit"
+              placeholder={
+                turns.length > 0 ? "pit exit · recovery road" : "Turn 5 · pit exit"
+              }
             />
           </label>
         </div>
@@ -471,6 +498,7 @@ function ReportForm({
               description: description.trim() || undefined,
               lapNumber: lapNumber.trim() ? Number(lapNumber) : undefined,
               location: location.trim() || undefined,
+              turnId: turnId || undefined,
             })
           }
         >

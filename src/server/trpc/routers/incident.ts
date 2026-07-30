@@ -98,6 +98,7 @@ const incidentInclude = {
   },
   penalty: { select: { id: true, type: true, summary: true, status: true } },
   session: { select: { id: true, name: true } },
+  turn: { select: { id: true, number: true, name: true, marshalPost: true } },
 } as const;
 
 export const incidentRouter = createTRPCRouter({
@@ -229,15 +230,32 @@ export const incidentRouter = createTRPCRouter({
         description: z.string().max(8000).optional(),
         lapNumber: z.number().int().min(0).max(10000).optional(),
         location: z.string().max(160).optional(),
+        /// The named corner, where the event runs a layout with turns defined.
+        turnId: z.string().cuid().optional(),
         occurredAt: z.date().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const event = await ctx.db.raceEvent.findUnique({
         where: { id: input.eventId },
-        select: { id: true, name: true, seriesId: true },
+        select: { id: true, name: true, seriesId: true, trackLayoutId: true },
       });
       if (!event) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // A turn from another circuit would read as a plausible corner on the
+      // report and point stewards at the wrong marshal post.
+      if (input.turnId) {
+        const turn = await ctx.db.trackTurn.findUnique({
+          where: { id: input.turnId },
+          select: { layoutId: true },
+        });
+        if (!turn || turn.layoutId !== event.trackLayoutId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "That corner is not on this event's track layout.",
+          });
+        }
+      }
 
       // Only an official can file as race control or as a marshal post, and
       // only the entry itself can file on its own behalf.

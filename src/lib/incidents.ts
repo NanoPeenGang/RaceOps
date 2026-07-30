@@ -139,14 +139,30 @@ export function summarizeQueue(rows: IncidentRecord[]): QueueSummary {
   return { open, investigating, protests, closed };
 }
 
-/** "Lap 12, Turn 5" from whichever parts were supplied. */
+/**
+ * "Lap 12, Turn 5 (Eau Rouge)" from whichever parts were supplied.
+ *
+ * A named turn wins over the free-text field: when the event runs a known
+ * layout the corner is a reference stewards and marshals share, whereas the
+ * free text is whatever the reporter typed. The free text is still appended
+ * when it says something the turn does not ("pit exit", "on the recovery road").
+ */
 export function describeIncidentLocation(incident: {
   lapNumber: number | null;
   location: string | null;
+  turn?: { number: number; name: string | null } | null;
 }): string {
+  const turn = incident.turn
+    ? incident.turn.name
+      ? `Turn ${incident.turn.number} (${incident.turn.name})`
+      : `Turn ${incident.turn.number}`
+    : null;
+  const freeText =
+    incident.location && incident.location !== turn ? incident.location : null;
   const parts = [
     incident.lapNumber !== null ? `Lap ${incident.lapNumber}` : null,
-    incident.location,
+    turn,
+    freeText,
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(", ") : "Location not given";
 }

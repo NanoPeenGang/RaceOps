@@ -85,6 +85,26 @@ export const eventRouter = createTRPCRouter({
         where: { id: input.eventId },
         include: {
           series: { select: { id: true, name: true, slug: true } },
+          trackLayout: {
+            select: {
+              id: true,
+              name: true,
+              platform: true,
+              lengthMeters: true,
+              direction: true,
+              track: { select: { id: true, name: true, slug: true } },
+              turns: {
+                orderBy: { number: "asc" },
+                select: {
+                  id: true,
+                  number: true,
+                  name: true,
+                  sector: true,
+                  marshalPost: true,
+                },
+              },
+            },
+          },
           volunteerShifts: {
             orderBy: { startsAt: "asc" },
             include: { signups: { select: { status: true, userId: true } } },
@@ -143,6 +163,7 @@ export const eventRouter = createTRPCRouter({
         date: z.date(),
         platform: z.string().min(1).max(120),
         venue: z.string().max(160).optional(),
+        trackLayoutId: z.string().cuid().optional(),
         description: z.string().max(8000).optional(),
         entryCapacity: z.number().int().min(1).max(1000).optional(),
         registrationOpensAt: z.date().optional(),
@@ -182,6 +203,7 @@ export const eventRouter = createTRPCRouter({
         name: z.string().min(2).max(160).optional(),
         date: z.date().optional(),
         venue: z.string().max(160).nullish(),
+        trackLayoutId: z.string().cuid().nullish(),
         description: z.string().max(8000).nullish(),
         entryCapacity: z.number().int().min(1).max(1000).nullish(),
         registrationOpensAt: z.date().nullish(),

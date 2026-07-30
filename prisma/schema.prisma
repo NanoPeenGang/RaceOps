@@ -145,6 +145,7 @@ model User {
   incidentResponses      IncidentResponse[]
   sponsorshipsOffered    Sponsorship[]        @relation("SponsorshipSponsor")
   sponsorshipsCreated    Sponsorship[]        @relation("SponsorshipCreator")
+  tracksCreated          Track[]              @relation("TrackCreator")
 
   @@index([verificationStatus])
 }
@@ -604,19 +605,22 @@ enum EventStatus {
 }
 
 model RaceEvent {
-  id          String      @id @default(cuid())
-  name        String
+  id            String      @id @default(cuid())
+  name          String
   // Free-text series label, kept for events not run through a managed Series.
-  seriesLabel String
-  seriesId    String?
-  date        DateTime
+  seriesLabel   String
+  seriesId      String?
+  date          DateTime
   /// Final day for a multi-day meeting; null for a single-day event.
-  endDate     DateTime?
+  endDate       DateTime?
   // Real-world venue or sim platform name ("iRacing", "Le Mans Ultimate", ...)
-  platform    String
-  venue       String?
-  description String?     @db.Text
-  status      EventStatus @default(DRAFT)
+  platform      String
+  /// Free text, kept for venues with no Track record and for one-off bookings.
+  venue         String?
+  /// The configuration being run, where the venue is a known track.
+  trackLayoutId String?
+  description   String?     @db.Text
+  status        EventStatus @default(DRAFT)
 
   /// Weighting for a double-points finale and the like; 1 is a normal round.
   pointsMultiplier Float @default(1)
@@ -643,6 +647,7 @@ model RaceEvent {
   updatedAt DateTime @updatedAt
 
   series          Series?             @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  trackLayout     TrackLayout?        @relation(fields: [trackLayoutId], references: [id], onDelete: SetNull)
   participants    RaceEntry[]
   strategyPlans   StrategyPlan[]
   registrations   EventRegistration[]
@@ -660,6 +665,7 @@ model RaceEvent {
   @@index([seriesLabel, date])
   @@index([seriesId, date])
   @@index([status, date])
+  @@index([trackLayoutId, date])
 }
 
 enum RegistrationStatus {
@@ -1225,6 +1231,8 @@ model Incident {
   lapNumber                Int?
   /// Free text: "Turn 5", "pit exit", "flag point 12".
   location                 String?
+  /// The named corner, when the event runs a track layout with turns defined.
+  turnId                   String?
   occurredAt               DateTime?
   /// Race control's reasoning when the report is closed.
   decisionNotes            String?        @db.Text
@@ -1242,11 +1250,13 @@ model Incident {
   reportedBy      User               @relation("IncidentReportedBy", fields: [reportedById], references: [id], onDelete: Cascade)
   decidedBy       User?              @relation("IncidentDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
   penalty         Penalty?           @relation(fields: [penaltyId], references: [id], onDelete: SetNull)
+  turn            TrackTurn?         @relation(fields: [turnId], references: [id], onDelete: SetNull)
   media           Media[]
   responses       IncidentResponse[]
 
   @@index([eventId, status])
   @@index([subjectRegistrationId])
+  @@index([turnId])
 }
 
 /**
@@ -1525,4 +1535,148 @@ model Endorsement {
 
   @@unique([fromUserId, toUserId, category])
   @@index([toUserId])
+}
+
+// ---------------------------------------------------------------------------
+// Tracks, layouts & turns
+// ---------------------------------------------------------------------------
+
+/**
+ * How a track is surfaced. Sim circuits and real circuits sit side by side —
+ * a series that runs both wants the same Spa in both worlds, distinguished
+ * only by which platform the layout is driven on.
+ */
+enum TrackKind {
+  /// A real facility. Sim versions of it are layouts on the same track.
+  CIRCUIT
+  /// A temporary street course.
+  STREET
+  RALLY_STAGE
+  OVAL
+  KART
+  AUTOCROSS
+  /// Somewhere with no permanent geometry — an airfield day, a hillclimb.
+  OTHER
+}
+
+/**
+ * Which way round a layout is driven; both are raced at some venues.
+ */
+enum TrackDirection {
+  CLOCKWISE
+  ANTICLOCKWISE
+}
+
+/**
+ * A venue.
+ * `RaceEvent.venue` is free text and always will be for one-off bookings, but
+ * a track record, a garage allocation or "every incident at this corner" all
+ * need the circuit to be one row rather than four spellings of it. Tracks are
+ * shared reference data: anyone signed in may add one, and the person who
+ * added it curates it. There is no platform-admin role to appeal to, so a
+ * track that is referenced by an event cannot be deleted.
+ */
+model Track {
+  id           String    @id @default(cuid())
+  name         String
+  slug         String    @unique
+  kind         TrackKind @default(CIRCUIT)
+  /// ISO 3166-1 alpha-2 where there is one; null for a sim-only venue.
+  country      String?
+  region       String?
+  city         String?
+  timezone     String?
+  websiteUrl   String?
+  /**
+   * Sanctioning grade, kept free-form: "FIA Grade 2", "NASA Region",
+   * "Club" and a governing body nobody outside one country has heard of are
+   * all legitimate. Enumerating them would exclude grassroots venues.
+   */
+  licenceGrade String?
+  /// Permanent garages/pit boxes at the facility, for allocation.
+  pitBoxCount  Int?
+  /// Permanent garage buildings, where the facility has them.
+  garageCount  Int?
+  notes        String?   @db.Text
+  createdById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  createdBy User?         @relation("TrackCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  layouts   TrackLayout[]
+
+  @@index([country, name])
+  @@index([kind])
+}
+
+/**
+ * One configuration of a track. Spa runs a Grand Prix layout and an Endurance
+ * layout; a club circuit might run "Full", "Short" and "Short reversed".
+ * Results, records and turn references all hang off the layout rather than the
+ * track, because a lap time on one layout means nothing on another.
+ */
+model TrackLayout {
+  id              String         @id @default(cuid())
+  trackId         String
+  name            String
+  /// Null for a real-world layout; the sim it belongs to otherwise.
+  platform        String?
+  lengthMeters    Int?
+  direction       TrackDirection @default(CLOCKWISE)
+  /// Elevation change over a lap, where the venue publishes it.
+  elevationMeters Int?
+  /// The layout an event defaults to when none is chosen.
+  isPrimary       Boolean        @default(false)
+  active          Boolean        @default(true)
+  notes           String?        @db.Text
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  track   Track         @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  turns   TrackTurn[]
+  sectors TrackSector[]
+  events  RaceEvent[]
+
+  @@unique([trackId, name])
+  @@index([trackId, isPrimary])
+}
+
+/**
+ * A named corner. Marshals report "Eau Rouge", not "the sixth corner", and a
+ * steward reading a report an hour later needs both. Sector is stored so an
+ * incident can be tied back to the timing sector it happened in.
+ */
+model TrackTurn {
+  id          String  @id @default(cuid())
+  layoutId    String
+  /// Turn number as the circuit numbers them; ordering key for the lap.
+  number      Int
+  /// "Eau Rouge", "The Corkscrew". Null where the corner is just a number.
+  name        String?
+  /// Which timing sector the turn falls in, where sectors are defined.
+  sector      Int?
+  /// Marshal post or flag point covering this turn.
+  marshalPost String?
+  notes       String? @db.Text
+
+  layout    TrackLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+  incidents Incident[]
+
+  @@unique([layoutId, number])
+  @@index([layoutId, sector])
+}
+
+/**
+ * A timing sector on a layout. Most circuits run three; some run more.
+ */
+model TrackSector {
+  id           String  @id @default(cuid())
+  layoutId     String
+  number       Int
+  name         String?
+  lengthMeters Int?
+
+  layout TrackLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+
+  @@unique([layoutId, number])
 }

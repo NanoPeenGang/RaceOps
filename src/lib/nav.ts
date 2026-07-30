@@ -5,6 +5,7 @@ export const NAV_LINKS = [
   { href: "/events", label: "Events" },
   { href: "/series", label: "Series" },
   { href: "/teams", label: "Teams" },
+  { href: "/tracks", label: "Tracks" },
   { href: "/opportunities", label: "Opportunities" },
   { href: "/reports", label: "Reports" },
   { href: "/strategy", label: "Pit Wall" },

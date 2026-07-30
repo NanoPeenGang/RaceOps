@@ -6,6 +6,7 @@ import { serverApi } from "@/server/trpc/server-caller";
 import { EVENT_STATUS_LABELS } from "@/lib/events";
 import { SESSION_TYPE_LABELS, groupSessionsByDay, scheduleSpan } from "@/lib/schedule";
 import { SESSION_STATUS_LABELS } from "@/lib/timing";
+import { eventVenueLabel } from "@/lib/tracks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,7 +49,7 @@ export async function generateMetadata({
 
   const descriptor = [
     event.series?.name,
-    event.venue,
+    eventVenueLabel(event),
     event.platform,
     new Date(event.date).toLocaleDateString("en-US", {
       year: "numeric",
@@ -99,7 +100,7 @@ export default async function EventLandingPage({
             <h1 className="text-4xl font-bold tracking-tight">{event.name}</h1>
             <p className="text-sm text-brand-black/60">
               {[
-                event.venue,
+                eventVenueLabel(event),
                 event.platform,
                 span && span.days > 1
                   ? `${new Date(span.start).toLocaleDateString()} – ${new Date(

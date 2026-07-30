@@ -28,6 +28,7 @@ import { ScrutineeringPanel } from "./scrutineering";
 import { AnnouncementsPanel } from "@/components/announcements-panel";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { DangerZone } from "@/components/danger-zone";
+import { VenuePanel } from "@/components/venue-panel";
 import { useRouter } from "next/navigation";
 
 export default function ManageEventPage({
@@ -134,6 +135,7 @@ export default function ManageEventPage({
         </Link>
       </div>
 
+      <VenuePanel eventId={eventId} />
       <SchedulePanel eventId={eventId} />
       <TimingConsole eventId={eventId} />
       <RegistrationsPanel
