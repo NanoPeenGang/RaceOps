@@ -15,6 +15,8 @@ import {
 } from "@/lib/incidents";
 import { PENALTY_TYPE_LABELS } from "@/lib/penalties";
 import { turnLabel } from "@/lib/tracks";
+import { useOffline } from "@/components/offline-provider";
+import { useOfflineMutation } from "@/lib/trpc/offline-mutation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -379,6 +381,16 @@ function ReportForm({
   const [turnId, setTurnId] = useState("");
 
   const file = api.incident.file.useMutation({ onSuccess: onFiled });
+  // Marshal posts are exactly where signal fails, and a report written on
+  // paper at the post is a report that arrives an hour late or not at all.
+  const offlineFile = useOfflineMutation(
+    (input: Parameters<typeof file.mutateAsync>[0]) => file.mutateAsync(input),
+    {
+      procedure: "incident.file",
+      label: (input) => `Incident: ${input.summary}`,
+    },
+  );
+  const { online } = useOffline();
 
   // Corners are only offered when the event runs a layout that defines them;
   // everywhere else the free-text "Where" field is the whole story.
@@ -486,11 +498,17 @@ function ReportForm({
         {file.error && (
           <p className="text-sm text-brand-red">{file.error.message}</p>
         )}
+        {!online && (
+          <p className="text-sm text-brand-black/70">
+            No signal. This report will be held and sent as soon as you are
+            back in coverage — the time you filed it is what gets recorded.
+          </p>
+        )}
         <Button
           variant="primary"
           disabled={file.isPending || summary.trim().length < 5}
           onClick={() =>
-            file.mutate({
+            void offlineFile.run({
               eventId,
               source,
               subjectRegistrationId: subjectId || undefined,
@@ -499,10 +517,14 @@ function ReportForm({
               lapNumber: lapNumber.trim() ? Number(lapNumber) : undefined,
               location: location.trim() || undefined,
               turnId: turnId || undefined,
+              // The moment it happened, not the moment it was delivered.
+              occurredAt: new Date(),
+            }).then(({ queued }) => {
+              if (queued) onFiled();
             })
           }
         >
-          {file.isPending ? "Filing…" : "File report"}
+          {file.isPending ? "Filing…" : online ? "File report" : "Hold report"}
         </Button>
       </CardContent>
     </Card>

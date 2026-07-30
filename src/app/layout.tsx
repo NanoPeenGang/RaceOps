@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Header } from "@/components/header";
 import { TRPCProvider } from "@/lib/trpc/provider";
+import { OfflineProvider } from "@/components/offline-provider";
+import { OfflineIndicator } from "@/components/offline-indicator";
+import { ServiceWorkerRegistration } from "@/components/service-worker";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,6 +18,10 @@ export const metadata: Metadata = {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
+  // Installable so it opens from a home screen at a marshal post, where the
+  // browser chrome costs screen the person does not have.
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "RaceOps" },
   openGraph: {
     siteName: "RaceOps",
     type: "website",
@@ -39,8 +46,12 @@ export default function RootLayout({
       <body className="min-h-screen antialiased">
         <ClerkProvider>
           <TRPCProvider>
-            <Header />
-            {children}
+            <OfflineProvider>
+              <Header />
+              {children}
+              <OfflineIndicator />
+              <ServiceWorkerRegistration />
+            </OfflineProvider>
           </TRPCProvider>
         </ClerkProvider>
       </body>
