@@ -8,6 +8,7 @@ import {
 } from "@prisma/client";
 import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/lib/trpc/client";
+import { RESULT_STATUS_LABELS } from "@/lib/standings";
 import type { AppRouter } from "@/server/trpc/root";
 import {
   APPEAL_STATUS_LABELS,
@@ -129,7 +130,7 @@ function ResultRow({
           >
             {Object.values(ResultStatus).map((s) => (
               <option key={s} value={s}>
-                {s}
+                {RESULT_STATUS_LABELS[s]}
               </option>
             ))}
           </select>

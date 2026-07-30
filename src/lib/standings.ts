@@ -5,6 +5,13 @@ import { PenaltyStatus, ResultStatus } from "@prisma/client";
  * be tested directly and reused by both the router and the UI.
  */
 
+export const RESULT_STATUS_LABELS: Record<ResultStatus, string> = {
+  FINISHED: "Finished",
+  DNF: "DNF",
+  DNS: "DNS",
+  DSQ: "Disqualified",
+};
+
 /** FIA-style top-10 scoring, used when a series defines no scheme. */
 export const DEFAULT_POINTS_SCHEME: Record<number, number> = {
   1: 25,

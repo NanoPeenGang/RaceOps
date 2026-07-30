@@ -20,7 +20,7 @@ import {
   getSeriesRole,
   SERIES_ADMIN_ROLES,
 } from "@/server/services/series-auth";
-import { computeStandings, parsePointsScheme } from "@/lib/standings";
+import { computeSeriesStandings } from "@/server/services/standings";
 
 export const seriesRouter = createTRPCRouter({
   /** Public directory of series. */
@@ -163,69 +163,9 @@ export const seriesRouter = createTRPCRouter({
   standings: publicProcedure
     .input(z.object({ seriesId: z.string().cuid() }))
     .query(async ({ ctx, input }) => {
-      const series = await ctx.db.series.findUnique({
-        where: { id: input.seriesId },
-        select: { pointsScheme: true, fastestLapPoints: true },
-      });
-      if (!series) throw new TRPCError({ code: "NOT_FOUND" });
-
-      // Only classified events count toward the championship.
-      const registrations = await ctx.db.eventRegistration.findMany({
-        where: {
-          event: { seriesId: input.seriesId, status: EventStatus.COMPLETED },
-          status: RegistrationStatus.CONFIRMED,
-        },
-        select: {
-          id: true,
-          teamId: true,
-          team: { select: { name: true } },
-          entrantUserId: true,
-          entrantUser: {
-            select: { profile: { select: { displayName: true } } },
-          },
-          result: {
-            select: {
-              registrationId: true,
-              finishPosition: true,
-              status: true,
-              fastestLap: true,
-              pointsOverride: true,
-            },
-          },
-          penalties: {
-            select: {
-              registrationId: true,
-              status: true,
-              pointsDeducted: true,
-            },
-          },
-        },
-      });
-
-      const entries = registrations.map((registration) => ({
-        registrationId: registration.id,
-        competitorKey:
-          registration.teamId ?? registration.entrantUserId ?? registration.id,
-        competitorLabel:
-          registration.team?.name ??
-          registration.entrantUser?.profile?.displayName ??
-          "Unknown competitor",
-        teamId: registration.teamId,
-      }));
-
-      return {
-        rows: computeStandings({
-          entries,
-          results: registrations
-            .map((r) => r.result)
-            .filter((r): r is NonNullable<typeof r> => r !== null),
-          penalties: registrations.flatMap((r) => r.penalties),
-          scheme: parsePointsScheme(series.pointsScheme),
-          fastestLapPoints: series.fastestLapPoints ?? 0,
-        }),
-        scheme: parsePointsScheme(series.pointsScheme),
-        fastestLapPoints: series.fastestLapPoints ?? 0,
-      };
+      const standings = await computeSeriesStandings(ctx.db, input.seriesId);
+      if (!standings) throw new TRPCError({ code: "NOT_FOUND" });
+      return standings;
     }),
 
   /** Configure the points scheme (organizers). */

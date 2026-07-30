@@ -101,6 +101,10 @@ src/
 **Phase 1 (done):** auth + onboarding, unified profiles with manual sim
 stats, search/discovery with filters, team pages & roster management, CI.
 
+**Profile editing (done):** display name, location, availability, bio and role
+tags are all editable from `/profile`; clearing a field stores null rather than
+an empty string.
+
 **Role tags (done):** `ProfileType` stays the broad category picked at
 onboarding ("I'm an engineer"); underneath it, profiles carry specific role
 tags split into **sim** and **real world** — race engineer, data engineer,
@@ -119,6 +123,33 @@ portal, webhook-synced state), Stripe Connect Express onboarding for
 marketplace payouts, and a notification system (in-app + optional Resend
 email). Paid gates: posting as a team requires the Recruiter tier; sponsor
 search requires Sponsor Discovery.
+
+**Landing pages (done):** series, events and teams each have a public,
+server-rendered landing page carrying real `<title>`/OpenGraph metadata, so the
+link an organizer posts previews properly and is indexable. The consoles behind
+them (`/series/:slug/manage`, `/events/:id/manage`, `/teams/:slug/manage`) stay
+behind auth. Anything that depends on who is looking — your entry, your shifts,
+chat — mounts as a client island, so the shared HTML is the same for everyone.
+
+**Team management (done):** a console at `/teams/:slug/manage` to run a race
+team from one page.
+
+- **Roster** — drivers and staff split out, with roles (owner, manager, driver,
+  engineer, crew, member) driving access. Managers change roles and take people
+  off the books; removal closes the membership out rather than deleting it, so
+  past line-ups stay on the record. A team can never be left without an owner.
+- **Schedule & entries** — the team's calendar built from its entries, split
+  into what is coming and what has run, with withdraw in place.
+- **Standings & results** — championship position in every series the team
+  races in, plus every result. Points come from the series' own standings table
+  rather than being recalculated, so a stewards' deduction shows up here and an
+  overturned penalty restores it automatically.
+- **Sponsorship** — offers and active deals. A sponsor pitches through the
+  platform and it lands as an offer the team accepts, negotiates or declines;
+  managers can also record deals agreed offline. Deal value is stored in minor
+  units and totalled per currency, never summed across them. Commercial terms
+  are visible to the team only.
+- **Team chat** — the team's own room, separate from event paddock chat.
 
 **Race organizer module (done):** run a whole championship from one place.
 Create a **Series** (organizer roster with OWNER / ADMIN / RACE_CONTROL /

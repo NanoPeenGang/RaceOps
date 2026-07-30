@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
+/**
+ * Landing pages (`/teams/:slug`, `/series/:slug`, `/events/:id`) are public so
+ * they can be shared and indexed; the consoles behind them are not. Every
+ * procedure still enforces its own authorization, so a public page cannot leak
+ * private data even when opened anonymously.
+ */
 const isProtectedRoute = createRouteMatcher([
   "/profile(.*)",
-  "/teams(.*)",
+  "/teams",
+  "/teams/:slug/manage(.*)",
   "/opportunities(.*)",
   "/strategy(.*)",
   "/community(.*)",

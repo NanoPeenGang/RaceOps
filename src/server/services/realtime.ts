@@ -60,6 +60,16 @@ export async function broadcastTimingUpdate(sessionId: string): Promise<void> {
   await broadcast(`timing-${sessionId}`, "update");
 }
 
-export async function broadcastChatMessage(eventId: string): Promise<void> {
-  await broadcast(`paddock-${eventId}`, "message");
+/** Chat fan-out for either room kind. */
+export async function broadcastChatMessage(scope: {
+  eventId?: string;
+  teamId?: string;
+}): Promise<void> {
+  if (scope.eventId) {
+    await broadcast(`paddock-${scope.eventId}`, "message");
+    return;
+  }
+  if (scope.teamId) {
+    await broadcast(`team-${scope.teamId}`, "message");
+  }
 }

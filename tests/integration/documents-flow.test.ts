@@ -345,24 +345,24 @@ describe.skipIf(!ENABLED)("documents, notices, reports & chat (integration)", ()
 
   it("opens the chat to entrants and organizers only", async () => {
     await expect(
-      outsider.caller.chat.forEvent({ eventId }),
+      outsider.caller.chat.forRoom({ scope: { eventId } }),
     ).rejects.toThrow(/entrants, volunteers and organizers/i);
 
-    await racer.caller.chat.send({ eventId, body: "Anyone got a spare set?" });
-    const view = await racer.caller.chat.forEvent({ eventId });
+    await racer.caller.chat.send({ scope: { eventId }, body: "Anyone got a spare set?" });
+    const view = await racer.caller.chat.forRoom({ scope: { eventId } });
     expect(view.messages.map((m) => m.body)).toContain(
       "Anyone got a spare set?",
     );
     // An entrant is in the room, but is not moderating it.
     expect(view.canModerate).toBe(false);
 
-    const organizerView = await owner.caller.chat.forEvent({ eventId });
+    const organizerView = await owner.caller.chat.forRoom({ scope: { eventId } });
     expect(organizerView.canModerate).toBe(true);
   });
 
   it("lets organizers moderate but outsiders do nothing", async () => {
     const message = await racer.caller.chat.send({
-      eventId,
+      scope: { eventId },
       body: "Please delete this.",
     });
     await expect(
@@ -370,16 +370,16 @@ describe.skipIf(!ENABLED)("documents, notices, reports & chat (integration)", ()
     ).rejects.toThrow(/entrants, volunteers and organizers/i);
 
     await owner.caller.chat.remove({ messageId: message.id });
-    const view = await racer.caller.chat.forEvent({ eventId });
+    const view = await racer.caller.chat.forRoom({ scope: { eventId } });
     expect(view.messages.map((m) => m.id)).not.toContain(message.id);
   });
 
   it("returns the transcript oldest first", async () => {
     const marker = `seq-${Date.now()}`;
-    await racer.caller.chat.send({ eventId, body: `${marker}-first` });
-    await racer.caller.chat.send({ eventId, body: `${marker}-second` });
+    await racer.caller.chat.send({ scope: { eventId }, body: `${marker}-first` });
+    await racer.caller.chat.send({ scope: { eventId }, body: `${marker}-second` });
 
-    const view = await racer.caller.chat.forEvent({ eventId });
+    const view = await racer.caller.chat.forRoom({ scope: { eventId } });
     const bodies = view.messages.map((m) => m.body);
     expect(bodies.indexOf(`${marker}-first`)).toBeLessThan(
       bodies.indexOf(`${marker}-second`),

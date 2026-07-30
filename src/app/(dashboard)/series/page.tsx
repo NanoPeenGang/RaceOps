@@ -44,13 +44,14 @@ export default function SeriesPage() {
           <h2 className="text-xl font-semibold">Series you organize</h2>
           <div className="grid gap-4 md:grid-cols-2">
             {mine.data.map((series) => (
-              <Link key={series.id} href={`/series/${series.slug}`}>
+              // Organizers land in the console; the public page is one click on.
+              <Link key={series.id} href={`/series/${series.slug}/manage`}>
                 <Card className="h-full transition-colors hover:border-brand-red/50">
                   <CardHeader>
                     <div className="flex items-center justify-between gap-2">
                       <CardTitle>{series.name}</CardTitle>
                       <Badge variant="verified">
-                        {series.myRole.replace("_", " ").toLowerCase()}
+                        {series.myRole.replace(/_/g, " ").toLowerCase()}
                       </Badge>
                     </div>
                   </CardHeader>

@@ -19,7 +19,7 @@ import { RoleTagPicker } from "@/components/role-tag-picker";
 export function ProfileView() {
   const utils = api.useUtils();
   const me = api.user.me.useQuery();
-  const [editingRoles, setEditingRoles] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   if (me.isLoading) {
     return <p className="text-brand-black/60">Loading…</p>;
@@ -32,16 +32,34 @@ export function ProfileView() {
   const profile = me.data.profile;
   const tags = profile ? roleTagsOf(profile) : [];
 
+  if (editing && profile) {
+    return (
+      <ProfileEditor
+        profile={profile}
+        onDone={() => {
+          setEditing(false);
+          utils.user.me.invalidate();
+        }}
+        onCancel={() => setEditing(false)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold">{profile?.displayName}</h1>
           <p className="text-brand-black/60">{profile?.location}</p>
         </div>
-        {me.data.verificationStatus === "VERIFIED" && (
-          <Badge variant="verified">Verified</Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {me.data.verificationStatus === "VERIFIED" && (
+            <Badge variant="verified">Verified</Badge>
+          )}
+          <Button variant="primary" onClick={() => setEditing(true)}>
+            Edit profile
+          </Button>
+        </div>
       </div>
       <div className="flex flex-wrap gap-2">
         {me.data.profileTypes.map((type) => (
@@ -49,28 +67,16 @@ export function ProfileView() {
         ))}
       </div>
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-xl font-semibold">What I do</h2>
-          <Button
-            size="sm"
-            variant={editingRoles ? "outline" : "primary"}
-            onClick={() => setEditingRoles((v) => !v)}
-          >
-            {editingRoles ? "Cancel" : tags.length > 0 ? "Edit" : "Add roles"}
-          </Button>
-        </div>
+      {profile?.availability && (
+        <p className="text-sm text-brand-black/70">
+          <span className="font-medium">Availability:</span>{" "}
+          {profile.availability}
+        </p>
+      )}
 
-        {editingRoles ? (
-          <RoleTagEditor
-            initialSimRoles={profile?.simRoles ?? []}
-            initialRealWorldRoles={profile?.realWorldRoles ?? []}
-            onSaved={() => {
-              setEditingRoles(false);
-              utils.user.me.invalidate();
-            }}
-          />
-        ) : tags.length === 0 ? (
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold">What I do</h2>
+        {tags.length === 0 ? (
           <p className="text-sm text-brand-black/60">
             No role tags yet. Add them so teams and organizers looking for what
             you do can actually find you.
@@ -92,6 +98,145 @@ export function ProfileView() {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+interface EditableProfile {
+  displayName: string;
+  bio: string | null;
+  location: string | null;
+  availability: string | null;
+  simRoles: SimRole[];
+  realWorldRoles: RealWorldRole[];
+}
+
+/** One form for everything on the profile: details and role tags together. */
+function ProfileEditor({
+  profile,
+  onDone,
+  onCancel,
+}: {
+  profile: EditableProfile;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [displayName, setDisplayName] = useState(profile.displayName);
+  const [bio, setBio] = useState(profile.bio ?? "");
+  const [location, setLocation] = useState(profile.location ?? "");
+  const [availability, setAvailability] = useState(profile.availability ?? "");
+  const [simRoles, setSimRoles] = useState<SimRole[]>(profile.simRoles);
+  const [realWorldRoles, setRealWorldRoles] = useState<RealWorldRole[]>(
+    profile.realWorldRoles,
+  );
+
+  const update = api.profile.update.useMutation({ onSuccess: onDone });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-3xl font-bold">Edit profile</h1>
+        <Button variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="block text-sm font-medium">
+            Display name
+            <input
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Location
+            <input
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Lisbon, Portugal"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Availability
+            <input
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              value={availability}
+              onChange={(e) => setAvailability(e.target.value)}
+              placeholder="Weekends, endurance rounds, open to a full season"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Bio
+            <textarea
+              rows={8}
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="GT3 endurance driver, 3.2k iRating, ex-karting national champion…"
+            />
+            <span className="mt-1 block text-xs text-brand-black/50">
+              {bio.length}/2000
+            </span>
+          </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Roles</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <RoleTagPicker
+            label="Sim racing"
+            description="What you do on the sim side."
+            groups={SIM_ROLE_GROUPS}
+            labels={SIM_ROLE_LABELS}
+            selected={simRoles}
+            onChange={setSimRoles}
+          />
+          <RoleTagPicker
+            label="Real world"
+            description="What you do at a real circuit or in the industry."
+            groups={REAL_WORLD_ROLE_GROUPS}
+            labels={REAL_WORLD_ROLE_LABELS}
+            selected={realWorldRoles}
+            onChange={setRealWorldRoles}
+          />
+        </CardContent>
+      </Card>
+
+      {update.error && (
+        <p className="text-sm text-brand-red">{update.error.message}</p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="primary"
+          disabled={update.isPending || displayName.trim().length < 2}
+          onClick={() =>
+            update.mutate({
+              displayName: displayName.trim(),
+              // Empty strings clear the field rather than storing "".
+              bio: bio.trim() || null,
+              location: location.trim() || null,
+              availability: availability.trim() || null,
+              simRoles,
+              realWorldRoles,
+            })
+          }
+        >
+          {update.isPending ? "Saving…" : "Save profile"}
+        </Button>
+        <Button variant="outline" onClick={onCancel}>
+          Discard changes
+        </Button>
+      </div>
     </div>
   );
 }
@@ -137,55 +282,6 @@ export function RoleTagList({
         </div>
       )}
     </div>
-  );
-}
-
-function RoleTagEditor({
-  initialSimRoles,
-  initialRealWorldRoles,
-  onSaved,
-}: {
-  initialSimRoles: SimRole[];
-  initialRealWorldRoles: RealWorldRole[];
-  onSaved: () => void;
-}) {
-  const [simRoles, setSimRoles] = useState<SimRole[]>(initialSimRoles);
-  const [realWorldRoles, setRealWorldRoles] =
-    useState<RealWorldRole[]>(initialRealWorldRoles);
-
-  const update = api.profile.update.useMutation({ onSuccess: onSaved });
-
-  return (
-    <Card>
-      <CardContent className="space-y-6 p-5">
-        <RoleTagPicker
-          label="Sim racing"
-          description="What you do on the sim side."
-          groups={SIM_ROLE_GROUPS}
-          labels={SIM_ROLE_LABELS}
-          selected={simRoles}
-          onChange={setSimRoles}
-        />
-        <RoleTagPicker
-          label="Real world"
-          description="What you do at a real circuit or in the industry."
-          groups={REAL_WORLD_ROLE_GROUPS}
-          labels={REAL_WORLD_ROLE_LABELS}
-          selected={realWorldRoles}
-          onChange={setRealWorldRoles}
-        />
-        {update.error && (
-          <p className="text-sm text-brand-red">{update.error.message}</p>
-        )}
-        <Button
-          variant="primary"
-          disabled={update.isPending}
-          onClick={() => update.mutate({ simRoles, realWorldRoles })}
-        >
-          {update.isPending ? "Saving…" : "Save roles"}
-        </Button>
-      </CardContent>
-    </Card>
   );
 }
 

@@ -1,15 +1,18 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { TeamRole } from "@prisma/client";
+import { RegistrationStatus, TeamRole } from "@prisma/client";
 import {
   createTRPCRouter,
   protectedProcedure,
   publicProcedure,
 } from "@/server/trpc/trpc";
 import { slugify } from "@/lib/slug";
+import { TEAM_MANAGER_ROLES, wouldOrphanTeam } from "@/lib/teams";
+import { countActivePenalties, summarizeTeamSeries } from "@/lib/team-season";
+import { computeSeriesStandings } from "@/server/services/standings";
 import type { TRPCContext } from "@/server/trpc/trpc";
 
-const MANAGER_ROLES: TeamRole[] = [TeamRole.OWNER, TeamRole.MANAGER];
+const MANAGER_ROLES: TeamRole[] = TEAM_MANAGER_ROLES;
 
 async function assertTeamManager(
   db: TRPCContext["db"],
@@ -43,7 +46,14 @@ export const teamRouter = createTRPCRouter({
                   id: true,
                   profileTypes: true,
                   verificationStatus: true,
-                  profile: { select: { displayName: true, location: true } },
+                  profile: {
+                    select: {
+                      displayName: true,
+                      location: true,
+                      simRoles: true,
+                      realWorldRoles: true,
+                    },
+                  },
                 },
               },
             },
@@ -125,6 +135,8 @@ export const teamRouter = createTRPCRouter({
         teamId: z.string().cuid(),
         description: z.string().max(2000).nullish(),
         logoUrl: z.string().url().nullish(),
+        websiteUrl: z.string().url().nullish(),
+        homeBase: z.string().max(120).nullish(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -198,9 +210,210 @@ export const teamRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       await assertTeamManager(ctx.db, input.teamId, ctx.user.id);
+      const roster = await ctx.db.teamMembership.findMany({
+        where: { teamId: input.teamId },
+        select: { id: true, userId: true, role: true, endDate: true, startDate: true },
+      });
+      const target = roster.find((m) => m.userId === input.userId);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Demoting the last owner would leave nobody able to administer the team.
+      if (
+        target.role === TeamRole.OWNER &&
+        input.role !== TeamRole.OWNER &&
+        wouldOrphanTeam(roster, target.id)
+      ) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Promote another owner before changing this one's role.",
+        });
+      }
+
       return ctx.db.teamMembership.update({
         where: { teamId_userId: { teamId: input.teamId, userId: input.userId } },
         data: { role: input.role },
       });
+    }),
+
+  /**
+   * Take someone off the roster. The membership row is closed out rather than
+   * deleted so past line-ups stay on the record.
+   */
+  removeMember: protectedProcedure
+    .input(
+      z.object({ teamId: z.string().cuid(), userId: z.string().cuid() }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertTeamManager(ctx.db, input.teamId, ctx.user.id);
+      const roster = await ctx.db.teamMembership.findMany({
+        where: { teamId: input.teamId },
+        select: { id: true, userId: true, role: true, endDate: true, startDate: true },
+      });
+      const target = roster.find((m) => m.userId === input.userId);
+      if (!target || target.endDate !== null) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      if (wouldOrphanTeam(roster, target.id)) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "A team must keep at least one owner.",
+        });
+      }
+      return ctx.db.teamMembership.update({
+        where: { id: target.id },
+        data: { endDate: new Date() },
+      });
+    }),
+
+  /** Teams the caller belongs to in any role, for their own navigation. */
+  myTeams: protectedProcedure.query(async ({ ctx }) => {
+    const memberships = await ctx.db.teamMembership.findMany({
+      where: { userId: ctx.user.id, endDate: null },
+      include: {
+        team: {
+          select: { id: true, name: true, slug: true, logoUrl: true },
+        },
+      },
+      orderBy: { startDate: "asc" },
+    });
+    return memberships.map((m) => ({ ...m.team, myRole: m.role }));
+  }),
+
+  /**
+   * Everything a team needs to run itself: roster, entries, calendar and the
+   * caller's own role. Member-only — entry notes and contact details are not
+   * public.
+   */
+  dashboard: protectedProcedure
+    .input(z.object({ teamId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      const membership = await ctx.db.teamMembership.findUnique({
+        where: {
+          teamId_userId: { teamId: input.teamId, userId: ctx.user.id },
+        },
+        select: { role: true, endDate: true },
+      });
+      if (!membership || membership.endDate !== null) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only current team members can open the team console.",
+        });
+      }
+
+      const team = await ctx.db.team.findUnique({
+        where: { id: input.teamId },
+        include: {
+          roster: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  verificationStatus: true,
+                  profile: {
+                    select: {
+                      displayName: true,
+                      location: true,
+                      simRoles: true,
+                      realWorldRoles: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          registrations: {
+            orderBy: { event: { date: "asc" } },
+            include: {
+              event: {
+                select: {
+                  id: true,
+                  name: true,
+                  date: true,
+                  endDate: true,
+                  venue: true,
+                  platform: true,
+                  status: true,
+                  series: { select: { id: true, name: true, slug: true } },
+                },
+              },
+              result: true,
+              penalties: {
+                select: { id: true, status: true, type: true, summary: true },
+              },
+            },
+          },
+          _count: { select: { sponsorships: true } },
+        },
+      });
+      if (!team) throw new TRPCError({ code: "NOT_FOUND" });
+
+      return {
+        ...team,
+        myRole: membership.role,
+        myUserId: ctx.user.id,
+      };
+    }),
+
+  /**
+   * Championship position and per-event results for every series the team
+   * races in. Public — a team's competition record is part of its reputation.
+   */
+  season: publicProcedure
+    .input(z.object({ teamId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      const registrations = await ctx.db.eventRegistration.findMany({
+        where: { teamId: input.teamId, status: RegistrationStatus.CONFIRMED },
+        include: {
+          event: {
+            select: {
+              id: true,
+              name: true,
+              date: true,
+              seriesId: true,
+              seriesLabel: true,
+              series: { select: { id: true, name: true, slug: true } },
+            },
+          },
+          result: true,
+          penalties: { select: { status: true } },
+        },
+      });
+
+      const results = registrations.map((registration) => ({
+        eventId: registration.event.id,
+        eventName: registration.event.name,
+        eventDate: registration.event.date,
+        seriesId: registration.event.seriesId,
+        seriesName:
+          registration.event.series?.name ?? registration.event.seriesLabel,
+        registrationId: registration.id,
+        carNumber: registration.carNumber,
+        carClass: registration.carClass,
+        finishPosition: registration.result?.finishPosition ?? null,
+        status: registration.result?.status ?? null,
+        fastestLap: registration.result?.fastestLap ?? false,
+        activePenalties: countActivePenalties(registration.penalties),
+      }));
+
+      // One standings table per distinct managed series the team appears in.
+      const seriesSeen = new Map<
+        string,
+        { id: string; name: string; slug: string }
+      >();
+      for (const registration of registrations) {
+        const series = registration.event.series;
+        if (series && !seriesSeen.has(series.id)) {
+          seriesSeen.set(series.id, series);
+        }
+      }
+
+      const summaries = [];
+      for (const series of seriesSeen.values()) {
+        const standings = await computeSeriesStandings(ctx.db, series.id);
+        if (!standings) continue;
+        summaries.push(summarizeTeamSeries(series, standings.rows, input.teamId));
+      }
+
+      return { results, summaries };
     }),
 });

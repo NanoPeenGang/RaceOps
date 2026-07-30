@@ -136,6 +136,8 @@ model User {
   documentsUploaded      RaceDocument[]
   announcements          Announcement[]
   chatMessages           ChatMessage[]
+  sponsorshipsOffered    Sponsorship[]       @relation("SponsorshipSponsor")
+  sponsorshipsCreated    Sponsorship[]       @relation("SponsorshipCreator")
 
   @@index([verificationStatus])
 }
@@ -249,6 +251,9 @@ model Team {
   slug        String   @unique
   logoUrl     String?
   description String?  @db.Text
+  /// Public-facing links shown on the team's landing page.
+  websiteUrl  String?
+  homeBase    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -257,6 +262,59 @@ model Team {
   registrations EventRegistration[]
   strategyPlans StrategyPlan[]
   media         Media[]
+  sponsorships  Sponsorship[]
+  chatMessages  ChatMessage[]
+}
+
+enum SponsorshipStatus {
+  /// A sponsor has proposed a deal the team has not answered yet.
+  OFFERED
+  /// Terms are being worked out.
+  NEGOTIATING
+  /// Signed and running.
+  ACTIVE
+  /// The team said no, or the sponsor withdrew.
+  DECLINED
+  /// Ran its course.
+  EXPIRED
+}
+
+/**
+ * A sponsorship deal or offer against a team.
+ * `sponsorUserId` links a RaceOps sponsor account when the offer came through
+ * the platform; `sponsorName` is always set so a team can also record deals
+ * agreed offline with companies that have no account here.
+ */
+model Sponsorship {
+  id            String            @id @default(cuid())
+  teamId        String
+  sponsorUserId String?
+  sponsorName   String
+  contactEmail  String?
+  websiteUrl    String?
+  logoUrl       String?
+  /// Free-text package label, e.g. "Primary", "Associate", "Contingency".
+  tier          String?
+  /// Deal value in minor units (cents) to avoid float rounding.
+  valueMinor    Int?
+  currency      String            @default("USD")
+  status        SponsorshipStatus @default(OFFERED)
+  season        String?
+  startDate     DateTime?
+  endDate       DateTime?
+  notes         String?           @db.Text
+  /// Who put this record in — a sponsor making an offer, or a team manager.
+  createdById   String
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  team        Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sponsorUser User? @relation("SponsorshipSponsor", fields: [sponsorUserId], references: [id], onDelete: SetNull)
+  createdBy   User  @relation("SponsorshipCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([teamId, status])
+  @@index([sponsorUserId])
+  @@index([createdById])
 }
 
 enum TeamRole {
@@ -736,19 +794,24 @@ model Announcement {
 }
 
 /**
- * Live paddock chat during a race weekend.
+ * Chat, scoped to exactly one room: an event's paddock during a race weekend,
+ * or a team's own private channel. The "exactly one of" rule is enforced in
+ * the router, the same way media and document scopes are.
  */
 model ChatMessage {
   id        String   @id @default(cuid())
-  eventId   String
+  eventId   String?
+  teamId    String?
   userId    String
   body      String   @db.Text
   createdAt DateTime @default(now())
 
-  event RaceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event RaceEvent? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team  Team?      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([eventId, createdAt])
+  @@index([teamId, createdAt])
 }
 
 enum ResultStatus {

@@ -16,6 +16,7 @@ import { sessionRouter } from "@/server/trpc/routers/session";
 import { documentRouter } from "@/server/trpc/routers/document";
 import { reportRouter } from "@/server/trpc/routers/report";
 import { chatRouter } from "@/server/trpc/routers/chat";
+import { sponsorshipRouter } from "@/server/trpc/routers/sponsorship";
 
 export const appRouter = createTRPCRouter({
   user: userRouter,
@@ -35,6 +36,7 @@ export const appRouter = createTRPCRouter({
   document: documentRouter,
   report: reportRouter,
   chat: chatRouter,
+  sponsorship: sponsorshipRouter,
 });
 
 export type AppRouter = typeof appRouter;
