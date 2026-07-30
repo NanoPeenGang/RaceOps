@@ -27,6 +27,7 @@ import {
 } from "@/server/services/series-auth";
 import { blockingFindings } from "@/lib/eligibility";
 import { eligibilityForRegistration } from "@/server/services/eligibility";
+import { entryWaiverState } from "@/server/services/waivers";
 import { notify } from "@/server/services/notifications";
 import { diffFields, recordAudit } from "@/server/services/audit";
 import { logOfficialAction } from "@/server/services/officials-log";
@@ -625,6 +626,24 @@ export const eventRouter = createTRPCRouter({
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message: `Entry requirements outstanding — ${outstanding}. Sign off or waive them to confirm.`,
+          });
+        }
+
+        // Waivers are a legal requirement rather than a series rule, so they
+        // gate confirmation the same way and cannot be waived by an organizer.
+        const waivers = await entryWaiverState(ctx.db, registration.id);
+        if (!waivers.satisfied) {
+          const unsigned = waivers.outstanding
+            .map(
+              (person) =>
+                `${person.name}: ${person.waivers
+                  .map((waiver) => waiver.title)
+                  .join(", ")}`,
+            )
+            .join("; ");
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `Waivers unsigned — ${unsigned}. These have to be signed by the people themselves.`,
           });
         }
       }

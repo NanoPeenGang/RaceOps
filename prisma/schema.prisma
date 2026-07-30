@@ -155,6 +155,8 @@ model User {
   credentialsHeld        Credential[]         @relation("CredentialHolder")
   logEntries             OfficialLogEntry[]   @relation("LogOfficial")
   auditEvents            AuditEvent[]         @relation("AuditActor")
+  waiversAuthored        Waiver[]             @relation("WaiverAuthor")
+  waiverSignatures       WaiverSignature[]    @relation("WaiverSigner")
 
   @@index([verificationStatus])
 }
@@ -546,6 +548,7 @@ model Series {
   requirements        EntryRequirement[]
   inspectionTemplates InspectionTemplate[]
   transponders        Transponder[]
+  waivers             Waiver[]
 }
 
 /**
@@ -681,6 +684,7 @@ model RaceEvent {
   credentialTypes CredentialType[]
   credentials     Credential[]
   officialLog     OfficialLogEntry[]
+  waivers         Waiver[]
 
   @@index([seriesLabel, date])
   @@index([seriesId, date])
@@ -718,25 +722,26 @@ model EventRegistration {
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
-  event          RaceEvent               @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  team           Team?                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  entrantUser    User?                   @relation("RegistrationEntrant", fields: [entrantUserId], references: [id], onDelete: Cascade)
-  submittedBy    User                    @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
-  result         EventResult?
-  penalties      Penalty[]
-  timingEntries  TimingEntry[]
-  lineup         RegistrationDriver[]
-  stints         Stint[]
-  waivers        RequirementWaiver[]
-  inspections    Inspection[]
-  incidentsAbout Incident[]              @relation("IncidentSubject")
-  incidentsFiled Incident[]              @relation("IncidentReporter")
-  car            Car?                    @relation(fields: [carId], references: [id], onDelete: SetNull)
-  transponders   TransponderAssignment[]
-  tireSets       TireSet[]
-  paddock        PaddockAllocation?
-  credentials    Credential[]
-  seriesClass    SeriesClass?            @relation(fields: [seriesClassId], references: [id], onDelete: SetNull)
+  event            RaceEvent               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team             Team?                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  entrantUser      User?                   @relation("RegistrationEntrant", fields: [entrantUserId], references: [id], onDelete: Cascade)
+  submittedBy      User                    @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+  result           EventResult?
+  penalties        Penalty[]
+  timingEntries    TimingEntry[]
+  lineup           RegistrationDriver[]
+  stints           Stint[]
+  waivers          RequirementWaiver[]
+  inspections      Inspection[]
+  incidentsAbout   Incident[]              @relation("IncidentSubject")
+  incidentsFiled   Incident[]              @relation("IncidentReporter")
+  car              Car?                    @relation(fields: [carId], references: [id], onDelete: SetNull)
+  transponders     TransponderAssignment[]
+  tireSets         TireSet[]
+  paddock          PaddockAllocation?
+  credentials      Credential[]
+  waiverSignatures WaiverSignature[]
+  seriesClass      SeriesClass?            @relation(fields: [seriesClassId], references: [id], onDelete: SetNull)
 
   @@unique([eventId, teamId])
   @@unique([eventId, entrantUserId])
@@ -2128,4 +2133,105 @@ model AuditEvent {
   @@index([eventId, createdAt])
   @@index([seriesId, createdAt])
   @@index([actorId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Waivers & e-signature
+// ---------------------------------------------------------------------------
+
+/**
+ * Who a waiver applies to. Real-world motorsport requires signatures from
+ * more than the drivers — a crew member in the pit lane and a guest in the
+ * paddock are both on somebody's insurance.
+ */
+enum WaiverAudience {
+  /// Everyone declared on an entry: drivers, crew, named pass holders.
+  ALL_PARTICIPANTS
+  DRIVERS
+  CREW
+  VOLUNTEERS
+  /// Anyone who takes a paddock pass, including guests.
+  CREDENTIAL_HOLDERS
+}
+
+/**
+ * A waiver or indemnity document for an event or a whole series.
+ * Legally required in real-world motorsport and absent from RaceOps until
+ * now, which means organizers were running events on paper forms while every
+ * other part of the weekend was here.
+ * The body text is versioned rather than edited: a signature is only
+ * meaningful against the exact wording that was signed, so changing the text
+ * means issuing a new version and collecting signatures again. Superseded
+ * versions are kept because the signatures against them still have to be
+ * produced years later.
+ */
+model Waiver {
+  id            String         @id @default(cuid())
+  /// Exactly one of these is set; a CHECK enforces it.
+  seriesId      String?
+  eventId       String?
+  title         String
+  /// The wording itself. A signature means nothing without it.
+  body          String         @db.Text
+  /// Bumped whenever the wording changes; signatures record which they signed.
+  version       Int            @default(1)
+  audience      WaiverAudience @default(ALL_PARTICIPANTS)
+  /// Blocks entry confirmation until signed, as most real-world events do.
+  required      Boolean        @default(true)
+  /// Youngest age that may sign for themselves; below it a guardian signs.
+  minSigningAge Int?
+  active        Boolean        @default(true)
+  /// Set when a newer version replaced this one.
+  supersededAt  DateTime?
+  createdById   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  series     Series?           @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  event      RaceEvent?        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy  User?             @relation("WaiverAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  signatures WaiverSignature[]
+
+  @@index([seriesId, active])
+  @@index([eventId, active])
+}
+
+/**
+ * One person's signature on one version of a waiver.
+ * A typed-name e-signature, which is what the great majority of motorsport
+ * organizers actually accept. What makes it hold up is not the signature
+ * itself but everything recorded around it: the exact wording version, the
+ * time, the address it came from and the browser it came from. Those fields
+ * are the record, so none of them is optional in practice.
+ * Signatures are never edited or deleted through any router. A signature
+ * withdrawn is a new fact, not an erasure.
+ */
+model WaiverSignature {
+  id               String   @id @default(cuid())
+  waiverId         String
+  /// The version of the wording that was on screen when they signed.
+  waiverVersion    Int
+  /// Null when the signer has no account — a guest crew member, a guardian.
+  signerUserId     String?
+  /// Typed exactly as they entered it; compared against their profile name.
+  signedName       String
+  signedEmail      String?
+  /// The entry this signature covers, where it was collected against one.
+  registrationId   String?
+  /// Set when a guardian signed for a minor, with their relationship.
+  guardianName     String?
+  guardianRelation String?
+  signedAt         DateTime @default(now())
+  /// Evidence fields. Not decorative: they are what makes the signature hold.
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime @default(now())
+
+  waiver       Waiver             @relation(fields: [waiverId], references: [id], onDelete: Cascade)
+  signer       User?              @relation("WaiverSigner", fields: [signerUserId], references: [id], onDelete: SetNull)
+  registration EventRegistration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+
+  @@index([waiverId, signedAt])
+  @@index([signerUserId])
+  @@index([registrationId])
 }

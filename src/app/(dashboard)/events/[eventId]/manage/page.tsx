@@ -28,6 +28,7 @@ import { ScrutineeringPanel } from "./scrutineering";
 import { TiresPanel } from "./tires";
 import { PaddockPanel } from "./paddock";
 import { OfficialsLogPanel } from "./officials-log";
+import { WaiversPanel } from "./waivers";
 import { GeneratedDocuments } from "@/components/generated-documents";
 import { AnnouncementsPanel } from "@/components/announcements-panel";
 import { DocumentsPanel } from "@/components/documents-panel";
@@ -154,6 +155,7 @@ export default function ManageEventPage({
       />
       <LineupsPanel eventId={eventId} />
       <EligibilityPanel eventId={eventId} />
+      <WaiversPanel eventId={eventId} />
       <ScrutineeringPanel eventId={eventId} seriesId={data.seriesId} />
       <TiresPanel eventId={eventId} />
       <PaddockPanel eventId={eventId} />

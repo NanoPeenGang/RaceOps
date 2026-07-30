@@ -25,6 +25,7 @@ import { trackRouter } from "@/server/trpc/routers/track";
 import { carRouter } from "@/server/trpc/routers/car";
 import { paddockRouter } from "@/server/trpc/routers/paddock";
 import { logRouter } from "@/server/trpc/routers/log";
+import { waiverRouter } from "@/server/trpc/routers/waiver";
 
 export const appRouter = createTRPCRouter({
   user: userRouter,
@@ -53,6 +54,7 @@ export const appRouter = createTRPCRouter({
   car: carRouter,
   paddock: paddockRouter,
   log: logRouter,
+  waiver: waiverRouter,
 });
 
 export type AppRouter = typeof appRouter;
