@@ -16,3 +16,81 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/* ---------------------------------------------------------------------------
+ * Print
+ *
+ * Paddocks run on paper. Entry lists, timetables, grid sheets and bulletins
+ * are printed and pinned up, so they get a stylesheet rather than whatever the
+ * browser makes of the app chrome. Anything marked `print-document` becomes
+ * the whole page; everything else on it is dropped.
+ * ------------------------------------------------------------------------ */
+
+@media print {
+  /* Ink is expensive and paddock printers are monochrome. */
+  * {
+    background: transparent !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+
+  body {
+    font-size: 10pt;
+    line-height: 1.35;
+  }
+
+  /* Site chrome never belongs on a printed document. */
+  header[data-app-header],
+  nav[data-app-nav],
+  footer[data-app-footer],
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* A document takes the full width regardless of the app's layout. */
+  .print-document {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Cards are page furniture on screen and a rule on paper. */
+  .print-document [class*="rounded"] {
+    border-radius: 0 !important;
+    border-color: #999 !important;
+  }
+
+  /* Never orphan a heading or split a row across a page break. */
+  h1,
+  h2,
+  h3 {
+    break-after: avoid-page;
+  }
+
+  tr,
+  li,
+  .print-row {
+    break-inside: avoid;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
+    border-bottom: 1px solid #ccc;
+    padding: 2pt 4pt;
+    text-align: left;
+  }
+
+  /* Long documents need the sheet identified on every page. */
+  .print-document thead {
+    display: table-header-group;
+  }
+}

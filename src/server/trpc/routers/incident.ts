@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
+  AuditAction,
   IncidentSource,
   IncidentStatus,
+  LogCategory,
   NotificationType,
   PenaltyType,
 } from "@prisma/client";
@@ -27,6 +29,8 @@ import {
   summarizeQueue,
 } from "@/lib/incidents";
 import { notify } from "@/server/services/notifications";
+import { recordAudit } from "@/server/services/audit";
+import { logOfficialAction } from "@/server/services/officials-log";
 
 /**
  * Incident reports and the stewards' queue.
@@ -349,7 +353,13 @@ export const incidentRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const incident = await ctx.db.incident.findUnique({
         where: { id: input.incidentId },
-        select: { id: true, eventId: true, status: true, reportedById: true },
+        select: {
+          id: true,
+          eventId: true,
+          status: true,
+          reportedById: true,
+          summary: true,
+        },
       });
       if (!incident) throw new TRPCError({ code: "NOT_FOUND" });
       await assertOfficial(ctx.db, incident.eventId, ctx.user.id);
@@ -371,6 +381,27 @@ export const incidentRouter = createTRPCRouter({
             ? { decidedById: ctx.user.id, decidedAt: new Date() }
             : {}),
         },
+      });
+
+      // The stewards' narrative: only the decision goes in the bulletin, not
+      // every internal move through the queue.
+      await logOfficialAction(ctx.db, {
+        eventId: incident.eventId,
+        category: LogCategory.INCIDENT,
+        summary: `${incident.summary} — ${INCIDENT_STATUS_LABELS[input.status]}`,
+        detail: input.decisionNotes ?? null,
+        officialId: ctx.user.id,
+        incidentId: incident.id,
+        published: closing,
+      });
+      await recordAudit(ctx.db, {
+        actorId: ctx.user.id,
+        action: AuditAction.STATUS_CHANGE,
+        entityType: "Incident",
+        entityId: incident.id,
+        eventId: incident.eventId,
+        summary: `Report moved to ${INCIDENT_STATUS_LABELS[input.status]}`,
+        changes: { status: { from: incident.status, to: input.status } },
       });
 
       if (closing && incident.reportedById !== ctx.user.id) {

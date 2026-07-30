@@ -13,7 +13,10 @@ import { NAV_LINKS } from "@/lib/nav";
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-50 border-b border-brand-black/10 bg-brand-offwhite/90 backdrop-blur">
+    <header
+      data-app-header
+      className="sticky top-0 z-50 border-b border-brand-black/10 bg-brand-offwhite/90 backdrop-blur"
+    >
       <div className="relative mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-4">
         <div className="flex min-w-0 items-center gap-8">
           {/* Canonical logo top-left on every page. Space-constrained mobile

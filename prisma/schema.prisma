@@ -153,6 +153,8 @@ model User {
   tireSetsAllocated      TireSet[]            @relation("TireAllocator")
   paddockAssignments     PaddockAllocation[]  @relation("PaddockAssigner")
   credentialsHeld        Credential[]         @relation("CredentialHolder")
+  logEntries             OfficialLogEntry[]   @relation("LogOfficial")
+  auditEvents            AuditEvent[]         @relation("AuditActor")
 
   @@index([verificationStatus])
 }
@@ -678,6 +680,7 @@ model RaceEvent {
   paddock         PaddockAllocation[]
   credentialTypes CredentialType[]
   credentials     Credential[]
+  officialLog     OfficialLogEntry[]
 
   @@index([seriesLabel, date])
   @@index([seriesId, date])
@@ -863,6 +866,7 @@ model EventSession {
   stints        Stint[]
   incidents     Incident[]
   conditions    SessionCondition[]
+  logEntries    OfficialLogEntry[]
 
   @@index([eventId, startsAt])
 }
@@ -1278,6 +1282,7 @@ model Incident {
   turn            TrackTurn?         @relation(fields: [turnId], references: [id], onDelete: SetNull)
   media           Media[]
   responses       IncidentResponse[]
+  logEntries      OfficialLogEntry[]
 
   @@index([eventId, status])
   @@index([subjectRegistrationId])
@@ -1378,12 +1383,13 @@ model Penalty {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event        RaceEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  issuedBy     User              @relation("PenaltyIssuer", fields: [issuedById], references: [id], onDelete: Cascade)
+  event        RaceEvent          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registration EventRegistration  @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  issuedBy     User               @relation("PenaltyIssuer", fields: [issuedById], references: [id], onDelete: Cascade)
   appeal       PenaltyAppeal?
   media        Media[]
   incident     Incident?
+  logEntries   OfficialLogEntry[]
 
   @@index([eventId])
   @@index([registrationId])
@@ -2015,4 +2021,111 @@ model Credential {
   @@index([eventId, status])
   @@index([registrationId])
   @@index([holderUserId])
+}
+
+// ---------------------------------------------------------------------------
+// Officials' log & audit trail
+// ---------------------------------------------------------------------------
+
+/**
+ * What kind of thing happened, for filtering and for the bulletin's headings.
+ */
+enum LogCategory {
+  /// Session started, suspended, resumed, finished.
+  SESSION
+  /// Flag or safety-car state change.
+  FLAG
+  /// An incident was noted, investigated or decided.
+  INCIDENT
+  PENALTY
+  /// Scrutineering: a car referred, passed or failed.
+  TECHNICAL
+  /// A document or bulletin was published.
+  DOCUMENT
+  /// Anything else race control wants on the record.
+  NOTE
+}
+
+/**
+ * The officials' event log: a timestamped, chronological record of everything
+ * race control did.
+ * Most of these events are already captured individually — a flag change is a
+ * field on the session, a penalty is a row — but nobody can read them in
+ * order, which is what an end-of-meeting bulletin is. Entries are written
+ * automatically as things happen and by hand for anything the system cannot
+ * see ("driver briefing held", "circuit inspected after rain").
+ * Entries are append-only by design. An error is corrected by a later entry
+ * saying so, exactly as a paper log is.
+ */
+model OfficialLogEntry {
+  id         String      @id @default(cuid())
+  eventId    String
+  sessionId  String?
+  category   LogCategory @default(NOTE)
+  /// Wall-clock time of the thing itself, which may precede the write.
+  occurredAt DateTime    @default(now())
+  summary    String
+  detail     String?     @db.Text
+  /// Null for entries the system wrote itself.
+  officialId String?
+  /// Set when the entry was generated rather than typed.
+  automatic  Boolean     @default(false)
+  /// Officials-only until the bulletin is published.
+  published  Boolean     @default(false)
+
+  incidentId String?
+  penaltyId  String?
+
+  createdAt DateTime @default(now())
+
+  event    RaceEvent     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  session  EventSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  official User?         @relation("LogOfficial", fields: [officialId], references: [id], onDelete: SetNull)
+  incident Incident?     @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  penalty  Penalty?      @relation(fields: [penaltyId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, occurredAt])
+  @@index([sessionId, occurredAt])
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  /// A state transition worth naming separately from a field edit.
+  STATUS_CHANGE
+  PUBLISH
+}
+
+/**
+ * Who changed what, and when.
+ * Once a championship has consequences, someone will dispute a change, and
+ * "the database says so now" is not an answer. Separate from the officials'
+ * log on purpose: the log is a narrative officials write and publish, this is
+ * a record the system keeps whether anyone wants it or not.
+ * Never exposed for editing or deletion through any router.
+ */
+model AuditEvent {
+  id         String      @id @default(cuid())
+  /// Null when the actor is the system (a webhook, a scheduled job).
+  actorId    String?
+  action     AuditAction
+  /// Prisma model name, e.g. "EventResult", "Penalty", "RaceDocument".
+  entityType String
+  entityId   String
+  /// Scope, for "everything that happened at this event" queries.
+  eventId    String?
+  seriesId   String?
+  /// One line a human can read without decoding the payload.
+  summary    String
+  /// Changed fields only: { field: { from, to } }. Null for creates/deletes.
+  changes    Json?
+  createdAt  DateTime    @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([eventId, createdAt])
+  @@index([seriesId, createdAt])
+  @@index([actorId, createdAt])
 }

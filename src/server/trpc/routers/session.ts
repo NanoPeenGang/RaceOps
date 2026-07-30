@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
   FlagState,
+  LogCategory,
   SessionStatus,
   SessionType,
   TimingStatus,
@@ -19,7 +20,17 @@ import {
 } from "@/server/services/series-auth";
 import { parseLapTime } from "@/lib/lap-time";
 import { currentConditions, sessionWasWet } from "@/lib/conditions";
+import { flagLogSummary } from "@/lib/officials-log";
 import { broadcastTimingUpdate } from "@/server/services/realtime";
+import { logOfficialAction } from "@/server/services/officials-log";
+
+/** How a session status change reads in the log. */
+const SESSION_STATUS_WORDS: Record<SessionStatus, string> = {
+  SCHEDULED: "returned to the schedule",
+  LIVE: "started",
+  FINISHED: "finished",
+  CANCELED: "canceled",
+};
 
 /**
  * Event running order (multi-day schedules) and live timing.
@@ -134,7 +145,12 @@ export const sessionRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const session = await ctx.db.eventSession.findUnique({
         where: { id: input.sessionId },
-        select: { eventId: true },
+        select: {
+          eventId: true,
+          name: true,
+          status: true,
+          flagState: true,
+        },
       });
       if (!session) throw new TRPCError({ code: "NOT_FOUND" });
       await assertEventOrganizer(
@@ -150,6 +166,33 @@ export const sessionRouter = createTRPCRouter({
           ...(input.flagState ? { flagState: input.flagState } : {}),
         },
       });
+
+      // The log has to be written as it happens: `flagState` only holds the
+      // current value, so "when did the safety car come out" cannot be
+      // reconstructed from the session row afterwards.
+      if (input.status && input.status !== session.status) {
+        await logOfficialAction(ctx.db, {
+          eventId: session.eventId,
+          sessionId: input.sessionId,
+          category: LogCategory.SESSION,
+          summary: `${session.name}: ${SESSION_STATUS_WORDS[input.status]}`,
+          officialId: ctx.user.id,
+        });
+      }
+      if (input.flagState && input.flagState !== session.flagState) {
+        await logOfficialAction(ctx.db, {
+          eventId: session.eventId,
+          sessionId: input.sessionId,
+          category: LogCategory.FLAG,
+          summary: flagLogSummary(
+            session.name,
+            session.flagState,
+            input.flagState,
+          ),
+          officialId: ctx.user.id,
+        });
+      }
+
       await broadcastTimingUpdate(input.sessionId);
       return updated;
     }),

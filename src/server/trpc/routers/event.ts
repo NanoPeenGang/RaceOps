@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
+  AuditAction,
   EventStatus,
+  LogCategory,
   NotificationType,
   RegistrationStatus,
   ResultStatus,
@@ -26,6 +28,8 @@ import {
 import { blockingFindings } from "@/lib/eligibility";
 import { eligibilityForRegistration } from "@/server/services/eligibility";
 import { notify } from "@/server/services/notifications";
+import { diffFields, recordAudit } from "@/server/services/audit";
+import { logOfficialAction } from "@/server/services/officials-log";
 import {
   matchResultRows,
   parseResultsImport,
@@ -727,7 +731,13 @@ export const eventRouter = createTRPCRouter({
           data: { fastestLap: false },
         });
       }
-      return ctx.db.eventResult.upsert({
+
+      // A result is the record championships are decided on, so an amendment
+      // has to say what it used to be, not just that someone touched it.
+      const previous = await ctx.db.eventResult.findUnique({
+        where: { registrationId },
+      });
+      const result = await ctx.db.eventResult.upsert({
         where: { registrationId },
         create: {
           registrationId,
@@ -736,6 +746,45 @@ export const eventRouter = createTRPCRouter({
         },
         update: data,
       });
+
+      if (!previous) {
+        await recordAudit(ctx.db, {
+          actorId: ctx.user.id,
+          action: AuditAction.CREATE,
+          entityType: "EventResult",
+          entityId: result.id,
+          eventId: registration.eventId,
+          summary: `Classified entry ${result.finishPosition ?? result.status}`,
+        });
+      } else {
+        const changes = diffFields(previous, data, [
+          "finishPosition",
+          "status",
+          "lapsCompleted",
+          "fastestLap",
+          "pointsOverride",
+          "notes",
+        ]);
+        if (changes) {
+          await recordAudit(ctx.db, {
+            actorId: ctx.user.id,
+            action: AuditAction.UPDATE,
+            entityType: "EventResult",
+            entityId: result.id,
+            eventId: registration.eventId,
+            summary: "Amended a result",
+            changes,
+          });
+          await logOfficialAction(ctx.db, {
+            eventId: registration.eventId,
+            category: LogCategory.NOTE,
+            summary: "Result amended",
+            officialId: ctx.user.id,
+            published: false,
+          });
+        }
+      }
+      return result;
     }),
 
   /**

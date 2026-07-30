@@ -27,6 +27,7 @@ import { EligibilityPanel } from "./eligibility";
 import { ScrutineeringPanel } from "./scrutineering";
 import { TiresPanel } from "./tires";
 import { PaddockPanel } from "./paddock";
+import { OfficialsLogPanel } from "./officials-log";
 import { AnnouncementsPanel } from "@/components/announcements-panel";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { DangerZone } from "@/components/danger-zone";
@@ -135,6 +136,11 @@ export default function ManageEventPage({
             Public penalty record
           </Button>
         </Link>
+        <Link href={`/events/${eventId}/bulletin`}>
+          <Button size="sm" variant="outline">
+            Official bulletin
+          </Button>
+        </Link>
       </div>
 
       <VenuePanel eventId={eventId} />
@@ -153,6 +159,7 @@ export default function ManageEventPage({
       <ResultsPanel eventId={eventId} />
       <ResultsImportPanel eventId={eventId} />
       <PenaltiesPanel eventId={eventId} />
+      <OfficialsLogPanel eventId={eventId} />
       <ShiftsPanel eventId={eventId} />
       <AnnouncementsPanel scope={{ eventId }} canManage title="Event notices" />
       <DocumentsPanel

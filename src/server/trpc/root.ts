@@ -24,6 +24,7 @@ import { incidentRouter } from "@/server/trpc/routers/incident";
 import { trackRouter } from "@/server/trpc/routers/track";
 import { carRouter } from "@/server/trpc/routers/car";
 import { paddockRouter } from "@/server/trpc/routers/paddock";
+import { logRouter } from "@/server/trpc/routers/log";
 
 export const appRouter = createTRPCRouter({
   user: userRouter,
@@ -51,6 +52,7 @@ export const appRouter = createTRPCRouter({
   track: trackRouter,
   car: carRouter,
   paddock: paddockRouter,
+  log: logRouter,
 });
 
 export type AppRouter = typeof appRouter;

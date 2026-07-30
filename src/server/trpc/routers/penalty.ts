@@ -2,6 +2,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
   AppealStatus,
+  AuditAction,
+  LogCategory,
   NotificationType,
   PenaltyStatus,
   PenaltyType,
@@ -23,9 +25,12 @@ import { notify } from "@/server/services/notifications";
 import {
   canAppeal,
   isAppealOpen,
+  PENALTY_TYPE_LABELS,
   penaltyStatusAfterAppeal,
   validatePenaltyMagnitude,
 } from "@/lib/penalties";
+import { diffFields, recordAudit } from "@/server/services/audit";
+import { logOfficialAction } from "@/server/services/officials-log";
 
 const ENTRY_MANAGER_ROLES: TeamRole[] = [TeamRole.OWNER, TeamRole.MANAGER];
 
@@ -214,6 +219,23 @@ export const penaltyRouter = createTRPCRouter({
         include: { event: { select: { name: true } } },
       });
 
+      await logOfficialAction(ctx.db, {
+        eventId: registration.eventId,
+        category: LogCategory.PENALTY,
+        summary: `${PENALTY_TYPE_LABELS[input.type]} — ${input.summary}`,
+        detail: input.regulation ? `Regulation ${input.regulation}` : null,
+        officialId: ctx.user.id,
+        penaltyId: penalty.id,
+      });
+      await recordAudit(ctx.db, {
+        actorId: ctx.user.id,
+        action: AuditAction.CREATE,
+        entityType: "Penalty",
+        entityId: penalty.id,
+        eventId: registration.eventId,
+        summary: `Issued ${PENALTY_TYPE_LABELS[input.type]}: ${input.summary}`,
+      });
+
       const contacts = await registrationContacts(ctx.db, input.registrationId);
       await Promise.all(
         contacts.map((userId) =>
@@ -261,7 +283,40 @@ export const penaltyRouter = createTRPCRouter({
         });
       }
       const { penaltyId, ...data } = input;
-      return ctx.db.penalty.update({ where: { id: penaltyId }, data });
+      const updated = await ctx.db.penalty.update({
+        where: { id: penaltyId },
+        data,
+      });
+
+      // Amending a penalty is exactly the change someone disputes later, so
+      // the before/after is recorded rather than just the fact of an edit.
+      const changes = diffFields(penalty, data, [
+        "summary",
+        "details",
+        "regulation",
+        "timeSeconds",
+        "gridPlaces",
+        "pointsDeducted",
+      ]);
+      if (changes) {
+        await recordAudit(ctx.db, {
+          actorId: ctx.user.id,
+          action: AuditAction.UPDATE,
+          entityType: "Penalty",
+          entityId: penaltyId,
+          eventId: penalty.eventId,
+          summary: `Amended penalty: ${updated.summary}`,
+          changes,
+        });
+        await logOfficialAction(ctx.db, {
+          eventId: penalty.eventId,
+          category: LogCategory.PENALTY,
+          summary: `Penalty amended — ${updated.summary}`,
+          officialId: ctx.user.id,
+          penaltyId,
+        });
+      }
+      return updated;
     }),
 
   rescind: protectedProcedure
@@ -281,6 +336,22 @@ export const penaltyRouter = createTRPCRouter({
       const updated = await ctx.db.penalty.update({
         where: { id: penalty.id },
         data: { status: PenaltyStatus.OVERTURNED },
+      });
+      await logOfficialAction(ctx.db, {
+        eventId: penalty.eventId,
+        category: LogCategory.PENALTY,
+        summary: `Penalty rescinded — ${penalty.summary}`,
+        officialId: ctx.user.id,
+        penaltyId: penalty.id,
+      });
+      await recordAudit(ctx.db, {
+        actorId: ctx.user.id,
+        action: AuditAction.STATUS_CHANGE,
+        entityType: "Penalty",
+        entityId: penalty.id,
+        eventId: penalty.eventId,
+        summary: `Rescinded penalty: ${penalty.summary}`,
+        changes: { status: { from: penalty.status, to: "OVERTURNED" } },
       });
       const contacts = await registrationContacts(
         ctx.db,
