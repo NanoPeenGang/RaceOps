@@ -25,6 +25,7 @@ import {
   timetableDocument,
   timingSheetDocument,
 } from "@/server/services/race-documents";
+import { commentatorPack } from "@/server/services/commentator-pack";
 
 /**
  * Regulations library and organizer notices.
@@ -398,5 +399,17 @@ export const documentRouter = createTRPCRouter({
       );
       if (!document) throw new TRPCError({ code: "NOT_FOUND" });
       return document;
+    }),
+
+  /**
+   * The commentator pack: the entry list with what each entry means for the
+   * championship. Public — a stream's value is that people can read along.
+   */
+  commentatorPack: publicProcedure
+    .input(z.object({ eventId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      const pack = await commentatorPack(ctx.db, input.eventId);
+      if (!pack) throw new TRPCError({ code: "NOT_FOUND" });
+      return pack;
     }),
 });

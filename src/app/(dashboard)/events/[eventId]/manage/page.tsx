@@ -143,6 +143,11 @@ export default function ManageEventPage({
             Official bulletin
           </Button>
         </Link>
+        <Link href={`/events/${eventId}/broadcast`}>
+          <Button size="sm" variant="outline">
+            Broadcast pack
+          </Button>
+        </Link>
       </div>
 
       <VenuePanel eventId={eventId} />

@@ -132,6 +132,11 @@ export default async function EventLandingPage({
                 Penalties
               </Button>
             </Link>
+            <Link href={`/events/${eventId}/broadcast`}>
+              <Button size="sm" variant="outline">
+                Broadcast pack
+              </Button>
+            </Link>
             {isOrganizer && (
               <Link href={`/events/${eventId}/manage`}>
                 <Button size="sm" variant="primary">
