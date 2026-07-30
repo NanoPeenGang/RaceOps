@@ -164,6 +164,8 @@ export const eventRouter = createTRPCRouter({
         platform: z.string().min(1).max(120),
         venue: z.string().max(160).optional(),
         trackLayoutId: z.string().cuid().optional(),
+        /// Sets of tires each entry may use across the meeting; null unlimited.
+        tireSetAllowance: z.number().int().min(1).max(100).optional(),
         description: z.string().max(8000).optional(),
         entryCapacity: z.number().int().min(1).max(1000).optional(),
         registrationOpensAt: z.date().optional(),
@@ -204,6 +206,8 @@ export const eventRouter = createTRPCRouter({
         date: z.date().optional(),
         venue: z.string().max(160).nullish(),
         trackLayoutId: z.string().cuid().nullish(),
+        /// Sets of tires each entry may use across the meeting; null unlimited.
+        tireSetAllowance: z.number().int().min(1).max(100).nullish(),
         description: z.string().max(8000).nullish(),
         entryCapacity: z.number().int().min(1).max(1000).nullish(),
         registrationOpensAt: z.date().nullish(),

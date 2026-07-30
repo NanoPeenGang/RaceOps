@@ -147,6 +147,10 @@ model User {
   sponsorshipsCreated    Sponsorship[]        @relation("SponsorshipCreator")
   tracksCreated          Track[]              @relation("TrackCreator")
   conditionsRecorded     SessionCondition[]   @relation("ConditionRecorder")
+  carsOwned              Car[]                @relation("CarOwner")
+  carsCreated            Car[]                @relation("CarCreator")
+  transpondersOwned      Transponder[]        @relation("TransponderOwner")
+  tireSetsAllocated      TireSet[]            @relation("TireAllocator")
 
   @@index([verificationStatus])
 }
@@ -278,6 +282,8 @@ model Team {
   media         Media[]
   sponsorships  Sponsorship[]
   chatMessages  ChatMessage[]
+  cars          Car[]
+  transponders  Transponder[]
 }
 
 enum SponsorshipStatus {
@@ -535,6 +541,7 @@ model Series {
   classes             SeriesClass[]
   requirements        EntryRequirement[]
   inspectionTemplates InspectionTemplate[]
+  transponders        Transponder[]
 }
 
 /**
@@ -644,6 +651,9 @@ model RaceEvent {
   /// Least time each declared driver must complete, in minutes.
   minDriveMinutesPerDriver Int?
 
+  /// Sets of tires each entry may use across the meeting; null is unlimited.
+  tireSetAllowance Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -662,6 +672,7 @@ model RaceEvent {
   chatMessages    ChatMessage[]
   raceReports     RaceReport[]
   incidents       Incident[]
+  tireSets        TireSet[]
 
   @@index([seriesLabel, date])
   @@index([seriesId, date])
@@ -692,15 +703,17 @@ model EventRegistration {
   carClass      String?
   /// The declared class this entry is scored in, when the series has any.
   seriesClassId String?
+  /// The car being entered, where the entrant keeps car records.
+  carId         String?
   notes         String?            @db.Text
   status        RegistrationStatus @default(PENDING)
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
-  event          RaceEvent            @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  team           Team?                @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  entrantUser    User?                @relation("RegistrationEntrant", fields: [entrantUserId], references: [id], onDelete: Cascade)
-  submittedBy    User                 @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+  event          RaceEvent               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team           Team?                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  entrantUser    User?                   @relation("RegistrationEntrant", fields: [entrantUserId], references: [id], onDelete: Cascade)
+  submittedBy    User                    @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
   result         EventResult?
   penalties      Penalty[]
   timingEntries  TimingEntry[]
@@ -708,9 +721,12 @@ model EventRegistration {
   stints         Stint[]
   waivers        RequirementWaiver[]
   inspections    Inspection[]
-  incidentsAbout Incident[]           @relation("IncidentSubject")
-  incidentsFiled Incident[]           @relation("IncidentReporter")
-  seriesClass    SeriesClass?         @relation(fields: [seriesClassId], references: [id], onDelete: SetNull)
+  incidentsAbout Incident[]              @relation("IncidentSubject")
+  incidentsFiled Incident[]              @relation("IncidentReporter")
+  car            Car?                    @relation(fields: [carId], references: [id], onDelete: SetNull)
+  transponders   TransponderAssignment[]
+  tireSets       TireSet[]
+  seriesClass    SeriesClass?            @relation(fields: [seriesClassId], references: [id], onDelete: SetNull)
 
   @@unique([eventId, teamId])
   @@unique([eventId, entrantUserId])
@@ -1739,4 +1755,143 @@ model SessionCondition {
   recordedBy User?        @relation("ConditionRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
 
   @@index([sessionId, recordedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Cars, transponders & tires
+// ---------------------------------------------------------------------------
+
+/**
+ * A car.
+ * Results follow the entry today, which loses the fact that the same chassis
+ * raced under three team names over five seasons — the thing a homologation
+ * check, a build history and a "cars that have raced here" list all need. A
+ * car belongs to a team or to a person; exactly one, enforced by a CHECK.
+ */
+model Car {
+  id            String  @id @default(cuid())
+  teamId        String?
+  ownerUserId   String?
+  /// What the crew calls it: "Car 7", "the red one", "Chassis 004".
+  name          String
+  make          String?
+  model         String?
+  year          Int?
+  /// Chassis plate / VIN. Unique per car in practice, but not enforced —
+  /// grassroots cars are frequently unplated and sims have none at all.
+  chassisNumber String?
+  engine        String?
+  /// Homologation or logbook number, where the sanctioning body issues one.
+  homologation  String?
+  /// Free-form class the car is built to, independent of any series' classes.
+  classLabel    String?
+  liveryUrl     String?
+  notes         String? @db.Text
+  /// Retired cars stay for the history but drop out of the entry picker.
+  active        Boolean @default(true)
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  team          Team?               @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  ownerUser     User?               @relation("CarOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  createdBy     User?               @relation("CarCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  registrations EventRegistration[]
+
+  @@index([teamId, active])
+  @@index([ownerUserId, active])
+}
+
+/**
+ * A timing transponder.
+ * Live timing is matched by registration in RaceOps, but every real timing
+ * system keys on a transponder number. Holding the number as a record — with
+ * whoever owns it, since series commonly rent them out for a weekend — is what
+ * lets a timing feed be reconciled to entries without a spreadsheet.
+ */
+model Transponder {
+  id          String  @id @default(cuid())
+  /// The number printed on the unit. Globally unique by manufacturer.
+  number      String  @unique
+  /// "MyLaps X2", "AMB TranX260", "RMonitor" — kept free-form.
+  make        String?
+  teamId      String?
+  ownerUserId String?
+  /// Set when a series owns a pool it rents to entrants for the weekend.
+  seriesId    String?
+  active      Boolean @default(true)
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team        Team?                   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  ownerUser   User?                   @relation("TransponderOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  series      Series?                 @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  assignments TransponderAssignment[]
+
+  @@index([teamId])
+  @@index([seriesId])
+}
+
+/**
+ * A transponder fitted to an entry for one event.
+ * Per event rather than per car: rented units move between entries week to
+ * week, and an endurance entry commonly carries a backup alongside the primary
+ * in case the first fails mid-race.
+ */
+model TransponderAssignment {
+  id             String   @id @default(cuid())
+  registrationId String
+  transponderId  String
+  /// The unit the timing feed is expected to see. At most one per entry.
+  isPrimary      Boolean  @default(true)
+  assignedAt     DateTime @default(now())
+  notes          String?
+
+  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  transponder  Transponder       @relation(fields: [transponderId], references: [id], onDelete: Cascade)
+
+  @@unique([registrationId, transponderId])
+  @@index([transponderId])
+}
+
+enum TireSetStatus {
+  /// Issued to the entry and marked, not yet on the car.
+  ALLOCATED
+  FITTED
+  /// Handed back — a set that came off the car and may go on again.
+  RETURNED
+  /// Scrubbed from the allocation: mis-scanned, damaged before use, replaced.
+  VOID
+}
+
+/**
+ * One set of tires allocated to an entry for an event.
+ * A hard regulation in most series and one of the few that is genuinely
+ * countable, which is why it is worth holding as records rather than a number
+ * on a clipboard. `identifier` is whatever the scrutineers mark or scan.
+ */
+model TireSet {
+  id             String        @id @default(cuid())
+  eventId        String
+  registrationId String
+  /// Barcode, etch mark or hand-written set number — whatever was used.
+  identifier     String
+  /// Compound as the regulations name it: "Medium", "S9", "Wet".
+  compound       String?
+  /// Size/spec where a series controls it, e.g. "305/680R18".
+  dimension      String?
+  status         TireSetStatus @default(ALLOCATED)
+  allocatedAt    DateTime      @default(now())
+  allocatedById  String?
+  notes          String?
+
+  event        RaceEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  allocatedBy  User?             @relation("TireAllocator", fields: [allocatedById], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, identifier])
+  @@index([registrationId, status])
 }

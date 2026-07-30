@@ -13,6 +13,7 @@ import { RosterPanel } from "./roster-panel";
 import { SchedulePanel } from "./schedule-panel";
 import { ResultsPanel } from "./results-panel";
 import { SponsorsPanel } from "./sponsors-panel";
+import { GaragePanel } from "./garage-panel";
 
 /**
  * Team console — one page to run a race team: who is on the books, what races
@@ -85,6 +86,7 @@ export default function TeamManagePage({
       {isTeamManager(data.myRole) && <TeamSettings team={data} onSaved={refresh} />}
 
       <RosterPanel team={data} onChanged={refresh} />
+      <GaragePanel team={data} />
       <SchedulePanel team={data} onChanged={refresh} />
       <ResultsPanel teamId={data.id} />
       <SponsorsPanel team={data} />
