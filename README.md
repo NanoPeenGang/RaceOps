@@ -101,6 +101,17 @@ src/
 **Phase 1 (done):** auth + onboarding, unified profiles with manual sim
 stats, search/discovery with filters, team pages & roster management, CI.
 
+**Role tags (done):** `ProfileType` stays the broad category picked at
+onboarding ("I'm an engineer"); underneath it, profiles carry specific role
+tags split into **sim** and **real world** — race engineer, data engineer,
+strategist, spotter, livery artist, tire technician, scrutineer, timing
+official, photographer, sponsorship sales, and so on. The two sets are
+separate enums on purpose: `STRATEGIST` on a sim profile and on a real-world
+profile are different claims, and the UI labels them as such. Tags are stored
+in canonical picker order (deduplicated) so two profiles with the same roles
+always read identically, capped at 12 per domain, and are filterable in
+discovery via GIN-indexed array containment.
+
 **Phase 2 (done):** opportunities marketplace — posting (individual or team),
 application flow with poster-side review and status tracking, Stripe
 subscriptions (Recruiter + Sponsor Discovery tiers via Checkout, customer

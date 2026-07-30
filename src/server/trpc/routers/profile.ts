@@ -1,10 +1,17 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { RealWorldRole, SimRole } from "@prisma/client";
 import {
   createTRPCRouter,
   protectedProcedure,
   publicProcedure,
 } from "@/server/trpc/trpc";
+import {
+  MAX_ROLE_TAGS_PER_DOMAIN,
+  REAL_WORLD_ROLE_GROUPS,
+  SIM_ROLE_GROUPS,
+  orderedByGroups,
+} from "@/lib/roles";
 
 /** Manual sim-stats entry (Phase 1). API auto-sync replaces this in Phase 3. */
 const simStatsSchema = z.record(
@@ -51,12 +58,37 @@ export const profileRouter = createTRPCRouter({
         location: z.string().max(120).nullish(),
         availability: z.string().max(200).nullish(),
         simStats: simStatsSchema.optional(),
+        /** Role tags replace the stored set wholesale — the picker sends all. */
+        simRoles: z
+          .array(z.nativeEnum(SimRole))
+          .max(MAX_ROLE_TAGS_PER_DOMAIN)
+          .optional(),
+        realWorldRoles: z
+          .array(z.nativeEnum(RealWorldRole))
+          .max(MAX_ROLE_TAGS_PER_DOMAIN)
+          .optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const { simRoles, realWorldRoles, ...rest } = input;
       return ctx.db.profile.update({
         where: { userId: ctx.user.id },
-        data: input,
+        data: {
+          ...rest,
+          // Stored in canonical order and de-duplicated, so a profile reads the
+          // same regardless of the order tags were clicked in.
+          ...(simRoles
+            ? { simRoles: orderedByGroups(simRoles, SIM_ROLE_GROUPS) }
+            : {}),
+          ...(realWorldRoles
+            ? {
+                realWorldRoles: orderedByGroups(
+                  realWorldRoles,
+                  REAL_WORLD_ROLE_GROUPS,
+                ),
+              }
+            : {}),
+        },
       });
     }),
 

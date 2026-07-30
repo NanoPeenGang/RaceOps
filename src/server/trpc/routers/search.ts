@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { Prisma, ProfileType, SubscriptionTier } from "@prisma/client";
+import {
+  Prisma,
+  ProfileType,
+  RealWorldRole,
+  SimRole,
+  SubscriptionTier,
+} from "@prisma/client";
 import { createTRPCRouter, publicProcedure } from "@/server/trpc/trpc";
 import { hasActiveTier } from "@/server/services/billing";
 
@@ -15,6 +21,9 @@ export const searchRouter = createTRPCRouter({
       z.object({
         query: z.string().max(200).optional(),
         profileType: z.nativeEnum(ProfileType).optional(),
+        /** Narrow to a specific job rather than the broad category. */
+        simRole: z.nativeEnum(SimRole).optional(),
+        realWorldRole: z.nativeEnum(RealWorldRole).optional(),
         location: z.string().max(120).optional(),
         verifiedOnly: z.boolean().default(false),
         cursor: z.string().cuid().optional(),
@@ -47,19 +56,24 @@ export const searchRouter = createTRPCRouter({
         }
       }
 
+      // Every profile-scoped condition has to live under one `profile` key —
+      // spreading several would silently overwrite all but the last.
+      const profileWhere: Prisma.ProfileWhereInput = {
+        ...(input.location
+          ? { location: { contains: input.location, mode: "insensitive" } }
+          : {}),
+        ...(input.simRole ? { simRoles: { has: input.simRole } } : {}),
+        ...(input.realWorldRole
+          ? { realWorldRoles: { has: input.realWorldRole } }
+          : {}),
+      };
+
       const where: Prisma.UserWhereInput = {
-        profile: { isNot: null },
+        profile: { is: profileWhere },
         ...(input.profileType
           ? { profileTypes: { has: input.profileType } }
           : {}),
         ...(input.verifiedOnly ? { verificationStatus: "VERIFIED" } : {}),
-        ...(input.location
-          ? {
-              profile: {
-                location: { contains: input.location, mode: "insensitive" },
-              },
-            }
-          : {}),
         ...(input.query
           ? {
               OR: [
@@ -96,6 +110,8 @@ export const searchRouter = createTRPCRouter({
               bio: true,
               location: true,
               availability: true,
+              simRoles: true,
+              realWorldRoles: true,
             },
           },
         },

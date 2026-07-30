@@ -1,24 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { ProfileType } from "@prisma/client";
+import { ProfileType, RealWorldRole, SimRole } from "@prisma/client";
 import { api } from "@/lib/trpc/client";
+import {
+  PROFILE_TYPE_LABELS,
+  REAL_WORLD_ROLE_GROUPS,
+  REAL_WORLD_ROLE_LABELS,
+  SIM_ROLE_GROUPS,
+  SIM_ROLE_LABELS,
+  roleTagsOf,
+} from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-const PROFILE_TYPE_LABELS: Record<ProfileType, string> = {
-  DRIVER: "Driver",
-  CREW: "Crew",
-  ENGINEER: "Engineer",
-  SPONSOR: "Sponsor",
-  TEAM_MANAGER: "Team manager",
-  INDUSTRY_PRO: "Industry pro",
-};
+import { RoleTagPicker } from "@/components/role-tag-picker";
 
 export function ProfileView() {
   const utils = api.useUtils();
   const me = api.user.me.useQuery();
+  const [editingRoles, setEditingRoles] = useState(false);
 
   if (me.isLoading) {
     return <p className="text-brand-black/60">Loading…</p>;
@@ -29,6 +30,8 @@ export function ProfileView() {
   }
 
   const profile = me.data.profile;
+  const tags = profile ? roleTagsOf(profile) : [];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -45,6 +48,38 @@ export function ProfileView() {
           <Badge key={type}>{PROFILE_TYPE_LABELS[type]}</Badge>
         ))}
       </div>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold">What I do</h2>
+          <Button
+            size="sm"
+            variant={editingRoles ? "outline" : "primary"}
+            onClick={() => setEditingRoles((v) => !v)}
+          >
+            {editingRoles ? "Cancel" : tags.length > 0 ? "Edit" : "Add roles"}
+          </Button>
+        </div>
+
+        {editingRoles ? (
+          <RoleTagEditor
+            initialSimRoles={profile?.simRoles ?? []}
+            initialRealWorldRoles={profile?.realWorldRoles ?? []}
+            onSaved={() => {
+              setEditingRoles(false);
+              utils.user.me.invalidate();
+            }}
+          />
+        ) : tags.length === 0 ? (
+          <p className="text-sm text-brand-black/60">
+            No role tags yet. Add them so teams and organizers looking for what
+            you do can actually find you.
+          </p>
+        ) : (
+          <RoleTagList tags={tags} />
+        )}
+      </section>
+
       {profile?.bio && (
         <Card>
           <CardHeader>
@@ -61,14 +96,120 @@ export function ProfileView() {
   );
 }
 
+/**
+ * Role tags, split so it is obvious which world each belongs to — the same
+ * job title means different things across sim and real racing.
+ */
+export function RoleTagList({
+  tags,
+}: {
+  tags: ReturnType<typeof roleTagsOf>;
+}) {
+  const sim = tags.filter((tag) => tag.domain === "sim");
+  const real = tags.filter((tag) => tag.domain === "real");
+
+  return (
+    <div className="space-y-3">
+      {sim.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-black/50">
+            Sim racing
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            {sim.map((tag) => (
+              <Badge key={tag.value}>{tag.label}</Badge>
+            ))}
+          </div>
+        </div>
+      )}
+      {real.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-black/50">
+            Real world
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            {real.map((tag) => (
+              <Badge key={tag.value} variant="verified">
+                {tag.label}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RoleTagEditor({
+  initialSimRoles,
+  initialRealWorldRoles,
+  onSaved,
+}: {
+  initialSimRoles: SimRole[];
+  initialRealWorldRoles: RealWorldRole[];
+  onSaved: () => void;
+}) {
+  const [simRoles, setSimRoles] = useState<SimRole[]>(initialSimRoles);
+  const [realWorldRoles, setRealWorldRoles] =
+    useState<RealWorldRole[]>(initialRealWorldRoles);
+
+  const update = api.profile.update.useMutation({ onSuccess: onSaved });
+
+  return (
+    <Card>
+      <CardContent className="space-y-6 p-5">
+        <RoleTagPicker
+          label="Sim racing"
+          description="What you do on the sim side."
+          groups={SIM_ROLE_GROUPS}
+          labels={SIM_ROLE_LABELS}
+          selected={simRoles}
+          onChange={setSimRoles}
+        />
+        <RoleTagPicker
+          label="Real world"
+          description="What you do at a real circuit or in the industry."
+          groups={REAL_WORLD_ROLE_GROUPS}
+          labels={REAL_WORLD_ROLE_LABELS}
+          selected={realWorldRoles}
+          onChange={setRealWorldRoles}
+        />
+        {update.error && (
+          <p className="text-sm text-brand-red">{update.error.message}</p>
+        )}
+        <Button
+          variant="primary"
+          disabled={update.isPending}
+          onClick={() => update.mutate({ simRoles, realWorldRoles })}
+        >
+          {update.isPending ? "Saving…" : "Save roles"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function OnboardingForm({ onDone }: { onDone: () => void }) {
   const [displayName, setDisplayName] = useState("");
   const [location, setLocation] = useState("");
   const [bio, setBio] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<ProfileType[]>([]);
+  const [simRoles, setSimRoles] = useState<SimRole[]>([]);
+  const [realWorldRoles, setRealWorldRoles] = useState<RealWorldRole[]>([]);
 
+  const utils = api.useUtils();
+  // Onboarding creates the account; role tags are a follow-up update so the
+  // profile exists before they are attached.
+  const saveRoles = api.profile.update.useMutation({ onSuccess: onDone });
   const onboard = api.user.completeOnboarding.useMutation({
-    onSuccess: onDone,
+    onSuccess: async () => {
+      await utils.user.me.invalidate();
+      if (simRoles.length === 0 && realWorldRoles.length === 0) {
+        onDone();
+        return;
+      }
+      saveRoles.mutate({ simRoles, realWorldRoles });
+    },
   });
 
   function toggleType(type: ProfileType) {
@@ -78,6 +219,8 @@ function OnboardingForm({ onDone }: { onDone: () => void }) {
         : [...current, type],
     );
   }
+
+  const isSaving = onboard.isPending || saveRoles.isPending;
 
   return (
     <Card className="mx-auto max-w-xl">
@@ -113,6 +256,26 @@ function OnboardingForm({ onDone }: { onDone: () => void }) {
             ))}
           </div>
         </div>
+
+        <div className="space-y-6 border-t border-brand-black/10 pt-4">
+          <RoleTagPicker
+            label="Sim racing roles"
+            description="Optional — pick what you actually do so people can find you."
+            groups={SIM_ROLE_GROUPS}
+            labels={SIM_ROLE_LABELS}
+            selected={simRoles}
+            onChange={setSimRoles}
+          />
+          <RoleTagPicker
+            label="Real-world roles"
+            description="Optional."
+            groups={REAL_WORLD_ROLE_GROUPS}
+            labels={REAL_WORLD_ROLE_LABELS}
+            selected={realWorldRoles}
+            onChange={setRealWorldRoles}
+          />
+        </div>
+
         <label className="block text-sm font-medium">
           Location
           <input
@@ -132,13 +295,15 @@ function OnboardingForm({ onDone }: { onDone: () => void }) {
             placeholder="GT3 endurance driver, 3.2k iRating, ex-karting national champion…"
           />
         </label>
-        {onboard.error && (
-          <p className="text-sm text-brand-red">{onboard.error.message}</p>
+        {(onboard.error ?? saveRoles.error) && (
+          <p className="text-sm text-brand-red">
+            {onboard.error?.message ?? saveRoles.error?.message}
+          </p>
         )}
         <Button
           variant="primary"
           disabled={
-            onboard.isPending ||
+            isSaving ||
             displayName.trim().length < 2 ||
             selectedTypes.length === 0
           }
@@ -151,7 +316,7 @@ function OnboardingForm({ onDone }: { onDone: () => void }) {
             })
           }
         >
-          {onboard.isPending ? "Creating…" : "Create profile"}
+          {isSaving ? "Creating…" : "Create profile"}
         </Button>
       </CardContent>
     </Card>

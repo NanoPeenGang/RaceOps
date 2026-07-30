@@ -26,6 +26,82 @@ enum VerificationStatus {
   VERIFIED
 }
 
+/**
+ * What someone actually does in sim racing. `ProfileType` is the broad
+ * category ("engineer"); these are the specific jobs people search for.
+ */
+enum SimRole {
+  // Driving
+  ENDURANCE_DRIVER
+  SPRINT_DRIVER
+  OVAL_DRIVER
+  RALLY_DRIVER
+  DRIFT_DRIVER
+  TIME_ATTACK_DRIVER
+  // Engineering & pit wall
+  RACE_ENGINEER
+  SETUP_ENGINEER
+  STRATEGIST
+  SPOTTER
+  DRIVER_COACH
+  // Running a team or a league
+  TEAM_PRINCIPAL
+  LEAGUE_ADMIN
+  RACE_CONTROL
+  STEWARD
+  // Media & creative
+  BROADCASTER
+  COMMENTATOR
+  CONTENT_CREATOR
+  LIVERY_ARTIST
+  GRAPHIC_DESIGNER
+  OTHER
+}
+
+/**
+ * The same idea for real-world motorsport, paddock roles included.
+ */
+enum RealWorldRole {
+  // Driving
+  DRIVER
+  CO_DRIVER
+  KART_DRIVER
+  DRIVER_COACH
+  // Engineering
+  RACE_ENGINEER
+  DATA_ENGINEER
+  PERFORMANCE_ENGINEER
+  // Crew
+  MECHANIC
+  CREW_CHIEF
+  TIRE_TECHNICIAN
+  FABRICATOR
+  TRANSPORT_LOGISTICS
+  // Pit wall & management
+  TEAM_MANAGER
+  TEAM_OWNER
+  STRATEGIST
+  SPOTTER
+  // Officials & trackside
+  RACE_DIRECTOR
+  STEWARD
+  MARSHAL
+  SCRUTINEER
+  TIMING_OFFICIAL
+  MEDICAL
+  SAFETY_CREW
+  // Media
+  COMMENTATOR
+  PHOTOGRAPHER
+  VIDEOGRAPHER
+  JOURNALIST
+  // Commercial
+  PR_COMMUNICATIONS
+  SPONSORSHIP_SALES
+  HOSPITALITY
+  OTHER
+}
+
 model User {
   id                     String             @id @default(cuid())
   email                  String             @unique
@@ -65,22 +141,29 @@ model User {
 }
 
 model Profile {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  displayName  String
-  bio          String?  @db.Text
-  location     String?
-  availability String?
+  id             String          @id @default(cuid())
+  userId         String          @unique
+  displayName    String
+  bio            String?         @db.Text
+  location       String?
+  availability   String?
+  /// Specific sim-racing jobs this person does, for discovery.
+  simRoles       SimRole[]
+  /// Specific real-world motorsport jobs this person does.
+  realWorldRoles RealWorldRole[]
   // Per-platform sim stats, e.g. { "iracing": { "iRating": 3200, "sr": "A 4.2", "licenseClass": "A" } }
-  simStats     Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  simStats       Json?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   realWorldCredentials RealWorldCredential[]
   industryExperience   IndustryExperience[]
 
   @@index([location])
+  // Array containment filters ("has this role") need GIN to stay fast.
+  @@index([simRoles], type: Gin)
+  @@index([realWorldRoles], type: Gin)
 }
 
 model RealWorldCredential {
