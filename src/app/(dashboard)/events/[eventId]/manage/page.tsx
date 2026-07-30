@@ -129,7 +129,11 @@ export default function ManageEventPage({
 
       <SchedulePanel eventId={eventId} />
       <TimingConsole eventId={eventId} />
-      <RegistrationsPanel eventId={eventId} capacity={data.entryCapacity} />
+      <RegistrationsPanel
+        eventId={eventId}
+        capacity={data.entryCapacity}
+        seriesId={data.seriesId}
+      />
       <LineupsPanel eventId={eventId} />
       <ResultsPanel eventId={eventId} />
       <ResultsImportPanel eventId={eventId} />
@@ -162,12 +166,24 @@ export default function ManageEventPage({
 function RegistrationsPanel({
   eventId,
   capacity,
+  seriesId,
 }: {
   eventId: string;
   capacity: number | null;
+  seriesId: string | null;
 }) {
   const utils = api.useUtils();
   const registrations = api.event.registrationsFor.useQuery({ eventId });
+  const classes = api.series.classes.useQuery(
+    { seriesId: seriesId ?? "" },
+    { enabled: Boolean(seriesId) },
+  );
+  const setEntryClass = api.series.setEntryClass.useMutation({
+    onSuccess: () => {
+      utils.event.registrationsFor.invalidate({ eventId });
+      utils.series.standings.invalidate();
+    },
+  });
   const setStatus = api.event.setRegistrationStatus.useMutation({
     onSuccess: () => {
       utils.event.registrationsFor.invalidate({ eventId });
@@ -225,6 +241,29 @@ function RegistrationsPanel({
                 <p className="text-sm text-brand-black/80">
                   {registration.notes}
                 </p>
+              )}
+              {classes.data && classes.data.length > 0 && (
+                <label className="flex flex-wrap items-center gap-2 text-xs font-medium">
+                  Class
+                  <select
+                    className="rounded-md border border-brand-black/20 px-2 py-1.5 text-xs"
+                    value={registration.seriesClassId ?? ""}
+                    disabled={setEntryClass.isPending}
+                    onChange={(e) =>
+                      setEntryClass.mutate({
+                        registrationId: registration.id,
+                        seriesClassId: e.target.value || null,
+                      })
+                    }
+                  >
+                    <option value="">Unclassified</option>
+                    {classes.data.map((seriesClass) => (
+                      <option key={seriesClass.id} value={seriesClass.id}>
+                        {seriesClass.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               )}
               {registration.status !== RegistrationStatus.WITHDRAWN && (
                 <div className="flex flex-wrap gap-2">

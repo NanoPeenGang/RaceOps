@@ -15,7 +15,11 @@ export function StandingsPreview({
   slug: string;
 }) {
   const standings = api.series.standings.useQuery({ seriesId });
-  const rows = standings.data?.rows ?? [];
+  // The landing page leads with the overall entrant order.
+  const rows =
+    standings.data?.tables.find(
+      (table) => table.basis === "entrant" && table.seriesClassId === null,
+    )?.rows ?? [];
   // Nothing scored yet is the normal state before round one — stay quiet.
   if (rows.length === 0) return null;
 

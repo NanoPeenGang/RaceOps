@@ -9,7 +9,10 @@ import {
 import { slugify } from "@/lib/slug";
 import { TEAM_MANAGER_ROLES, wouldOrphanTeam } from "@/lib/teams";
 import { countActivePenalties, summarizeTeamSeries } from "@/lib/team-season";
-import { computeSeriesStandings } from "@/server/services/standings";
+import {
+  computeSeriesStandings,
+  selectTable,
+} from "@/server/services/standings";
 import type { TRPCContext } from "@/server/trpc/trpc";
 
 const MANAGER_ROLES: TeamRole[] = TEAM_MANAGER_ROLES;
@@ -411,7 +414,10 @@ export const teamRouter = createTRPCRouter({
       for (const series of seriesSeen.values()) {
         const standings = await computeSeriesStandings(ctx.db, series.id);
         if (!standings) continue;
-        summaries.push(summarizeTeamSeries(series, standings.rows, input.teamId));
+        // The team's own position comes from the teams' championship table.
+        const table = selectTable(standings, "team");
+        if (!table) continue;
+        summaries.push(summarizeTeamSeries(series, table.rows, input.teamId));
       }
 
       return { results, summaries };

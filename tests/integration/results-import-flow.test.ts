@@ -21,6 +21,17 @@ async function makeUser(suffix: string) {
   return { user, caller: callerFor(user.authProviderId) };
 }
 
+type SeriesStandings = Awaited<
+  ReturnType<ReturnType<typeof callerFor>["series"]["standings"]>
+>;
+
+/** The overall entrant table — the one these assertions are about. */
+function overallRows(standings: SeriesStandings) {
+  return standings.tables.find(
+    (table) => table.basis === "entrant" && table.seriesClassId === null,
+  )!.rows;
+}
+
 describe.skipIf(!ENABLED)("results import (integration)", () => {
   const run = Date.now();
   let owner: Awaited<ReturnType<typeof makeUser>>;
@@ -147,10 +158,10 @@ describe.skipIf(!ENABLED)("results import (integration)", () => {
   it("feeds the imported results straight into standings", async () => {
     await owner.caller.event.setStatus({ eventId, status: "COMPLETED" });
     const standings = await outsider.caller.series.standings({ seriesId });
-    expect(standings.rows[0].points).toBe(25);
-    expect(standings.rows[1].points).toBe(18);
+    expect(overallRows(standings)[0].points).toBe(25);
+    expect(overallRows(standings)[1].points).toBe(18);
     // The DNF scores nothing.
-    expect(standings.rows[2].points).toBe(0);
+    expect(overallRows(standings)[2].points).toBe(0);
   });
 
   it("re-importing updates rather than duplicating", async () => {
@@ -168,7 +179,7 @@ describe.skipIf(!ENABLED)("results import (integration)", () => {
     expect(await db.eventResult.count({ where: { eventId } })).toBe(3);
 
     const standings = await outsider.caller.series.standings({ seriesId });
-    const winner = standings.rows[0];
+    const winner = overallRows(standings)[0];
     expect(winner.points).toBe(25);
     // Car 7 now leads after the correction.
     expect(winner.competitorLabel).toBe(`ir2_${run}`);

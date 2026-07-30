@@ -490,27 +490,75 @@ enum SeriesDiscipline {
  * A championship/series run by organizers — the top-level organizer object.
  */
 model Series {
-  id               String           @id @default(cuid())
-  name             String           @unique
-  slug             String           @unique
-  description      String?          @db.Text
-  discipline       SeriesDiscipline
+  id                String           @id @default(cuid())
+  name              String           @unique
+  slug              String           @unique
+  description       String?          @db.Text
+  discipline        SeriesDiscipline
   // Sanctioning body (real world) or sim platform name.
-  platform         String
-  season           String?
-  logoUrl          String?
+  platform          String
+  season            String?
+  logoUrl           String?
   /// Position -> points map, e.g. {"1": 25, "2": 18}. Null uses the default.
-  pointsScheme     Json?
+  pointsScheme      Json?
   /// Bonus points for the fastest lap, when the series awards one.
-  fastestLapPoints Int?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  fastestLapPoints  Int?
+  /**
+   * Score only this many best rounds ("best 8 of 10"). Null counts every
+   * round. Dropped scores are near-universal outside top-flight professional
+   * championships.
+   */
+  countBestRounds   Int?
+  /// Rounds a competitor must start to be eligible for the title.
+  minStartsForTitle Int?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   organizers    SeriesMembership[]
   events        RaceEvent[]
   media         Media[]
   documents     RaceDocument[]
   announcements Announcement[]
+  classes       SeriesClass[]
+}
+
+/**
+ * A class within a championship.
+ * Deliberately free-form. A professional grid might run GT3 and GT4; a club
+ * autocross region runs dozens of classes with names nobody outside the region
+ * would recognise ("ST-X", "Improved Production <2L", "Novice"). Classes are
+ * therefore records a series creates rather than a fixed list, and a series
+ * that runs a single grid simply declares none.
+ */
+model SeriesClass {
+  id               String   @id @default(cuid())
+  seriesId         String
+  /// Full name as it appears in the regulations and on results.
+  name             String
+  /// Short code for entry lists and timing sheets, e.g. "SM", "GT3".
+  code             String?
+  /**
+   * Optional grouping — a run group, division or category that several classes
+   * share. Autocross and track-day organizers group classes into run groups
+   * that are not themselves championships.
+   */
+  grouping         String?
+  /// Display and results order; lower sorts first.
+  sortOrder        Int      @default(0)
+  /// Per-class points scale. Null inherits the series scheme.
+  pointsScheme     Json?
+  /// Per-class fastest-lap bonus. Null inherits the series value.
+  fastestLapPoints Int?
+  /// Retired classes stay for historical results but take no new entries.
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  series        Series              @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  registrations EventRegistration[]
+
+  @@unique([seriesId, name])
+  @@index([seriesId, sortOrder])
 }
 
 enum SeriesRole {
@@ -556,6 +604,9 @@ model RaceEvent {
   venue       String?
   description String?     @db.Text
   status      EventStatus @default(DRAFT)
+
+  /// Weighting for a double-points finale and the like; 1 is a normal round.
+  pointsMultiplier Float @default(1)
 
   registrationOpensAt  DateTime?
   registrationClosesAt DateTime?
@@ -616,7 +667,10 @@ model EventRegistration {
   entrantUserId String?
   submittedById String
   carNumber     String?
+  /// Free-text class, kept for entries outside a series that declares classes.
   carClass      String?
+  /// The declared class this entry is scored in, when the series has any.
+  seriesClassId String?
   notes         String?            @db.Text
   status        RegistrationStatus @default(PENDING)
   createdAt     DateTime           @default(now())
@@ -631,12 +685,14 @@ model EventRegistration {
   timingEntries TimingEntry[]
   lineup        RegistrationDriver[]
   stints        Stint[]
+  seriesClass   SeriesClass?         @relation(fields: [seriesClassId], references: [id], onDelete: SetNull)
 
   @@unique([eventId, teamId])
   @@unique([eventId, entrantUserId])
   @@unique([eventId, carNumber])
   @@index([eventId, status])
   @@index([submittedById])
+  @@index([seriesClassId])
 }
 
 // ---------------------------------------------------------------------------

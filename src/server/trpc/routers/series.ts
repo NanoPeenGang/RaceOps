@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import {
   EventStatus,
   NotificationType,
+  Prisma,
   RegistrationStatus,
   SeriesDiscipline,
   SeriesRole,
@@ -16,9 +17,11 @@ import {
 } from "@/server/trpc/trpc";
 import { slugify } from "@/lib/slug";
 import {
+  assertEventOrganizer,
   assertSeriesRole,
   getSeriesRole,
   SERIES_ADMIN_ROLES,
+  SERIES_EVENT_ROLES,
 } from "@/server/services/series-auth";
 import { computeSeriesStandings } from "@/server/services/standings";
 
@@ -191,6 +194,215 @@ export const seriesRouter = createTRPCRouter({
           pointsScheme: input.scheme,
           fastestLapPoints: input.fastestLapPoints ?? null,
         },
+      });
+    }),
+
+  /**
+   * Championship rules beyond the points scale: dropped scores and the starts
+   * needed to be eligible for the title.
+   */
+  setChampionshipRules: protectedProcedure
+    .input(
+      z.object({
+        seriesId: z.string().cuid(),
+        countBestRounds: z.number().int().min(1).max(100).nullish(),
+        minStartsForTitle: z.number().int().min(1).max(100).nullish(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { seriesId, ...data } = input;
+      await assertSeriesRole(ctx.db, seriesId, ctx.user.id, SERIES_ADMIN_ROLES);
+      return ctx.db.series.update({ where: { id: seriesId }, data });
+    }),
+
+  // -------------------------------------------------------------------------
+  // Classes
+  // -------------------------------------------------------------------------
+
+  /**
+   * A series' classes. Free-form by design: a club autocross region runs
+   * dozens with local names, a pro grid runs two, and a single-grid series
+   * declares none at all.
+   */
+  classes: publicProcedure
+    .input(z.object({ seriesId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.seriesClass.findMany({
+        where: { seriesId: input.seriesId },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        include: { _count: { select: { registrations: true } } },
+      });
+    }),
+
+  createClass: protectedProcedure
+    .input(
+      z.object({
+        seriesId: z.string().cuid(),
+        name: z.string().min(1).max(120),
+        code: z.string().max(20).optional(),
+        grouping: z.string().max(80).optional(),
+        sortOrder: z.number().int().min(0).max(9999).default(0),
+        pointsScheme: z
+          .record(z.string(), z.number().int().min(0).max(1000))
+          .optional(),
+        fastestLapPoints: z.number().int().min(0).max(100).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { seriesId, ...data } = input;
+      await assertSeriesRole(ctx.db, seriesId, ctx.user.id, SERIES_ADMIN_ROLES);
+
+      const clash = await ctx.db.seriesClass.findFirst({
+        where: { seriesId, name: data.name },
+        select: { id: true },
+      });
+      if (clash) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `This series already has a class called "${data.name}".`,
+        });
+      }
+      return ctx.db.seriesClass.create({ data: { ...data, seriesId } });
+    }),
+
+  updateClass: protectedProcedure
+    .input(
+      z.object({
+        classId: z.string().cuid(),
+        name: z.string().min(1).max(120).optional(),
+        code: z.string().max(20).nullish(),
+        grouping: z.string().max(80).nullish(),
+        sortOrder: z.number().int().min(0).max(9999).optional(),
+        pointsScheme: z
+          .record(z.string(), z.number().int().min(0).max(1000))
+          .nullish(),
+        fastestLapPoints: z.number().int().min(0).max(100).nullish(),
+        active: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { classId, ...data } = input;
+      const existing = await ctx.db.seriesClass.findUnique({
+        where: { id: classId },
+        select: { seriesId: true },
+      });
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertSeriesRole(
+        ctx.db,
+        existing.seriesId,
+        ctx.user.id,
+        SERIES_ADMIN_ROLES,
+      );
+
+      if (data.name) {
+        const clash = await ctx.db.seriesClass.findFirst({
+          where: { seriesId: existing.seriesId, name: data.name, NOT: { id: classId } },
+          select: { id: true },
+        });
+        if (clash) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `This series already has a class called "${data.name}".`,
+          });
+        }
+      }
+      // Prisma distinguishes "leave the JSON alone" from "set it to null", so
+      // clearing a per-class scale needs DbNull rather than a bare null.
+      const { pointsScheme, ...rest } = data;
+      return ctx.db.seriesClass.update({
+        where: { id: classId },
+        data: {
+          ...rest,
+          ...(pointsScheme === undefined
+            ? {}
+            : { pointsScheme: pointsScheme ?? Prisma.DbNull }),
+        },
+      });
+    }),
+
+  /**
+   * Removes a class. Entries fall back to unclassified (SetNull) rather than
+   * being deleted, so results survive — retiring a class mid-season is better
+   * served by marking it inactive.
+   */
+  deleteClass: protectedProcedure
+    .input(z.object({ classId: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.seriesClass.findUnique({
+        where: { id: input.classId },
+        select: { seriesId: true, _count: { select: { registrations: true } } },
+      });
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertSeriesRole(
+        ctx.db,
+        existing.seriesId,
+        ctx.user.id,
+        SERIES_ADMIN_ROLES,
+      );
+      await ctx.db.seriesClass.delete({ where: { id: input.classId } });
+      return { deleted: true, unclassifiedEntries: existing._count.registrations };
+    }),
+
+  /** Assigns an entry to a class. Race control or series admin. */
+  setEntryClass: protectedProcedure
+    .input(
+      z.object({
+        registrationId: z.string().cuid(),
+        seriesClassId: z.string().cuid().nullable(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const registration = await ctx.db.eventRegistration.findUnique({
+        where: { id: input.registrationId },
+        select: { id: true, event: { select: { seriesId: true } } },
+      });
+      if (!registration?.event.seriesId) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertSeriesRole(
+        ctx.db,
+        registration.event.seriesId,
+        ctx.user.id,
+        SERIES_EVENT_ROLES,
+      );
+
+      if (input.seriesClassId) {
+        // A class from another series would silently corrupt that series'
+        // standings, so the ownership check is not optional.
+        const target = await ctx.db.seriesClass.findUnique({
+          where: { id: input.seriesClassId },
+          select: { seriesId: true, name: true },
+        });
+        if (!target || target.seriesId !== registration.event.seriesId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "That class belongs to a different series.",
+          });
+        }
+      }
+
+      return ctx.db.eventRegistration.update({
+        where: { id: input.registrationId },
+        data: { seriesClassId: input.seriesClassId },
+      });
+    }),
+
+  /** Weighting for one round, e.g. a double-points finale. */
+  setEventPointsMultiplier: protectedProcedure
+    .input(
+      z.object({
+        eventId: z.string().cuid(),
+        pointsMultiplier: z.number().min(0.1).max(10),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertEventOrganizer(
+        ctx.db,
+        input.eventId,
+        ctx.user.id,
+        SERIES_ADMIN_ROLES,
+      );
+      return ctx.db.raceEvent.update({
+        where: { id: input.eventId },
+        data: { pointsMultiplier: input.pointsMultiplier },
       });
     }),
 

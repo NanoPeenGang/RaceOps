@@ -38,8 +38,12 @@ export default function TeamSeriesProfilePage({
   if (series.error)
     return <p className="text-brand-red">{series.error.message}</p>;
 
-  const row = standings.data?.rows.find((r) => r.teamId === teamId);
-  const position = standings.data?.rows.findIndex((r) => r.teamId === teamId);
+  // A team's championship line comes from the teams' table.
+  const teamTable = standings.data?.tables.find(
+    (table) => table.basis === "team" && table.seriesClassId === null,
+  );
+  const row = teamTable?.rows.find((r) => r.teamId === teamId);
+  const position = teamTable?.rows.findIndex((r) => r.teamId === teamId);
   const teamName =
     row?.competitorLabel ??
     penalties.data?.[0]?.registration.team?.name ??

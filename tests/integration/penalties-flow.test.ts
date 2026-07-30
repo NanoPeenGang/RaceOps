@@ -31,6 +31,17 @@ async function makeUser(suffix: string) {
   return { user, caller: callerFor(user.authProviderId) };
 }
 
+type SeriesStandings = Awaited<
+  ReturnType<ReturnType<typeof callerFor>["series"]["standings"]>
+>;
+
+/** The overall entrant table — the one these assertions are about. */
+function overallRows(standings: SeriesStandings) {
+  return standings.tables.find(
+    (table) => table.basis === "entrant" && table.seriesClassId === null,
+  )!.rows;
+}
+
 describe.skipIf(!ENABLED)("penalties & standings (integration)", () => {
   const run = Date.now();
   let director: Awaited<ReturnType<typeof makeUser>>;
@@ -179,7 +190,7 @@ describe.skipIf(!ENABLED)("penalties & standings (integration)", () => {
     await director.caller.event.setStatus({ eventId, status: "COMPLETED" });
 
     const standings = await outsider.caller.series.standings({ seriesId });
-    const row = standings.rows[0];
+    const row = overallRows(standings)[0];
     expect(row.grossPoints).toBe(25);
     expect(row.pointsDeducted).toBe(10);
     expect(row.points).toBe(15);
@@ -201,10 +212,10 @@ describe.skipIf(!ENABLED)("penalties & standings (integration)", () => {
     expect(penalty.status).toBe("OVERTURNED");
 
     const standings = await outsider.caller.series.standings({ seriesId });
-    expect(standings.rows[0].points).toBe(25);
-    expect(standings.rows[0].pointsDeducted).toBe(0);
+    expect(overallRows(standings)[0].points).toBe(25);
+    expect(overallRows(standings)[0].pointsDeducted).toBe(0);
     // The penalty stays on the public record even though it no longer counts.
-    expect(standings.rows[0].penaltyCount).toBe(1);
+    expect(overallRows(standings)[0].penaltyCount).toBe(1);
   });
 
   it("refuses to rule on an appeal twice", async () => {

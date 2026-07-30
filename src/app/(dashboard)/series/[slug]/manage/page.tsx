@@ -8,6 +8,7 @@ import { EVENT_STATUS_LABELS } from "@/lib/events";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClassesPanel } from "./classes-panel";
 import { AnnouncementsPanel } from "@/components/announcements-panel";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { MediaPanel } from "@/components/media-panel";
@@ -196,6 +197,8 @@ export default function SeriesDashboardPage({
           ))}
         </div>
       </section>
+
+      <ClassesPanel seriesId={data.id} canManage={isOwner || data.myRole === "ADMIN"} />
 
       <AnnouncementsPanel
         scope={{ seriesId: data.id }}

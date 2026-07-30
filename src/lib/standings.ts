@@ -1,8 +1,15 @@
 import { PenaltyStatus, ResultStatus } from "@prisma/client";
 
 /**
- * Series points and standings. Pure functions over plain records so they can
- * be tested directly and reused by both the router and the UI.
+ * Series points and standings.
+ *
+ * Scoring happens in two passes: score each round on its own, then aggregate.
+ * That order is what makes dropped scores possible ("best 8 of 10" needs to
+ * know each round's points before it can discard the worst), and it keeps
+ * per-round weighting — a double-points finale — in one place.
+ *
+ * Everything is pure over plain records, so the router, the team console and
+ * the tests all score identically.
  */
 
 export const RESULT_STATUS_LABELS: Record<ResultStatus, string> = {
@@ -59,7 +66,7 @@ export interface ScoringResult {
   pointsOverride: number | null;
 }
 
-/** Points for a single result, before penalty deductions. */
+/** Points for a single result, before penalty deductions and weighting. */
 export function pointsForResult(
   result: ScoringResult,
   scheme: Record<number, number>,
@@ -87,22 +94,72 @@ export function penaltyCountsAgainstPoints(status: PenaltyStatus): boolean {
   return ACTIVE_PENALTY_STATUSES.includes(status);
 }
 
+// ---------------------------------------------------------------------------
+// Championship configuration
+// ---------------------------------------------------------------------------
+
+/**
+ * One championship table to produce. A series usually publishes several: an
+ * overall table plus one per class, in both drivers' and teams' form.
+ */
+export type StandingsBasis = "entrant" | "driver" | "team";
+
+export interface ChampionshipConfig {
+  scheme: Record<number, number>;
+  fastestLapPoints?: number;
+  /** Score only this many best rounds. Null/undefined counts every round. */
+  countBestRounds?: number | null;
+  /** Rounds a competitor must start to be eligible for the title. */
+  minStartsForTitle?: number | null;
+}
+
+export interface StandingsEntry {
+  registrationId: string;
+  eventId: string;
+  /** Weighting for the round, e.g. 2 for a double-points finale. */
+  pointsMultiplier?: number;
+  /** Null for an entry not assigned to a declared class. */
+  seriesClassId: string | null;
+  teamId: string | null;
+  /** Drivers who scored on this entry. Empty for a single-driver entry. */
+  driverIds?: string[];
+  /** Display name for the entrant-basis table. */
+  competitorLabel: string;
+  /** Stable key for the entrant-basis table. */
+  competitorKey: string;
+}
+
 export interface StandingsInput {
-  /** One row per entry across the whole series. */
-  entries: {
-    registrationId: string;
-    competitorKey: string;
-    competitorLabel: string;
-    teamId: string | null;
-  }[];
+  entries: StandingsEntry[];
   results: ScoringResult[];
   penalties: {
     registrationId: string;
     status: PenaltyStatus;
     pointsDeducted: number | null;
   }[];
-  scheme: Record<number, number>;
-  fastestLapPoints?: number;
+  config: ChampionshipConfig;
+  /** Which kind of table to build. Defaults to the entrant table. */
+  basis?: StandingsBasis;
+  /** Restrict to one class. Undefined scores every entry together. */
+  seriesClassId?: string | null;
+  /** Labels for driver/team keys, since those are ids rather than names. */
+  labels?: Record<string, string>;
+}
+
+/** One round's contribution to a competitor's total. */
+export interface RoundScore {
+  eventId: string;
+  registrationId: string;
+  /** Points scored before deductions, after the round multiplier. */
+  grossPoints: number;
+  pointsDeducted: number;
+  /** Gross minus deductions, floored at zero. */
+  netPoints: number;
+  started: boolean;
+  finishPosition: number | null;
+  penaltyCount: number;
+  /** False when this round was discarded by a drop-scores rule. */
+  counted: boolean;
 }
 
 export interface StandingsRow {
@@ -117,82 +174,220 @@ export interface StandingsRow {
   pointsDeducted: number;
   points: number;
   penaltyCount: number;
+  /** Rounds discarded because the series counts only its best N. */
+  droppedRounds: number;
+  /**
+   * False when the competitor has not started enough rounds to take the
+   * title. They still appear in the table — they scored the points — but a
+   * series with a minimum-starts rule marks them ineligible.
+   */
+  titleEligible: boolean;
+  rounds: RoundScore[];
 }
 
 /**
- * Championship table. Points are gross scoring minus deductions from
- * penalties that still stand — overturning a penalty restores the points
- * automatically because the deduction stops counting.
+ * Championship table.
+ *
+ * Points are gross scoring minus deductions from penalties that still stand,
+ * so overturning a penalty restores the points automatically. Deductions are
+ * applied per round before any drop-scores rule, which is the order the
+ * regulations imply: a competitor drops their worst *net* round.
  */
 export function computeStandings(input: StandingsInput): StandingsRow[] {
-  const { entries, results, penalties, scheme } = input;
-  const fastestLapPoints = input.fastestLapPoints ?? 0;
+  const basis = input.basis ?? "entrant";
+  const { config } = input;
+  const fastestLapPoints = config.fastestLapPoints ?? 0;
 
   const resultByRegistration = new Map(
-    results.map((result) => [result.registrationId, result]),
-  );
-  const entryByRegistration = new Map(
-    entries.map((entry) => [entry.registrationId, entry]),
+    input.results.map((result) => [result.registrationId, result]),
   );
 
-  const rows = new Map<string, StandingsRow>();
-  for (const entry of entries) {
-    if (!rows.has(entry.competitorKey)) {
-      rows.set(entry.competitorKey, {
-        competitorKey: entry.competitorKey,
-        competitorLabel: entry.competitorLabel,
-        teamId: entry.teamId,
-        starts: 0,
-        wins: 0,
-        podiums: 0,
-        bestFinish: null,
-        grossPoints: 0,
-        pointsDeducted: 0,
-        points: 0,
-        penaltyCount: 0,
-      });
-    }
-    const row = rows.get(entry.competitorKey)!;
-    const result = resultByRegistration.get(entry.registrationId);
-    if (!result) continue;
-
-    if (result.status !== ResultStatus.DNS) row.starts += 1;
-    row.grossPoints += pointsForResult(result, scheme, fastestLapPoints);
-
-    if (result.status === ResultStatus.FINISHED && result.finishPosition) {
-      if (result.finishPosition === 1) row.wins += 1;
-      if (result.finishPosition <= 3) row.podiums += 1;
-      if (row.bestFinish === null || result.finishPosition < row.bestFinish) {
-        row.bestFinish = result.finishPosition;
-      }
-    }
-  }
-
-  for (const penalty of penalties) {
-    const entry = entryByRegistration.get(penalty.registrationId);
-    if (!entry) continue;
-    const row = rows.get(entry.competitorKey);
-    if (!row) continue;
-    row.penaltyCount += 1;
+  const penaltiesByRegistration = new Map<
+    string,
+    { count: number; deducted: number }
+  >();
+  for (const penalty of input.penalties) {
+    const bucket = penaltiesByRegistration.get(penalty.registrationId) ?? {
+      count: 0,
+      deducted: 0,
+    };
+    bucket.count += 1;
     if (
       penaltyCountsAgainstPoints(penalty.status) &&
       penalty.pointsDeducted &&
       penalty.pointsDeducted > 0
     ) {
-      row.pointsDeducted += penalty.pointsDeducted;
+      bucket.deducted += penalty.pointsDeducted;
+    }
+    penaltiesByRegistration.set(penalty.registrationId, bucket);
+  }
+
+  // Entries in scope: optionally narrowed to one class.
+  const inScope =
+    input.seriesClassId === undefined
+      ? input.entries
+      : input.entries.filter(
+          (entry) => entry.seriesClassId === input.seriesClassId,
+        );
+
+  // A round can contribute to several competitors on a drivers' table, since
+  // an endurance entry has a whole crew scoring the same result.
+  const byCompetitor = new Map<
+    string,
+    { label: string; teamId: string | null; rounds: RoundScore[] }
+  >();
+
+  for (const entry of inScope) {
+    const result = resultByRegistration.get(entry.registrationId);
+    if (!result) continue;
+
+    const penalties = penaltiesByRegistration.get(entry.registrationId) ?? {
+      count: 0,
+      deducted: 0,
+    };
+    const multiplier = entry.pointsMultiplier ?? 1;
+    const gross =
+      pointsForResult(result, config.scheme, fastestLapPoints) * multiplier;
+    const round: RoundScore = {
+      eventId: entry.eventId,
+      registrationId: entry.registrationId,
+      grossPoints: gross,
+      pointsDeducted: penalties.deducted,
+      // A deduction can zero a round out but never push it negative.
+      netPoints: Math.max(0, gross - penalties.deducted),
+      started: result.status !== ResultStatus.DNS,
+      finishPosition:
+        result.status === ResultStatus.FINISHED ? result.finishPosition : null,
+      penaltyCount: penalties.count,
+      counted: true,
+    };
+
+    for (const key of competitorKeys(entry, basis)) {
+      const existing = byCompetitor.get(key.key) ?? {
+        label: key.label,
+        teamId: entry.teamId,
+        rounds: [],
+      };
+      existing.rounds.push({ ...round });
+      byCompetitor.set(key.key, existing);
     }
   }
 
-  for (const row of rows.values()) {
-    // A deduction can zero a competitor out but never push them negative.
-    row.points = Math.max(0, row.grossPoints - row.pointsDeducted);
+  const rows: StandingsRow[] = [];
+  for (const [key, value] of byCompetitor) {
+    const label = input.labels?.[key] ?? value.label;
+    rows.push(
+      aggregate(key, label, value.teamId, value.rounds, config),
+    );
   }
 
-  return [...rows.values()].sort(compareStandings);
+  return rows.sort(compareStandings);
 }
 
-/** Points, then wins, then podiums, then best finish, then name. */
+/** Which competitor(s) a round's points belong to, for the requested basis. */
+function competitorKeys(
+  entry: StandingsEntry,
+  basis: StandingsBasis,
+): { key: string; label: string }[] {
+  if (basis === "team") {
+    // Individual entries have no team and simply do not appear.
+    return entry.teamId
+      ? [{ key: entry.teamId, label: entry.competitorLabel }]
+      : [];
+  }
+  if (basis === "driver") {
+    const drivers = entry.driverIds ?? [];
+    return drivers.map((driverId) => ({
+      key: driverId,
+      label: entry.competitorLabel,
+    }));
+  }
+  return [{ key: entry.competitorKey, label: entry.competitorLabel }];
+}
+
+/** Folds a competitor's rounds into a table row, applying drop scores. */
+function aggregate(
+  competitorKey: string,
+  competitorLabel: string,
+  teamId: string | null,
+  rounds: RoundScore[],
+  config: ChampionshipConfig,
+): StandingsRow {
+  // Drop the weakest rounds by net points. Ties are broken by keeping the
+  // better finishing position, so dropping never costs a competitor a win.
+  const ordered = [...rounds].sort((a, b) => {
+    if (b.netPoints !== a.netPoints) return b.netPoints - a.netPoints;
+    const aPos = a.finishPosition ?? Number.MAX_SAFE_INTEGER;
+    const bPos = b.finishPosition ?? Number.MAX_SAFE_INTEGER;
+    return aPos - bPos;
+  });
+
+  const limit = config.countBestRounds ?? null;
+  if (limit !== null && ordered.length > limit) {
+    for (let i = limit; i < ordered.length; i++) ordered[i].counted = false;
+  }
+
+  const counted = ordered.filter((round) => round.counted);
+
+  let wins = 0;
+  let podiums = 0;
+  let bestFinish: number | null = null;
+  let grossPoints = 0;
+  let pointsDeducted = 0;
+  let points = 0;
+
+  for (const round of counted) {
+    grossPoints += round.grossPoints;
+    pointsDeducted += round.pointsDeducted;
+    points += round.netPoints;
+  }
+
+  // Starts and results counts come from every round, not just the counted
+  // ones — dropping a score for points does not undo the race.
+  let starts = 0;
+  let penaltyCount = 0;
+  for (const round of rounds) {
+    if (round.started) starts += 1;
+    penaltyCount += round.penaltyCount;
+    if (round.finishPosition !== null) {
+      if (round.finishPosition === 1) wins += 1;
+      if (round.finishPosition <= 3) podiums += 1;
+      if (bestFinish === null || round.finishPosition < bestFinish) {
+        bestFinish = round.finishPosition;
+      }
+    }
+  }
+
+  const minStarts = config.minStartsForTitle ?? null;
+  return {
+    competitorKey,
+    competitorLabel,
+    teamId,
+    starts,
+    wins,
+    podiums,
+    bestFinish,
+    grossPoints,
+    pointsDeducted,
+    points,
+    penaltyCount,
+    droppedRounds: rounds.length - counted.length,
+    titleEligible: minStarts === null || starts >= minStarts,
+    // Chronological is how a season reads back.
+    rounds: [...rounds].sort((a, b) =>
+      a.eventId.localeCompare(b.eventId),
+    ),
+  };
+}
+
+/**
+ * Points, then wins, then podiums, then best finish, then name.
+ *
+ * Title-ineligible competitors sort below eligible ones regardless of points,
+ * so the table reads as the championship order rather than a points list.
+ */
 function compareStandings(a: StandingsRow, b: StandingsRow): number {
+  if (a.titleEligible !== b.titleEligible) return a.titleEligible ? -1 : 1;
   if (b.points !== a.points) return b.points - a.points;
   if (b.wins !== a.wins) return b.wins - a.wins;
   if (b.podiums !== a.podiums) return b.podiums - a.podiums;

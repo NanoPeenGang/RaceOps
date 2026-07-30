@@ -25,6 +25,9 @@ function standing(
     pointsDeducted: 0,
     points: 0,
     penaltyCount: 0,
+    droppedRounds: 0,
+    titleEligible: true,
+    rounds: [],
     ...overrides,
   };
 }
