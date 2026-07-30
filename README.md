@@ -1,9 +1,21 @@
 # RaceOps
 
-Motorsport networking & career platform: one place for sim racers, real-world
-drivers, crew, engineers, sponsors, and industry professionals — with a
-sim-to-real credibility pipeline, an opportunities marketplace, and Pit Wall
-race-strategy tools.
+**The operating platform for motorsport.** One place to run championships,
+race weekends and teams, and to find race seats, crew jobs, volunteer shifts
+and sponsorship — sim racing and real-world racing as equals, not a pipeline
+from one to the other.
+
+Who it is for, and what they do here:
+
+| Audience | What they run |
+| --- | --- |
+| Series organizers | Calendars, entries, regulations, standings, penalties & appeals |
+| Event organizers & race control | Multi-day running orders, live timing, entry lists, volunteer rosters, bulletins |
+| Race teams | Roster, schedule, entries, championship position, sponsorship pipeline, team chat |
+| Drivers | Race seats across sim and real-world series, one portable record |
+| Engineers, mechanics & strategists | Crew roles tagged by what they actually do |
+| Marshals, scrutineers & officials | Volunteer shifts with capacity and waitlists |
+| Sponsors | Pitch teams directly, track every offer |
 
 ## Stack
 

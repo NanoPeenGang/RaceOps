@@ -6,14 +6,21 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "RaceOps — Motorsport Networking & Career Platform",
+    default: "RaceOps — The Operating Platform for Motorsport",
     template: "%s | RaceOps",
   },
   description:
-    "RaceOps unifies sim racing, real-world racing careers, and motorsport industry professionals in one networking, opportunity, and strategy platform.",
+    "Run motorsport series, race weekends and teams. Find race seats, crew jobs, volunteer shifts and sponsorship. One platform for all of motorsport — sim racing and real world alike.",
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    siteName: "RaceOps",
+    type: "website",
+    title: "RaceOps — The Operating Platform for Motorsport",
+    description:
+      "Series, events, teams, seats, crew jobs, volunteering and sponsorship — sim and real world, in one place.",
   },
 };
 
