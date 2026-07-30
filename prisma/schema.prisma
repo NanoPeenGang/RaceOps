@@ -139,6 +139,7 @@ model User {
   lineupEntries          RegistrationDriver[]
   waiversReceived        RequirementWaiver[]  @relation("WaiverSubject")
   waiversDecided         RequirementWaiver[]  @relation("WaiverDecider")
+  inspectionsPerformed   Inspection[]
   sponsorshipsOffered    Sponsorship[]        @relation("SponsorshipSponsor")
   sponsorshipsCreated    Sponsorship[]        @relation("SponsorshipCreator")
 
@@ -518,13 +519,14 @@ model Series {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
-  organizers    SeriesMembership[]
-  events        RaceEvent[]
-  media         Media[]
-  documents     RaceDocument[]
-  announcements Announcement[]
-  classes       SeriesClass[]
-  requirements  EntryRequirement[]
+  organizers          SeriesMembership[]
+  events              RaceEvent[]
+  media               Media[]
+  documents           RaceDocument[]
+  announcements       Announcement[]
+  classes             SeriesClass[]
+  requirements        EntryRequirement[]
+  inspectionTemplates InspectionTemplate[]
 }
 
 /**
@@ -691,6 +693,7 @@ model EventRegistration {
   lineup        RegistrationDriver[]
   stints        Stint[]
   waivers       RequirementWaiver[]
+  inspections   Inspection[]
   seriesClass   SeriesClass?         @relation(fields: [seriesClassId], references: [id], onDelete: SetNull)
 
   @@unique([eventId, teamId])
@@ -1037,6 +1040,128 @@ model RequirementWaiver {
 
   @@unique([requirementId, registrationId, userId])
   @@index([registrationId])
+}
+
+// ---------------------------------------------------------------------------
+// Scrutineering & technical compliance
+// ---------------------------------------------------------------------------
+
+enum InspectionStage {
+  /// Before the car runs.
+  PRE_EVENT
+  /// Between sessions, e.g. after qualifying.
+  IN_EVENT
+  /// Post-race impound / teardown.
+  POST_RACE
+}
+
+enum InspectionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PASSED
+  /// Failed with work to do; a re-inspection is expected.
+  FAILED
+  /// Failed and referred to the stewards.
+  REFERRED
+}
+
+enum CheckResult {
+  PENDING
+  PASS
+  FAIL
+  /// Checked and deliberately not applicable to this car.
+  NOT_APPLICABLE
+}
+
+/**
+ * A reusable list of checks a scrutineer works through.
+ * Templates belong to a series so a club can write its own card once and use
+ * it every round, optionally narrowed to one class where the technical
+ * regulations differ.
+ */
+model InspectionTemplate {
+  id            String          @id @default(cuid())
+  seriesId      String
+  seriesClassId String?
+  name          String
+  stage         InspectionStage @default(PRE_EVENT)
+  active        Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  series      Series                   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  items       InspectionTemplateItem[]
+  inspections Inspection[]
+
+  @@index([seriesId, active])
+}
+
+model InspectionTemplateItem {
+  id          String  @id @default(cuid())
+  templateId  String
+  label       String
+  /// Regulation article the check enforces.
+  regulation  String?
+  /// What to record, e.g. "kg", "mm". Null for a plain pass/fail.
+  measureUnit String?
+  /// Inclusive bounds for a measured value.
+  minValue    Float?
+  maxValue    Float?
+  sortOrder   Int     @default(0)
+
+  template InspectionTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  checks   InspectionCheck[]
+
+  @@index([templateId, sortOrder])
+}
+
+/**
+ * One car's trip through the scrutineering bay.
+ */
+model Inspection {
+  id             String           @id @default(cuid())
+  registrationId String
+  templateId     String?
+  stage          InspectionStage  @default(PRE_EVENT)
+  status         InspectionStatus @default(NOT_STARTED)
+  /// Set when this is a re-check after a failure.
+  supersedesId   String?          @unique
+  inspectedById  String
+  notes          String?          @db.Text
+  completedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  registration EventRegistration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  template     InspectionTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  inspectedBy  User                @relation(fields: [inspectedById], references: [id], onDelete: Cascade)
+  supersedes   Inspection?         @relation("InspectionRecheck", fields: [supersedesId], references: [id], onDelete: SetNull)
+  recheck      Inspection?         @relation("InspectionRecheck")
+  checks       InspectionCheck[]
+
+  @@index([registrationId, stage])
+}
+
+model InspectionCheck {
+  id             String      @id @default(cuid())
+  inspectionId   String
+  templateItemId String?
+  /// Copied from the template so the record survives a template edit.
+  label          String
+  regulation     String?
+  measureUnit    String?
+  minValue       Float?
+  maxValue       Float?
+  result         CheckResult @default(PENDING)
+  /// The value actually measured, where the check takes one.
+  measuredValue  Float?
+  notes          String?     @db.Text
+  sortOrder      Int         @default(0)
+
+  inspection   Inspection              @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  templateItem InspectionTemplateItem? @relation(fields: [templateItemId], references: [id], onDelete: SetNull)
+
+  @@index([inspectionId, sortOrder])
 }
 
 enum ResultStatus {

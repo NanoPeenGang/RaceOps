@@ -24,6 +24,7 @@ import { SchedulePanel } from "./schedule";
 import { TimingConsole } from "./timing-console";
 import { LineupsPanel } from "./lineups";
 import { EligibilityPanel } from "./eligibility";
+import { ScrutineeringPanel } from "./scrutineering";
 import { AnnouncementsPanel } from "@/components/announcements-panel";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { DangerZone } from "@/components/danger-zone";
@@ -137,6 +138,7 @@ export default function ManageEventPage({
       />
       <LineupsPanel eventId={eventId} />
       <EligibilityPanel eventId={eventId} />
+      <ScrutineeringPanel eventId={eventId} seriesId={data.seriesId} />
       <ResultsPanel eventId={eventId} />
       <ResultsImportPanel eventId={eventId} />
       <PenaltiesPanel eventId={eventId} />
