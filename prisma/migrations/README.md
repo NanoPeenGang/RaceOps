@@ -6,7 +6,9 @@ it long before the tables it depends on exist.
 
 The numeric prefixes here stop at `9_`. Anything after it continues with a
 letter suffix — `9a_`, `9b_`, … — because `_` (0x5F) sorts before `a` (0x61),
-so `9a_` lands after `9_` and after every earlier number.
+so `9a_` lands after `9_` and after every earlier number. The sequence
+currently runs to `9h_`; a single letter gives room to `9z_`, and past that
+the squash below is the answer rather than `9aa_`.
 
 The already-applied names are **not** renumbered: deployed databases record
 applied migrations by name in `_prisma_migrations`, so renaming one makes

@@ -197,6 +197,67 @@ needs beyond a calendar.
   Protests carry a right of reply and sort to the front. Open investigations
   stay private to the parties and the officials; decisions are published.
 
+**Race weekend infrastructure (done):** the paperwork and equipment records a
+meeting actually runs on.
+
+- **Tracks** — a venue is a record rather than free text, with named layouts
+  (Spa GP vs. Endurance), numbered and named corners, timing sectors, pit box
+  count and a free-form licence grade. Tracks are shared reference data curated
+  by whoever added them; one with event history cannot be deleted. This is what
+  lets an incident point at "Turn 2 (Eau Rouge)" and carry the marshal post
+  covering it, and what makes **lap records** possible: computed per layout,
+  overall and per class, from the timing board rather than kept by hand.
+  Re-saving a layout's corners updates them in place, so renumbering around a
+  new chicane never detaches the reports that reference them.
+- **Session conditions** — track state and weather logged as a time series, not
+  a pair of fields: a two-hour race that starts dry and ends in standing water
+  is the normal case. Track state is separate from weather because they diverge
+  (a track is damp under a clear sky an hour after rain), and `DAMP` counts as
+  wet for regulation purposes since a damp track has no dry line. A session with
+  no readings stays unknown rather than dry, so laps set before conditions were
+  captured are not thrown out.
+- **Cars & transponders** — a `Car` carries chassis, engine and homologation and
+  keeps its own race history, so results follow the chassis as well as the team.
+  Transponder numbers are normalized on the way in, because a timing feed
+  writing "TR-1 234 567" has to resolve to the unit registered as "1234567";
+  a unit already fitted to another entry at the same event is refused.
+- **Tire allocation** — sets are records rather than a counter, so an allocation
+  can be audited: a mis-scanned set is voided, not deleted, and stops counting
+  against the allowance while staying visible.
+- **Paddock & credentials** — garage, pit box, paddock space and transporter
+  bay per entry, with clashes reported rather than refused (an organizer moving
+  four entries around passes through clashing states). Passes are named, not
+  counted, because that is what accreditation needs at the gate; teams name
+  their own crew and officials issue, collect and void.
+- **Officials' log & audit trail** — flag changes, session states, penalties
+  and stewards' decisions write themselves to a chronological log as they
+  happen, publishable as the end-of-meeting bulletin. Separately, an
+  append-only audit trail records who changed a result or amended a penalty and
+  what it used to say — once a championship has consequences, "the database
+  says so now" is not an answer. Reading the audit trail is owner/admin only,
+  deliberately excluding race control.
+- **Generated documents** — the entry list, timetable, grid sheet and timing
+  sheet are built from the data already held and printed from the browser, with
+  a print stylesheet. Car numbers sort numerically ("7" before "11"), cars with
+  no qualifying time still appear at the back of the grid, and grids form up
+  two abreast or wider. Nothing is stored, so a document cannot go stale the way
+  an uploaded PDF does the moment somebody withdraws.
+- **Waivers & e-signature** — per-event or series-wide, with the wording
+  versioned rather than edited: a signature only means something against the
+  exact text shown, so changing it reissues the waiver and earlier signatures
+  stop covering it. What makes the typed-name signature hold up is the record
+  around it — version, time, client address, user agent. Required waivers gate
+  confirmation, and unlike an entry requirement an organizer cannot waive one.
+- **Broadcast** — a stream-overlay JSON feed per session for an OBS browser
+  source, with every value pre-formatted, plus a commentator pack: the entry
+  list with championship position, gap to the leader, season record and whether
+  the title is still mathematically available.
+- **Trackside offline mode** — an outbox queues writes when there is no signal
+  and sends them when there is, surviving a locked or reloaded phone. Only
+  observations can be queued (a marshal's report is still true an hour later;
+  a penalty replayed from a stale queue could land after the stewards already
+  ruled), and everything else fails loudly offline so the person knows.
+
 **Race organizer module (done):** run a whole championship from one place.
 Create a **Series** (organizer roster with OWNER / ADMIN / RACE_CONTROL /
 VOLUNTEER_COORDINATOR roles), schedule **events** through a
