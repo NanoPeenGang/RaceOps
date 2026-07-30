@@ -19,6 +19,12 @@ import {
   SERIES_EVENT_ROLES,
 } from "@/server/services/series-auth";
 import { notify } from "@/server/services/notifications";
+import {
+  entryListDocument,
+  gridDocument,
+  timetableDocument,
+  timingSheetDocument,
+} from "@/server/services/race-documents";
 
 /**
  * Regulations library and organizer notices.
@@ -327,5 +333,70 @@ export const documentRouter = createTRPCRouter({
       );
       await ctx.db.announcement.delete({ where: { id: announcement.id } });
       return { deleted: true };
+    }),
+
+  // -------------------------------------------------------------------------
+  // Generated documents
+  // -------------------------------------------------------------------------
+
+  /**
+   * The entry list, built from confirmed entries.
+   *
+   * Public, like the uploaded version it replaces. The difference is that a
+   * generated list cannot drift: an uploaded PDF is wrong the moment somebody
+   * withdraws, and nobody re-uploads it.
+   */
+  entryList: publicProcedure
+    .input(z.object({ eventId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      const document = await entryListDocument(ctx.db, input.eventId);
+      if (!document) throw new TRPCError({ code: "NOT_FOUND" });
+      return document;
+    }),
+
+  /** The running order, from the sessions already scheduled. */
+  timetable: publicProcedure
+    .input(z.object({ eventId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      const document = await timetableDocument(ctx.db, input.eventId);
+      if (!document) throw new TRPCError({ code: "NOT_FOUND" });
+      return document;
+    }),
+
+  /** Starting order from a qualifying session's timing board. */
+  gridSheet: publicProcedure
+    .input(
+      z.object({
+        eventId: z.string().cuid(),
+        sessionId: z.string().cuid().optional(),
+        /// Karting and some club grids form up three or four abreast.
+        carsPerRow: z.number().int().min(1).max(6).default(2),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const document = await gridDocument(ctx.db, input.eventId, {
+        sessionId: input.sessionId,
+        carsPerRow: input.carsPerRow,
+      });
+      if (!document) throw new TRPCError({ code: "NOT_FOUND" });
+      return document;
+    }),
+
+  /** Ruled paper before a session; the classification after it. */
+  timingSheet: publicProcedure
+    .input(
+      z.object({
+        eventId: z.string().cuid(),
+        sessionId: z.string().cuid().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const document = await timingSheetDocument(
+        ctx.db,
+        input.eventId,
+        input.sessionId,
+      );
+      if (!document) throw new TRPCError({ code: "NOT_FOUND" });
+      return document;
     }),
 });

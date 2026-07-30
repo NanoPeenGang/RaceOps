@@ -28,6 +28,7 @@ import { ScrutineeringPanel } from "./scrutineering";
 import { TiresPanel } from "./tires";
 import { PaddockPanel } from "./paddock";
 import { OfficialsLogPanel } from "./officials-log";
+import { GeneratedDocuments } from "@/components/generated-documents";
 import { AnnouncementsPanel } from "@/components/announcements-panel";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { DangerZone } from "@/components/danger-zone";
@@ -162,6 +163,7 @@ export default function ManageEventPage({
       <OfficialsLogPanel eventId={eventId} />
       <ShiftsPanel eventId={eventId} />
       <AnnouncementsPanel scope={{ eventId }} canManage title="Event notices" />
+      <GeneratedDocuments eventId={eventId} />
       <DocumentsPanel
         scope={{ eventId }}
         canManage

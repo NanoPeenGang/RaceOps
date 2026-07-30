@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AnnouncementsPanel } from "@/components/announcements-panel";
 import { DocumentsPanel } from "@/components/documents-panel";
+import { GeneratedDocuments } from "@/components/generated-documents";
 import { MediaPanel } from "@/components/media-panel";
 import { PaddockChat } from "@/components/paddock-chat";
 import { EntryPanels } from "./entry-panels";
@@ -217,6 +218,7 @@ export default async function EventLandingPage({
         canManage={false}
         title="Event notices"
       />
+      <GeneratedDocuments eventId={eventId} />
       <DocumentsPanel
         scope={{ eventId }}
         canManage={false}
