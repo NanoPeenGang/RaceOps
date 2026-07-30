@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EntryEquipment } from "@/components/entry-equipment";
+import { EntryCredentials } from "@/components/entry-credentials";
 
 const WINDOW_MESSAGES: Record<string, string> = {
   not_published: "Registration has not opened — this event is still a draft.",
@@ -41,7 +42,10 @@ export function EntryPanels({ eventId }: { eventId: string }) {
       <RegistrationPanel event={data} onChanged={refresh} />
       <VolunteerPanel event={data} onChanged={refresh} />
       {data.myRegistration && data.myRegistration.status !== "WITHDRAWN" && (
-        <EntryEquipment registrationId={data.myRegistration.id} />
+        <>
+          <EntryEquipment registrationId={data.myRegistration.id} />
+          <EntryCredentials registrationId={data.myRegistration.id} />
+        </>
       )}
     </div>
   );

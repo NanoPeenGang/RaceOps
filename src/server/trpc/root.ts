@@ -23,6 +23,7 @@ import { scrutineeringRouter } from "@/server/trpc/routers/scrutineering";
 import { incidentRouter } from "@/server/trpc/routers/incident";
 import { trackRouter } from "@/server/trpc/routers/track";
 import { carRouter } from "@/server/trpc/routers/car";
+import { paddockRouter } from "@/server/trpc/routers/paddock";
 
 export const appRouter = createTRPCRouter({
   user: userRouter,
@@ -49,6 +50,7 @@ export const appRouter = createTRPCRouter({
   incident: incidentRouter,
   track: trackRouter,
   car: carRouter,
+  paddock: paddockRouter,
 });
 
 export type AppRouter = typeof appRouter;

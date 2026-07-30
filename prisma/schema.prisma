@@ -151,6 +151,8 @@ model User {
   carsCreated            Car[]                @relation("CarCreator")
   transpondersOwned      Transponder[]        @relation("TransponderOwner")
   tireSetsAllocated      TireSet[]            @relation("TireAllocator")
+  paddockAssignments     PaddockAllocation[]  @relation("PaddockAssigner")
+  credentialsHeld        Credential[]         @relation("CredentialHolder")
 
   @@index([verificationStatus])
 }
@@ -673,6 +675,9 @@ model RaceEvent {
   raceReports     RaceReport[]
   incidents       Incident[]
   tireSets        TireSet[]
+  paddock         PaddockAllocation[]
+  credentialTypes CredentialType[]
+  credentials     Credential[]
 
   @@index([seriesLabel, date])
   @@index([seriesId, date])
@@ -726,6 +731,8 @@ model EventRegistration {
   car            Car?                    @relation(fields: [carId], references: [id], onDelete: SetNull)
   transponders   TransponderAssignment[]
   tireSets       TireSet[]
+  paddock        PaddockAllocation?
+  credentials    Credential[]
   seriesClass    SeriesClass?            @relation(fields: [seriesClassId], references: [id], onDelete: SetNull)
 
   @@unique([eventId, teamId])
@@ -1894,4 +1901,118 @@ model TireSet {
 
   @@unique([eventId, identifier])
   @@index([registrationId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Paddock allocation & credentials
+// ---------------------------------------------------------------------------
+
+/**
+ * Where an entry is put for a meeting.
+ * Pure spreadsheet work today, and the spreadsheet is the thing every team
+ * asks for on the Thursday. Garage, pit box and paddock space are separate
+ * fields because they are separate places: a club meeting allocates paddock
+ * space and no garages, a pro round allocates all three.
+ */
+model PaddockAllocation {
+  id             String  @id @default(cuid())
+  eventId        String
+  registrationId String  @unique
+  /// Garage or awning label as the circuit names it: "Garage 12", "Bay B4".
+  garage         String?
+  /// Pit box number, where pit lane is allocated separately from garages.
+  pitBox         String?
+  /// Paddock space for the transporter and awning: "P14", "Row 3 East".
+  paddockSpace   String?
+  /// Space for the truck itself, where a circuit separates it out.
+  transporterBay String?
+  /// Mains hookup, where the circuit sells or allocates it.
+  powerHookup    String?
+  notes          String? @db.Text
+
+  assignedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  event        RaceEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  assignedBy   User?             @relation("PaddockAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+}
+
+/**
+ * A category of pass an event issues, with how many each entry gets.
+ * Free-form rather than an enum: what a club meeting calls a "working pass"
+ * and what a pro round calls "paddock/pit lane/grid" have nothing in common.
+ */
+model CredentialType {
+  id                String  @id @default(cuid())
+  eventId           String
+  name              String
+  description       String?
+  /// Passes of this type each entry gets before asking for more.
+  allowancePerEntry Int     @default(0)
+  /// Total the event has to give out; null when there is no hard cap.
+  totalAvailable    Int?
+  /// Display order on the collection sheet.
+  sortOrder         Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event       RaceEvent    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  credentials Credential[]
+
+  @@unique([eventId, name])
+}
+
+enum CredentialStatus {
+  /// Requested by the entry, not yet approved.
+  REQUESTED
+  /// Approved and waiting at accreditation.
+  ISSUED
+  /// Physically handed over.
+  COLLECTED
+  /// Cancelled, lost or withdrawn. Kept so the count can be audited.
+  VOID
+}
+
+/**
+ * One pass, issued to a named person.
+ * Named rather than a bare count because that is what accreditation actually
+ * needs at the gate, and what an insurer asks for after an incident. The
+ * holder need not have a RaceOps account — a mechanic's mother-in-law helping
+ * for the weekend is a normal credential.
+ */
+model Credential {
+  id               String           @id @default(cuid())
+  eventId          String
+  credentialTypeId String
+  /// The entry it counts against; null for officials, media and staff passes.
+  registrationId   String?
+  holderName       String
+  /// Set when the holder has an account, for their own pass list.
+  holderUserId     String?
+  /// Role printed on the pass: "Mechanic", "Team guest", "Photographer".
+  holderRole       String?
+  /// Serial or barcode printed on the pass.
+  serial           String?
+  status           CredentialStatus @default(REQUESTED)
+  issuedAt         DateTime?
+  collectedAt      DateTime?
+  notes            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event          RaceEvent          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  credentialType CredentialType     @relation(fields: [credentialTypeId], references: [id], onDelete: Cascade)
+  registration   EventRegistration? @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  holderUser     User?              @relation("CredentialHolder", fields: [holderUserId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, serial])
+  @@index([eventId, status])
+  @@index([registrationId])
+  @@index([holderUserId])
 }
