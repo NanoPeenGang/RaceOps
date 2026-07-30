@@ -149,6 +149,41 @@ describe.skipIf(!ENABLED)("organizer module (integration)", () => {
     });
   });
 
+  it("does not re-promote an entry the organizer just waitlisted", async () => {
+    // Regression: auto-promotion used to pick the entry that had just given up
+    // its slot, silently undoing a deliberate demotion — how an organizer
+    // handles a car that fails scrutineering — and sending a bogus
+    // "off the waitlist" notice with it.
+    const entries = await organizer.caller.event.registrationsFor({ eventId });
+    const confirmed = entries.find((e) => e.status === "CONFIRMED")!;
+
+    await organizer.caller.event.setRegistrationStatus({
+      registrationId: confirmed.id,
+      status: "WAITLISTED",
+    });
+
+    const after = await organizer.caller.event.registrationsFor({ eventId });
+    // The demoted entry stays down...
+    expect(after.find((e) => e.id === confirmed.id)?.status).toBe("WAITLISTED");
+    // ...and the slot it freed goes to the entry that was actually waiting.
+    const promoted = after.find(
+      (e) => e.id !== confirmed.id && e.status === "CONFIRMED",
+    );
+    expect(promoted).toBeDefined();
+
+    // Swapping back demonstrates the other half of the rule: demoting the
+    // promoted entry frees the slot again, and the entry that has now been
+    // waiting longest — the original one — is pulled up automatically.
+    await organizer.caller.event.setRegistrationStatus({
+      registrationId: promoted!.id,
+      status: "WAITLISTED",
+    });
+    const restored = await organizer.caller.event.registrationsFor({ eventId });
+    expect(restored.find((e) => e.id === confirmed.id)?.status).toBe(
+      "CONFIRMED",
+    );
+  });
+
   it("promotes the waitlist when a confirmed entry withdraws", async () => {
     const entries = await organizer.caller.event.registrationsFor({ eventId });
     const confirmed = entries.find((e) => e.status === "CONFIRMED")!;

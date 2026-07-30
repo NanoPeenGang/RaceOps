@@ -137,6 +137,8 @@ model User {
   announcements          Announcement[]
   chatMessages           ChatMessage[]
   lineupEntries          RegistrationDriver[]
+  waiversReceived        RequirementWaiver[]  @relation("WaiverSubject")
+  waiversDecided         RequirementWaiver[]  @relation("WaiverDecider")
   sponsorshipsOffered    Sponsorship[]        @relation("SponsorshipSponsor")
   sponsorshipsCreated    Sponsorship[]        @relation("SponsorshipCreator")
 
@@ -150,6 +152,8 @@ model Profile {
   bio            String?         @db.Text
   location       String?
   availability   String?
+  /// Needed only where a series enforces a minimum age.
+  dateOfBirth    DateTime?
   /// Specific sim-racing jobs this person does, for discovery.
   simRoles       SimRole[]
   /// Specific real-world motorsport jobs this person does.
@@ -520,6 +524,7 @@ model Series {
   documents     RaceDocument[]
   announcements Announcement[]
   classes       SeriesClass[]
+  requirements  EntryRequirement[]
 }
 
 /**
@@ -685,6 +690,7 @@ model EventRegistration {
   timingEntries TimingEntry[]
   lineup        RegistrationDriver[]
   stints        Stint[]
+  waivers       RequirementWaiver[]
   seriesClass   SeriesClass?         @relation(fields: [seriesClassId], references: [id], onDelete: SetNull)
 
   @@unique([eventId, teamId])
@@ -948,6 +954,89 @@ model ChatMessage {
 
   @@index([eventId, createdAt])
   @@index([teamId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Entry eligibility
+// ---------------------------------------------------------------------------
+
+enum RequirementKind {
+  /// A credential of a given kind must exist, e.g. an FIA licence.
+  CREDENTIAL
+  /// A sim rating floor, e.g. iRating >= 2000 on a named platform.
+  SIM_RATING
+  /// Minimum age in years at the event date.
+  MIN_AGE
+  /// A briefing, medical or induction the organizer signs off manually.
+  ACKNOWLEDGEMENT
+}
+
+enum RequirementEnforcement {
+  /// Blocks confirmation until it is satisfied or waived.
+  BLOCKING
+  /// Recorded and shown, but never stops an entry.
+  ADVISORY
+}
+
+/**
+ * Something a driver must satisfy to enter.
+ * Scoped to a series, or narrowed to one class — a fast class routinely
+ * demands a higher licence than the novice class in the same championship.
+ * Every requirement is checked against each declared driver on an entry, not
+ * against the entrant, because it is the people in the car who need licences.
+ */
+model EntryRequirement {
+  id             String                 @id @default(cuid())
+  seriesId       String
+  /// Null applies the requirement to every class in the series.
+  seriesClassId  String?
+  kind           RequirementKind
+  label          String
+  description    String?                @db.Text
+  enforcement    RequirementEnforcement @default(BLOCKING)
+  /// CREDENTIAL: the credential kind that must be present.
+  credentialKind String?
+  /// SIM_RATING: platform key within Profile.simStats, e.g. "iracing".
+  simPlatform    String?
+  /// SIM_RATING: the minimum iRating (or equivalent) required.
+  minRating      Int?
+  /// MIN_AGE: years.
+  minAge         Int?
+  active         Boolean                @default(true)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  series     Series              @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  exemptions RequirementWaiver[]
+
+  @@index([seriesId, active])
+  @@index([seriesClassId])
+}
+
+/**
+ * An organizer's decision on one requirement for one driver on one entry:
+ * either a manual sign-off (a briefing attended) or a waiver granted.
+ */
+model RequirementWaiver {
+  id             String   @id @default(cuid())
+  requirementId  String
+  registrationId String
+  /// The driver the decision is about.
+  userId         String
+  /// True when the requirement is satisfied; false records an explicit refusal.
+  granted        Boolean  @default(true)
+  reason         String?  @db.Text
+  decidedById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  requirement  EntryRequirement  @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  user         User              @relation("WaiverSubject", fields: [userId], references: [id], onDelete: Cascade)
+  decidedBy    User              @relation("WaiverDecider", fields: [decidedById], references: [id], onDelete: Cascade)
+
+  @@unique([requirementId, registrationId, userId])
+  @@index([registrationId])
 }
 
 enum ResultStatus {

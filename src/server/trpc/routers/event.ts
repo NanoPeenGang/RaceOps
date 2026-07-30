@@ -23,6 +23,8 @@ import {
   SERIES_EVENT_ROLES,
   SERIES_VOLUNTEER_ROLES,
 } from "@/server/services/series-auth";
+import { blockingFindings } from "@/lib/eligibility";
+import { eligibilityForRegistration } from "@/server/services/eligibility";
 import { notify } from "@/server/services/notifications";
 import {
   matchResultRows,
@@ -490,7 +492,11 @@ export const eventRouter = createTRPCRouter({
         data: { status: RegistrationStatus.WITHDRAWN },
       });
       if (freedSlot) {
-        await promoteFromWaitlist(ctx.db, registration.eventId);
+        await promoteFromWaitlist(
+          ctx.db,
+          registration.eventId,
+          registration.id,
+        );
       }
       return updated;
     }),
@@ -572,6 +578,25 @@ export const eventRouter = createTRPCRouter({
               "The grid is full. Waitlist this entry or raise the entry capacity.",
           });
         }
+
+        // Blocking entry requirements have to be satisfied or waived before an
+        // entry is confirmed. The message names what is outstanding, since an
+        // organizer's next action is either to chase it or to sign it off.
+        const eligibility = await eligibilityForRegistration(
+          ctx.db,
+          registration.id,
+        );
+        if (!eligibility.eligible) {
+          const outstanding = blockingFindings(eligibility.findings)
+            .map(
+              (finding) => `${finding.driverName}: ${finding.requirementLabel}`,
+            )
+            .join("; ");
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `Entry requirements outstanding — ${outstanding}. Sign off or waive them to confirm.`,
+          });
+        }
       }
 
       const updated = await ctx.db.eventRegistration.update({
@@ -584,7 +609,11 @@ export const eventRouter = createTRPCRouter({
         registration.status === RegistrationStatus.CONFIRMED &&
         next !== RegistrationStatus.CONFIRMED
       ) {
-        await promoteFromWaitlist(ctx.db, registration.eventId);
+        await promoteFromWaitlist(
+          ctx.db,
+          registration.eventId,
+          registration.id,
+        );
       }
 
       await notify(ctx.db, {
@@ -952,7 +981,19 @@ export const eventRouter = createTRPCRouter({
 
 type Db = Parameters<typeof notify>[0];
 
-async function promoteFromWaitlist(db: Db, eventId: string): Promise<void> {
+/**
+ * Pulls the longest-waiting entry up when a confirmed slot frees.
+ *
+ * `excludeRegistrationId` is the entry that just gave up its slot. Without it,
+ * an organizer moving an entry from confirmed to waitlisted would see it
+ * promoted straight back — the entry is now the longest-waiting one — silently
+ * undoing a deliberate decision and sending a bogus "off the waitlist" notice.
+ */
+async function promoteFromWaitlist(
+  db: Db,
+  eventId: string,
+  excludeRegistrationId?: string,
+): Promise<void> {
   const event = await db.raceEvent.findUnique({
     where: { id: eventId },
     select: { entryCapacity: true, name: true },
@@ -968,7 +1009,9 @@ async function promoteFromWaitlist(db: Db, eventId: string): Promise<void> {
   ).length;
   if (!hasCapacityForConfirm(event.entryCapacity, confirmedCount)) return;
 
-  const promote = nextWaitlistPromotion(registrations);
+  const promote = nextWaitlistPromotion(
+    registrations.filter((r) => r.id !== excludeRegistrationId),
+  );
   if (!promote) return;
 
   await db.eventRegistration.update({

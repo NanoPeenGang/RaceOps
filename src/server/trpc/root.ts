@@ -18,6 +18,7 @@ import { reportRouter } from "@/server/trpc/routers/report";
 import { chatRouter } from "@/server/trpc/routers/chat";
 import { sponsorshipRouter } from "@/server/trpc/routers/sponsorship";
 import { lineupRouter } from "@/server/trpc/routers/lineup";
+import { eligibilityRouter } from "@/server/trpc/routers/eligibility";
 
 export const appRouter = createTRPCRouter({
   user: userRouter,
@@ -39,6 +40,7 @@ export const appRouter = createTRPCRouter({
   chat: chatRouter,
   sponsorship: sponsorshipRouter,
   lineup: lineupRouter,
+  eligibility: eligibilityRouter,
 });
 
 export type AppRouter = typeof appRouter;
