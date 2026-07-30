@@ -140,6 +140,9 @@ model User {
   waiversReceived        RequirementWaiver[]  @relation("WaiverSubject")
   waiversDecided         RequirementWaiver[]  @relation("WaiverDecider")
   inspectionsPerformed   Inspection[]
+  incidentsReported      Incident[]           @relation("IncidentReportedBy")
+  incidentsDecided       Incident[]           @relation("IncidentDecidedBy")
+  incidentResponses      IncidentResponse[]
   sponsorshipsOffered    Sponsorship[]        @relation("SponsorshipSponsor")
   sponsorshipsCreated    Sponsorship[]        @relation("SponsorshipCreator")
 
@@ -223,20 +226,22 @@ model Media {
   visibility MediaVisibility @default(PUBLIC)
   createdAt  DateTime        @default(now())
 
-  seriesId  String?
-  eventId   String?
-  teamId    String?
-  penaltyId String?
-  appealId  String?
-  reportId  String?
+  seriesId   String?
+  eventId    String?
+  teamId     String?
+  penaltyId  String?
+  appealId   String?
+  reportId   String?
+  incidentId String?
 
-  owner   User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  series  Series?        @relation(fields: [seriesId], references: [id], onDelete: Cascade)
-  event   RaceEvent?     @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  team    Team?          @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  penalty Penalty?       @relation(fields: [penaltyId], references: [id], onDelete: Cascade)
-  appeal  PenaltyAppeal? @relation(fields: [appealId], references: [id], onDelete: Cascade)
-  report  RaceReport?    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  owner    User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  series   Series?        @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  event    RaceEvent?     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team     Team?          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  penalty  Penalty?       @relation(fields: [penaltyId], references: [id], onDelete: Cascade)
+  appeal   PenaltyAppeal? @relation(fields: [appealId], references: [id], onDelete: Cascade)
+  report   RaceReport?    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  incident Incident?      @relation(fields: [incidentId], references: [id], onDelete: Cascade)
 
   @@index([ownerId])
   @@index([seriesId])
@@ -245,6 +250,7 @@ model Media {
   @@index([penaltyId])
   @@index([appealId])
   @@index([reportId])
+  @@index([incidentId])
 }
 
 // ---------------------------------------------------------------------------
@@ -649,6 +655,7 @@ model RaceEvent {
   announcements   Announcement[]
   chatMessages    ChatMessage[]
   raceReports     RaceReport[]
+  incidents       Incident[]
 
   @@index([seriesLabel, date])
   @@index([seriesId, date])
@@ -683,18 +690,20 @@ model EventRegistration {
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
-  event         RaceEvent            @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  team          Team?                @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  entrantUser   User?                @relation("RegistrationEntrant", fields: [entrantUserId], references: [id], onDelete: Cascade)
-  submittedBy   User                 @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
-  result        EventResult?
-  penalties     Penalty[]
-  timingEntries TimingEntry[]
-  lineup        RegistrationDriver[]
-  stints        Stint[]
-  waivers       RequirementWaiver[]
-  inspections   Inspection[]
-  seriesClass   SeriesClass?         @relation(fields: [seriesClassId], references: [id], onDelete: SetNull)
+  event          RaceEvent            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team           Team?                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  entrantUser    User?                @relation("RegistrationEntrant", fields: [entrantUserId], references: [id], onDelete: Cascade)
+  submittedBy    User                 @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+  result         EventResult?
+  penalties      Penalty[]
+  timingEntries  TimingEntry[]
+  lineup         RegistrationDriver[]
+  stints         Stint[]
+  waivers        RequirementWaiver[]
+  inspections    Inspection[]
+  incidentsAbout Incident[]           @relation("IncidentSubject")
+  incidentsFiled Incident[]           @relation("IncidentReporter")
+  seriesClass    SeriesClass?         @relation(fields: [seriesClassId], references: [id], onDelete: SetNull)
 
   @@unique([eventId, teamId])
   @@unique([eventId, entrantUserId])
@@ -822,6 +831,7 @@ model EventSession {
   event         RaceEvent     @relation(fields: [eventId], references: [id], onDelete: Cascade)
   timingEntries TimingEntry[]
   stints        Stint[]
+  incidents     Incident[]
 
   @@index([eventId, startsAt])
 }
@@ -1164,6 +1174,100 @@ model InspectionCheck {
   @@index([inspectionId, sortOrder])
 }
 
+// ---------------------------------------------------------------------------
+// Incidents, protests & the stewards' queue
+// ---------------------------------------------------------------------------
+
+enum IncidentSource {
+  /// Raised by a competitor about someone else, or about themselves.
+  COMPETITOR
+  /// From a marshal post or another trackside official.
+  MARSHAL
+  /// Race control's own observation.
+  RACE_CONTROL
+  /// A formal protest, which carries a fee and a right of reply.
+  PROTEST
+}
+
+enum IncidentStatus {
+  /// Filed, not yet looked at.
+  REPORTED
+  /// Race control has seen it and is leaving it on the table.
+  NOTED
+  UNDER_INVESTIGATION
+  /// Looked at and closed without action.
+  NO_FURTHER_ACTION
+  /// Closed by issuing a penalty.
+  PENALTY_ISSUED
+  /// Withdrawn by whoever filed it.
+  WITHDRAWN
+}
+
+/**
+ * An incident report: the input to stewarding.
+ * Penalties used to appear from nowhere. Real stewarding starts here — a
+ * competitor, a marshal post or race control reports what happened, with a lap
+ * and a corner, and the queue is triaged from noted through to a decision.
+ */
+model Incident {
+  id                       String         @id @default(cuid())
+  eventId                  String
+  sessionId                String?
+  source                   IncidentSource @default(COMPETITOR)
+  status                   IncidentStatus @default(REPORTED)
+  /// The entry the report is about.
+  subjectRegistrationId    String?
+  /// The entry that filed it, when a competitor did.
+  reportedByRegistrationId String?
+  reportedById             String
+  summary                  String
+  description              String?        @db.Text
+  lapNumber                Int?
+  /// Free text: "Turn 5", "pit exit", "flag point 12".
+  location                 String?
+  occurredAt               DateTime?
+  /// Race control's reasoning when the report is closed.
+  decisionNotes            String?        @db.Text
+  decidedById              String?
+  decidedAt                DateTime?
+  /// The penalty this report produced, when it produced one.
+  penaltyId                String?        @unique
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+
+  event           RaceEvent          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  session         EventSession?      @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  subject         EventRegistration? @relation("IncidentSubject", fields: [subjectRegistrationId], references: [id], onDelete: SetNull)
+  reportedByEntry EventRegistration? @relation("IncidentReporter", fields: [reportedByRegistrationId], references: [id], onDelete: SetNull)
+  reportedBy      User               @relation("IncidentReportedBy", fields: [reportedById], references: [id], onDelete: Cascade)
+  decidedBy       User?              @relation("IncidentDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  penalty         Penalty?           @relation(fields: [penaltyId], references: [id], onDelete: SetNull)
+  media           Media[]
+  responses       IncidentResponse[]
+
+  @@index([eventId, status])
+  @@index([subjectRegistrationId])
+}
+
+/**
+ * A reply on an incident — the right of response a protest carries, and the
+ * back-and-forth race control records while investigating.
+ */
+model IncidentResponse {
+  id                   String   @id @default(cuid())
+  incidentId           String
+  authorId             String
+  body                 String   @db.Text
+  /// Visible to the competitors involved as well as to officials.
+  visibleToCompetitors Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  author   User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([incidentId, createdAt])
+}
+
 enum ResultStatus {
   FINISHED
   DNF
@@ -1244,6 +1348,7 @@ model Penalty {
   issuedBy     User              @relation("PenaltyIssuer", fields: [issuedById], references: [id], onDelete: Cascade)
   appeal       PenaltyAppeal?
   media        Media[]
+  incident     Incident?
 
   @@index([eventId])
   @@index([registrationId])

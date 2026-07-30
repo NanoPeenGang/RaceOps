@@ -122,6 +122,11 @@ export default function ManageEventPage({
             View live timing board
           </Button>
         </Link>
+        <Link href={`/events/${eventId}/incidents`}>
+          <Button size="sm" variant="outline">
+            Stewards&rsquo; queue
+          </Button>
+        </Link>
         <Link href={`/events/${eventId}/penalties`}>
           <Button size="sm" variant="outline">
             Public penalty record

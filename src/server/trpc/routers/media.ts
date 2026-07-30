@@ -33,10 +33,11 @@ const scopeSchema = z
     penaltyId: z.string().cuid().optional(),
     appealId: z.string().cuid().optional(),
     reportId: z.string().cuid().optional(),
+    incidentId: z.string().cuid().optional(),
   })
   .refine(
     (scope) => Object.values(scope).filter(Boolean).length === 1,
-    "Attach media to exactly one of a series, event, team, penalty, appeal or report.",
+    "Attach media to exactly one of a series, event, team, penalty, appeal, report or incident.",
   );
 
 type Scope = z.infer<typeof scopeSchema>;
@@ -122,6 +123,23 @@ async function assertCanManageScope(
         code: "FORBIDDEN",
         message: "Only the author can manage a report's media.",
       });
+    }
+    return;
+  }
+  if (scope.incidentId) {
+    // Evidence belongs to whoever filed the report; officials manage the rest.
+    const incident = await ctx.db.incident.findUnique({
+      where: { id: scope.incidentId },
+      select: { reportedById: true, eventId: true },
+    });
+    if (!incident) throw new TRPCError({ code: "NOT_FOUND" });
+    if (incident.reportedById !== ctx.user.id) {
+      await assertEventOrganizer(
+        ctx.db,
+        incident.eventId,
+        ctx.user.id,
+        SERIES_PENALTY_ROLES,
+      );
     }
     return;
   }
@@ -212,6 +230,7 @@ export const mediaRouter = createTRPCRouter({
           penaltyId: media.penaltyId ?? undefined,
           appealId: media.appealId ?? undefined,
           reportId: media.reportId ?? undefined,
+          incidentId: media.incidentId ?? undefined,
         });
       }
       await ctx.db.media.delete({ where: { id: media.id } });

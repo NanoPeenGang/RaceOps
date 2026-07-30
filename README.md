@@ -163,6 +163,40 @@ team from one page.
   are visible to the team only.
 - **Team chat** — the team's own room, separate from event paddock chat.
 
+**Race weekend regulation (done):** the operational layer a real championship
+needs beyond a calendar.
+
+- **Endurance line-ups** — an entry declares a crew (driver of record, drivers,
+  reserves) with a stint log. Drive-time regulations are per event and all
+  optional, so a sprint round enforces nothing while an endurance round can cap
+  stint length and total drive time per driver. Compliance is checked per driver
+  across the whole event, open stints are measured live so race control sees a
+  car approaching a limit, and an unmet minimum stays "outstanding" rather than
+  a breach until the event is over.
+- **Multi-class championships** — classes are records a series creates with
+  free-form names, so a pro grid declaring GT3 and GT4 and a club autocross
+  region declaring thirty local classes both work. Each class gets its own
+  table and may set its own points scale. Alongside them: drivers' and teams'
+  championships from the same results, dropped scores ("best 8 of 10"),
+  per-round weighting for a double-points finale, and a minimum-starts rule for
+  title eligibility.
+- **Entry eligibility** — series define what a driver must hold: a credential,
+  a sim rating floor, a minimum age, or a sign-off the platform cannot verify.
+  Requirements are scoped series-wide or to one class and checked per declared
+  driver; blocking ones stop confirmation naming the driver and the rule, and an
+  organizer can sign off or refuse anything explicitly.
+- **Scrutineering** — a series writes a card of checks once; opening it for a
+  car copies the items so a later template edit never rewrites history.
+  Measured checks pass or fail on the number against their tolerance, a card
+  only settles once every check is worked through, and failures turn into a
+  penalty citing what failed. Re-checks supersede the failure that prompted
+  them.
+- **Incidents & stewarding** — the front half of stewarding, which was missing:
+  competitors, marshal posts and race control file reports with a lap and a
+  corner, and officials triage the queue from noted through to a decision.
+  Protests carry a right of reply and sort to the front. Open investigations
+  stay private to the parties and the officials; decisions are published.
+
 **Race organizer module (done):** run a whole championship from one place.
 Create a **Series** (organizer roster with OWNER / ADMIN / RACE_CONTROL /
 VOLUNTEER_COORDINATOR roles), schedule **events** through a

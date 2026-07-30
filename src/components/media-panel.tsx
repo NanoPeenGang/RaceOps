@@ -14,6 +14,7 @@ type Scope = {
   penaltyId?: string;
   appealId?: string;
   reportId?: string;
+  incidentId?: string;
 };
 
 /**

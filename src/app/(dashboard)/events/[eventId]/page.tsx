@@ -120,6 +120,11 @@ export default async function EventLandingPage({
                 Live timing
               </Button>
             </Link>
+            <Link href={`/events/${eventId}/incidents`}>
+              <Button size="sm" variant="outline">
+                Incidents
+              </Button>
+            </Link>
             <Link href={`/events/${eventId}/penalties`}>
               <Button size="sm" variant="outline">
                 Penalties
