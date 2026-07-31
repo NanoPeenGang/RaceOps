@@ -1,50 +1,90 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { TrackKind } from "@prisma/client";
 import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TRACK_KIND_LABELS } from "@/lib/tracks";
+import { EmptyState, PageHeader, Section } from "@/components/ui/page";
+import { TRACK_KIND_LABELS, formatLength } from "@/lib/tracks";
+import { REGION_LABELS, countryLabel, placeLabel } from "@/lib/regions";
 
+/**
+ * The venue directory.
+ *
+ * It ships populated — a few hundred real circuits and ovals — so the filters
+ * carry more weight than the search box: somebody looking for a track near
+ * them thinks in states, not in spellings. Paged rather than loaded whole,
+ * because the list only grows.
+ */
 export default function TracksPage() {
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<TrackKind | "">("");
+  const [country, setCountry] = useState("");
+  const [region, setRegion] = useState("");
   const [adding, setAdding] = useState(false);
 
-  const tracks = api.track.list.useQuery({
-    query: query.trim() || undefined,
-    kind: kind || undefined,
-  });
+  const facets = api.track.facets.useQuery();
+  const tracks = api.track.list.useInfiniteQuery(
+    {
+      query: query.trim() || undefined,
+      kind: kind || undefined,
+      country: country || undefined,
+      region: region || undefined,
+      limit: 24,
+    },
+    { getNextPageParam: (page) => page.nextCursor },
+  );
+
+  const items = tracks.data?.pages.flatMap((page) => page.items) ?? [];
+
+  // Only offer the states of the country in view; "Alabama" next to "Bavaria"
+  // in one flat list helps nobody.
+  const regions = useMemo(
+    () =>
+      (facets.data?.regions ?? []).filter(
+        (row) => !country || row.country === country,
+      ),
+    [facets.data, country],
+  );
+
+  const filtered = Boolean(query.trim() || kind || country || region);
+  const clear = () => {
+    setQuery("");
+    setKind("");
+    setCountry("");
+    setRegion("");
+  };
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold">Tracks</h1>
-          <p className="mt-1 max-w-2xl text-sm text-brand-black/60">
-            Shared venue records. Linking an event to a layout is what lets
-            incidents name a corner, lap records compare across series, and the
-            same circuit stop being spelled four different ways.
-          </p>
-        </div>
-        <Button variant="primary" onClick={() => setAdding((open) => !open)}>
-          {adding ? "Cancel" : "Add a track"}
-        </Button>
-      </div>
+      <PageHeader
+        title="Tracks"
+        description="Shared venue records. Linking an event to a layout is what lets incidents name a corner, lap records compare across series, and the same circuit stop being spelled four different ways."
+        actions={
+          <Button variant="primary" onClick={() => setAdding((open) => !open)}>
+            {adding ? "Cancel" : "Add a track"}
+          </Button>
+        }
+      />
 
       {adding && <AddTrackForm onCreated={() => setAdding(false)} />}
 
-      <div className="flex flex-wrap gap-3">
-        <input
-          className="min-w-0 flex-1 rounded-md border border-brand-black/20 px-3 py-2 text-sm sm:max-w-sm"
-          placeholder="Search by name, city or region"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="min-w-0 flex-1 text-sm font-medium sm:max-w-sm">
+          <span className="sr-only">Search tracks</span>
+          <input
+            className="w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+            placeholder="Search by name, city or state"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+
         <select
+          aria-label="Filter by kind"
           className="rounded-md border border-brand-black/20 px-3 py-2 text-sm"
           value={kind}
           onChange={(e) => setKind(e.target.value as TrackKind | "")}
@@ -56,50 +96,149 @@ export default function TracksPage() {
             </option>
           ))}
         </select>
+
+        {(facets.data?.countries.length ?? 0) > 1 && (
+          <select
+            aria-label="Filter by country"
+            className="rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+            value={country}
+            onChange={(e) => {
+              setCountry(e.target.value);
+              setRegion("");
+            }}
+          >
+            <option value="">All countries</option>
+            {facets.data?.countries.map((row) => (
+              <option key={row.code} value={row.code}>
+                {countryLabel(row.code)} ({row.count})
+              </option>
+            ))}
+          </select>
+        )}
+
+        {regions.length > 1 && (
+          <select
+            aria-label="Filter by state or region"
+            className="rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+          >
+            <option value="">All states / regions</option>
+            {regions.map((row) => (
+              <option key={`${row.country}-${row.region}`} value={row.region}>
+                {REGION_LABELS[row.region] ?? row.region} ({row.count})
+              </option>
+            ))}
+          </select>
+        )}
+
+        {filtered && (
+          <Button size="sm" variant="ghost" onClick={clear}>
+            Clear
+          </Button>
+        )}
       </div>
 
-      {tracks.isLoading && <p className="text-brand-black/60">Loading…</p>}
-      {tracks.data?.items.length === 0 && (
-        <p className="text-brand-black/60">
-          No tracks match. Add the venue you race at — everyone benefits from
-          one good record of it.
-        </p>
-      )}
+      <Section
+        title={
+          items.length === 0
+            ? "Directory"
+            : `${items.length}${tracks.hasNextPage ? "+" : ""} track${
+                items.length === 1 ? "" : "s"
+              }`
+        }
+      >
+        {tracks.isLoading && <p className="text-brand-black/60">Loading…</p>}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {tracks.data?.items.map((track) => (
-          <Card key={track.id}>
-            <CardHeader>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle>
-                  <Link
-                    href={`/tracks/${track.slug}`}
-                    className="hover:text-brand-red"
-                  >
-                    {track.name}
-                  </Link>
-                </CardTitle>
-                <Badge>{TRACK_KIND_LABELS[track.kind]}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-xs text-brand-black/60">
-                {[track.city, track.region, track.country]
-                  .filter(Boolean)
-                  .join(", ") || "Location not given"}
-                {track.licenceGrade ? ` · ${track.licenceGrade}` : ""}
-              </p>
-              <p className="text-xs text-brand-black/60">
-                {track.layouts.length} layout
-                {track.layouts.length === 1 ? "" : "s"}
-                {track.layouts.length > 0
-                  ? `: ${track.layouts.map((layout) => layout.name).join(", ")}`
-                  : ""}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+        {!tracks.isLoading && items.length === 0 && (
+          <EmptyState
+            title={filtered ? "No tracks match those filters" : "No tracks yet"}
+            description={
+              filtered
+                ? "Widen the search, or add the venue you race at — everyone benefits from one good record of it."
+                : "Add the venue you race at. Everyone benefits from one good record of it."
+            }
+            action={
+              filtered ? (
+                <Button size="sm" variant="outline" onClick={clear}>
+                  Clear filters
+                </Button>
+              ) : (
+                <Button size="sm" variant="primary" onClick={() => setAdding(true)}>
+                  Add a track
+                </Button>
+              )
+            }
+          />
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {items.map((track) => {
+            const primary =
+              track.layouts.find((layout) => layout.isPrimary) ??
+              track.layouts[0];
+            return (
+              <Card key={track.id}>
+                <CardHeader>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <CardTitle>
+                      <Link
+                        href={`/tracks/${track.slug}`}
+                        className="hover:text-brand-red"
+                      >
+                        {track.name}
+                      </Link>
+                    </CardTitle>
+                    <div className="flex shrink-0 flex-wrap gap-1">
+                      {track.isReference && (
+                        <Badge
+                          variant="outline"
+                          title="Shipped with RaceOps. Anyone signed in can correct it."
+                        >
+                          Reference
+                        </Badge>
+                      )}
+                      <Badge>{TRACK_KIND_LABELS[track.kind]}</Badge>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-xs text-brand-black/60">
+                    {placeLabel(track) ?? "Location not given"}
+                    {track.licenceGrade ? ` · ${track.licenceGrade}` : ""}
+                  </p>
+                  <p className="text-xs text-brand-black/60">
+                    {track.layouts.length} layout
+                    {track.layouts.length === 1 ? "" : "s"}
+                    {track.layouts.length > 0
+                      ? `: ${track.layouts
+                          .map((layout) => layout.name)
+                          .join(", ")}`
+                      : ""}
+                  </p>
+                  {primary?.lengthMeters && (
+                    <p className="text-xs tabular-nums text-brand-black/60">
+                      {formatLength(primary.lengthMeters)} · {primary.name}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {tracks.hasNextPage && (
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              disabled={tracks.isFetchingNextPage}
+              onClick={() => tracks.fetchNextPage()}
+            >
+              {tracks.isFetchingNextPage ? "Loading…" : "Show more tracks"}
+            </Button>
+          </div>
+        )}
+      </Section>
     </div>
   );
 }

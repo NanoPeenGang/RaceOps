@@ -1648,6 +1648,14 @@ model Track {
   /// Permanent garage buildings, where the facility has them.
   garageCount  Int?
   notes        String?   @db.Text
+  /**
+   * Canonical venue shipped with the platform rather than added by a user.
+   * Reference tracks have no creator, so the "only the person who added it
+   * may edit it" rule would lock them permanently — a typo in a seeded track
+   * could never be fixed by anyone. Instead they are open to correction by
+   * anyone signed in, with every change audited, and cannot be deleted.
+   */
+  isReference  Boolean   @default(false)
   createdById  String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

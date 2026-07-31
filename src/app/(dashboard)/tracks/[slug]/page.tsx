@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatLapTime } from "@/lib/lap-time";
+import { placeLabel } from "@/lib/regions";
 import {
   formatLength,
   TRACK_DIRECTION_LABELS,
@@ -28,9 +29,13 @@ export default function TrackPage({
   if (!track.data) return <p className="text-brand-black/60">Track not found.</p>;
 
   const data = track.data;
-  const canCurate = Boolean(
-    me.data?.id && data.createdById && me.data.id === data.createdById,
-  );
+  const signedIn = Boolean(me.data?.id);
+  // A reference track has no creator, so the "only whoever added it" rule
+  // would freeze it forever — a typo in a shipped circuit could never be
+  // fixed. Those are open to anyone signed in, and every edit is audited.
+  const canCurate = data.isReference
+    ? signedIn
+    : Boolean(me.data?.id && data.createdById && me.data.id === data.createdById);
 
   return (
     <div className="space-y-8">
@@ -38,23 +43,31 @@ export default function TrackPage({
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-bold">{data.name}</h1>
           <Badge>{TRACK_KIND_LABELS[data.kind]}</Badge>
+          {data.isReference && <Badge variant="outline">Reference</Badge>}
           {data.licenceGrade && (
             <Badge variant="outline">{data.licenceGrade}</Badge>
           )}
         </div>
         <p className="text-sm text-brand-black/60">
-          {[data.city, data.region, data.country].filter(Boolean).join(", ") ||
-            "Location not given"}
+          {placeLabel(data) ?? "Location not given"}
           {data.pitBoxCount ? ` · ${data.pitBoxCount} pit boxes` : ""}
           {data.garageCount ? ` · ${data.garageCount} garages` : ""}
         </p>
         {data.notes && <p className="max-w-3xl text-sm">{data.notes}</p>}
-        {!canCurate && (
+        {data.isReference ? (
           <p className="text-xs text-brand-black/50">
-            Curated by{" "}
-            {data.createdBy?.profile?.displayName ?? "someone who has left"}.
-            Anyone can use these layouts on an event.
+            {signedIn
+              ? "Shipped with RaceOps and shared by everyone. If something here is wrong — a repave, a new configuration, a name change — correct it. Changes are recorded against your name."
+              : "Shipped with RaceOps and shared by everyone. Sign in to correct it."}
           </p>
+        ) : (
+          !canCurate && (
+            <p className="text-xs text-brand-black/50">
+              Curated by{" "}
+              {data.createdBy?.profile?.displayName ?? "someone who has left"}.
+              Anyone can use these layouts on an event.
+            </p>
+          )
         )}
       </header>
 

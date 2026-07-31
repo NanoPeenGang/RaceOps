@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { Prisma, TrackDirection, TrackKind } from "@prisma/client";
+import { AuditAction, Prisma, TrackDirection, TrackKind } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import {
   createTRPCRouter,
@@ -10,6 +10,7 @@ import {
 import { slugify } from "@/lib/slug";
 import { MAX_TURN_NAME_LENGTH } from "@/lib/tracks";
 import { trackRecordsForLayout } from "@/server/services/track-records";
+import { recordAudit } from "@/server/services/audit";
 
 /**
  * Tracks are shared reference data rather than something a series owns: two
@@ -44,17 +45,29 @@ async function uniqueTrackSlug(
   });
 }
 
-/** Throws unless the caller added this track. */
+/**
+ * Throws unless the caller may curate this track.
+ *
+ * Two regimes. A community track is curated by whoever added it. A reference
+ * track — the canonical venues shipped with the platform — has no creator, so
+ * the same rule would lock it permanently and a typo in a seeded circuit could
+ * never be fixed by anyone. Those are open to correction by anyone signed in,
+ * with every change written to the audit trail, which is what makes open
+ * editing defensible rather than a free-for-all.
+ */
 async function assertTrackCurator(
   db: PrismaClient,
   trackId: string,
   userId: string,
-): Promise<void> {
+): Promise<{ isReference: boolean; name: string }> {
   const track = await db.track.findUnique({
     where: { id: trackId },
-    select: { createdById: true },
+    select: { createdById: true, isReference: true, name: true },
   });
   if (!track) throw new TRPCError({ code: "NOT_FOUND" });
+  if (track.isReference) {
+    return { isReference: true, name: track.name };
+  }
   if (track.createdById !== userId) {
     throw new TRPCError({
       code: "FORBIDDEN",
@@ -62,6 +75,7 @@ async function assertTrackCurator(
         "Only the person who added this track can edit it. Ask them, or add the layout you need to a track of your own.",
     });
   }
+  return { isReference: false, name: track.name };
 }
 
 /** Same check resolved from a layout. */
@@ -92,6 +106,8 @@ export const trackRouter = createTRPCRouter({
         query: z.string().max(120).optional(),
         kind: z.nativeEnum(TrackKind).optional(),
         country: z.string().length(2).optional(),
+        /// State or province, exactly as stored — see `track.facets`.
+        region: z.string().max(120).optional(),
         limit: z.number().int().min(1).max(50).default(20),
         cursor: z.string().cuid().optional(),
       }),
@@ -111,6 +127,7 @@ export const trackRouter = createTRPCRouter({
             : {}),
           ...(input.kind ? { kind: input.kind } : {}),
           ...(input.country ? { country: input.country.toUpperCase() } : {}),
+          ...(input.region ? { region: input.region } : {}),
         },
         take: input.limit + 1,
         ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
@@ -119,7 +136,13 @@ export const trackRouter = createTRPCRouter({
           layouts: {
             where: { active: true },
             orderBy: [{ isPrimary: "desc" }, { name: "asc" }],
-            select: { id: true, name: true, platform: true, isPrimary: true },
+            select: {
+              id: true,
+              name: true,
+              platform: true,
+              isPrimary: true,
+              lengthMeters: true,
+            },
           },
         },
       });
@@ -127,6 +150,43 @@ export const trackRouter = createTRPCRouter({
       if (items.length > input.limit) nextCursor = items.pop()!.id;
       return { items, nextCursor };
     }),
+
+  /**
+   * What is actually in the directory, for the filter controls.
+   *
+   * Offering a fixed list of countries and states would be wrong in both
+   * directions: it would show fifty empty states to a British club, and hide
+   * a venue the moment somebody adds one somewhere we had not thought of. So
+   * the filters are built from the rows that exist, with counts, and a filter
+   * that would return nothing is simply not offered.
+   */
+  facets: publicProcedure.query(async ({ ctx }) => {
+    const [countries, regions] = await Promise.all([
+      ctx.db.track.groupBy({
+        by: ["country"],
+        _count: { _all: true },
+        orderBy: { _count: { id: "desc" } },
+      }),
+      ctx.db.track.groupBy({
+        by: ["country", "region"],
+        _count: { _all: true },
+        orderBy: [{ country: "asc" }, { region: "asc" }],
+      }),
+    ]);
+
+    return {
+      countries: countries
+        .filter((row) => row.country !== null)
+        .map((row) => ({ code: row.country!, count: row._count._all })),
+      regions: regions
+        .filter((row) => row.region !== null)
+        .map((row) => ({
+          country: row.country,
+          region: row.region!,
+          count: row._count._all,
+        })),
+    };
+  }),
 
   bySlug: publicProcedure
     .input(z.object({ slug: z.string().min(1).max(120) }))
@@ -236,7 +296,18 @@ export const trackRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { trackId, country, ...rest } = input;
-      await assertTrackCurator(ctx.db, trackId, ctx.user.id);
+      const track = await assertTrackCurator(ctx.db, trackId, ctx.user.id);
+      if (track.isReference) {
+        // Open editing is only defensible with a trail: a reference track is
+        // shared by every series, so a wrong correction has to be traceable.
+        await recordAudit(ctx.db, {
+          actorId: ctx.user.id,
+          action: AuditAction.UPDATE,
+          entityType: "Track",
+          entityId: trackId,
+          summary: `Corrected the reference track "${track.name}"`,
+        });
+      }
       return ctx.db.track.update({
         where: { id: trackId },
         // The slug is deliberately left alone on rename: it is in URLs that
@@ -254,7 +325,14 @@ export const trackRouter = createTRPCRouter({
   delete: protectedProcedure
     .input(z.object({ trackId: z.string().cuid() }))
     .mutation(async ({ ctx, input }) => {
-      await assertTrackCurator(ctx.db, input.trackId, ctx.user.id);
+      const track = await assertTrackCurator(ctx.db, input.trackId, ctx.user.id);
+      if (track.isReference) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "This is a reference track shared by everyone on RaceOps. Correct it if something is wrong, but it cannot be deleted.",
+        });
+      }
       const used = await ctx.db.raceEvent.count({
         where: { trackLayout: { trackId: input.trackId } },
       });

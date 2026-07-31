@@ -36,6 +36,7 @@ Who it is for, and what they do here:
 cp .env.example .env    # fill in DATABASE_URL + Clerk keys at minimum
 npm install             # also runs `prisma generate`
 npm run db:migrate      # apply prisma/migrations to your Postgres
+npm run db:seed         # load the reference track directory (optional, idempotent)
 npm run dev
 ```
 
@@ -85,6 +86,7 @@ message naming the missing variables instead. Set them and redeploy
 | `npm run lint` / `npm run typecheck` / `npm test` | CI quality gates |
 | `npm run build` | Production build |
 | `npm run db:migrate` | Apply migrations (`prisma migrate deploy`) |
+| `npm run db:seed` | Load the reference tracks (safe to re-run; see below) |
 | `npm run db:studio` | Prisma Studio |
 | `npm run brand:generate` | Regenerate brand assets into `public/` |
 
@@ -106,7 +108,42 @@ src/
 │   └── services/           # AI gateway, rate limiting (iRacing sync: Phase 3)
 ├── components/             # shared UI (shadcn-style primitives + header)
 └── lib/                    # strategy calculators, slug, trpc client, utils
+
+prisma/
+├── schema.prisma
+├── migrations/             # ordered SQL; see migrations/README.md
+├── seed.mts                # `npm run db:seed` entry point
+└── seed-data/              # the shipped reference data + the loader
 ```
+
+### Reference tracks
+
+`npm run db:seed` loads a directory of real circuits and ovals — two to five
+per state across the contiguous United States, road courses and permanent
+circuits first — so a fresh deployment is not an empty venue list. It is
+optional; nothing depends on it.
+
+Two rules make it safe to run against a database already in use:
+
+- **It only adds.** Existing tracks and layouts are never updated or deleted,
+  including ones a previous run created. Correcting a figure in
+  `prisma/seed-data/us-tracks.mts` therefore does *not* propagate to a database
+  that already has that track — deliberately, because a seed that overwrites is
+  a seed nobody dares run twice.
+- **It stands aside.** A venue somebody already added by hand is left alone
+  rather than duplicated, matched on name and state. Two rows for one circuit
+  would split its lap records in half.
+
+Seeded tracks are marked `isReference` and have no creator. That flips the
+curation rule: instead of "only whoever added it may edit it", **anyone signed
+in may correct a reference track** and every change is written to the audit
+trail. They cannot be deleted. Circuits repave, reconfigure and change sponsor
+name, and a shipped list only the maintainers could fix would be wrong within a
+season.
+
+The seed files are `.mts` so Node can run them directly by stripping types — no
+extra toolchain. `tsconfig.json` sets `allowImportingTsExtensions` for the same
+reason: Node's loader needs the real extension on relative imports.
 
 ## Build phases
 
@@ -208,7 +245,10 @@ meeting actually runs on.
   covering it, and what makes **lap records** possible: computed per layout,
   overall and per class, from the timing board rather than kept by hand.
   Re-saving a layout's corners updates them in place, so renumbering around a
-  new chicane never detaches the reports that reference them.
+  new chicane never detaches the reports that reference them. The directory
+  ships populated — see [Reference tracks](#reference-tracks) — and filters by
+  country and state, because somebody looking for a venue near them thinks in
+  states, not in spellings.
 - **Session conditions** — track state and weather logged as a time series, not
   a pair of fields: a two-hour race that starts dry and ends in standing water
   is the normal case. Track state is separate from weather because they diverge

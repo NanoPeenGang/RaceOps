@@ -10,6 +10,9 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
+    // Node runs prisma/seed.ts directly by stripping types, and its loader
+    // needs the real file extension on relative imports. Safe with noEmit.
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
@@ -18,6 +21,14 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    // The seed scripts Node runs directly; `**/*.ts` does not match .mts, and
+    // an unchecked script is exactly the one that breaks on a fresh database.
+    "**/*.mts",
+    ".next/types/**/*.ts"
+  ],
   "exclude": ["node_modules"]
 }

@@ -14,6 +14,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
+    "db:seed": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON prisma/seed.mts",
     "db:studio": "prisma studio",
     "brand:generate": "node scripts/generate-brand-assets.mjs",
     "postinstall": "prisma generate"
