@@ -1,4 +1,5 @@
 import { layoutDiagram, type DiagrammableLayout } from "@/lib/track-diagram";
+import { primaryImage, type TrackImageLike } from "@/lib/track-images";
 
 /**
  * The picture of a layout.
@@ -12,16 +13,19 @@ import { layoutDiagram, type DiagrammableLayout } from "@/lib/track-diagram";
  */
 export function TrackDiagram({
   layout,
+  images,
   className,
 }: {
-  layout: DiagrammableLayout & {
-    name: string;
-    diagramUrl?: string | null;
-    diagramCredit?: string | null;
-  };
+  layout: DiagrammableLayout & { id?: string; name: string };
+  /** The track's gallery. The best map for this layout is picked from it. */
+  images?: readonly TrackImageLike[];
   className?: string;
 }) {
-  if (layout.diagramUrl) {
+  const photo = images
+    ? primaryImage(images, layout.id ?? null)
+    : null;
+
+  if (photo) {
     return (
       <figure className={className}>
         {/* Deliberately a plain <img>: the URL is user-supplied and points at
@@ -29,13 +33,14 @@ export function TrackDiagram({
             optimise without every host being allow-listed in advance. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={layout.diagramUrl}
-          alt={`Map of the ${layout.name} layout`}
+          src={photo.url}
+          alt={photo.caption ?? `Map of the ${layout.name} layout`}
+          loading="lazy"
           className="w-full rounded-lg border border-brand-black/10 bg-white object-contain"
         />
-        {layout.diagramCredit && (
+        {(photo.caption || photo.credit) && (
           <figcaption className="mt-1 text-xs text-brand-black/50">
-            {layout.diagramCredit}
+            {[photo.caption, photo.credit].filter(Boolean).join(" · ")}
           </figcaption>
         )}
       </figure>
@@ -82,7 +87,7 @@ export function TrackDiagram({
         </g>
       </svg>
       <figcaption className="mt-1 text-xs text-brand-black/50">
-        Schematic — shape and direction only, not to scale. Add a real map to
+        Schematic — shape and direction only, not to scale. Upload a real map to
         replace it.
       </figcaption>
     </figure>

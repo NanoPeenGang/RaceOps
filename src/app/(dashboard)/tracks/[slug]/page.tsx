@@ -6,10 +6,11 @@ import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ImageUpload } from "@/components/image-upload";
 import { TrackDiagram } from "@/components/track-diagram";
+import { TrackGallery } from "@/components/track-gallery";
 import { formatLapTime } from "@/lib/lap-time";
 import { placeLabel } from "@/lib/regions";
+import { imagesForFacility, imagesForLayout } from "@/lib/track-images";
 import {
   formatBanking,
   formatCoordinates,
@@ -150,14 +151,18 @@ export default function TrackPage({
               <CardContent className="space-y-3">
                 <div className="grid gap-4 sm:grid-cols-[minmax(0,200px)_1fr]">
                   <div>
-                    <TrackDiagram layout={layout} />
-                    {!layout.diagramUrl && !layout.shape && (
-                      <p className="rounded-lg border border-dashed border-brand-black/20 p-4 text-center text-xs text-brand-black/50">
+                    <TrackDiagram layout={layout} images={data.images} />
+                    {!hasImage(data.images, layout.id) && !layout.shape && (
+                      <button
+                        type="button"
+                        className="w-full rounded-lg border border-dashed border-brand-black/20 p-4 text-center text-xs text-brand-black/55 hover:border-brand-red hover:text-brand-red"
+                        onClick={() => setOpenLayout(layout.id)}
+                      >
                         No map yet.
                         {canCurate
-                          ? " Add one below — a circuit diagram or an aerial."
+                          ? " Add a photo of one →"
                           : " Sign in to add one."}
-                      </p>
+                      </button>
                     )}
                   </div>
 
@@ -216,6 +221,15 @@ export default function TrackPage({
 
                 {openLayout === layout.id && (
                   <div className="space-y-5 border-t border-brand-black/10 pt-4">
+                    <TrackGallery
+                      trackId={data.id}
+                      layoutId={layout.id}
+                      images={imagesForLayout(data.images, layout.id)}
+                      canCurate={canCurate}
+                      onChanged={() => track.refetch()}
+                      title={`Photos of ${layout.name}`}
+                      description="The circuit's own map, an aerial, a shot of the board in the paddock — whatever shows what this layout looks like."
+                    />
                     <LapRecords layoutId={layout.id} />
                     {canCurate && (
                       <LayoutDetailsForm
@@ -240,6 +254,19 @@ export default function TrackPage({
         </div>
       </section>
 
+      <section className="space-y-4">
+        <h2 className="text-xl font-semibold">The facility</h2>
+        <TrackGallery
+          trackId={data.id}
+          layoutId={null}
+          images={imagesForFacility(data.images)}
+          canCurate={canCurate}
+          onChanged={() => track.refetch()}
+          title="Paddock plans and site photos"
+          description="Images of the venue rather than of one configuration — the paddock plan, the gates, the scrutineering bay."
+        />
+      </section>
+
       <TrackRules
         trackId={data.id}
         rules={data.rules}
@@ -248,6 +275,14 @@ export default function TrackPage({
       />
     </div>
   );
+}
+
+/** Whether this layout already has a picture, so we can offer to add one. */
+function hasImage(
+  images: readonly { layoutId: string | null }[],
+  layoutId: string,
+): boolean {
+  return images.some((image) => image.layoutId === layoutId);
 }
 
 /** One figure in a layout's spec grid. Renders nothing when unknown. */
@@ -863,8 +898,6 @@ function LayoutDetailsForm({
     shape: LayoutShape | null;
     bankingDegrees: number | null;
     elevationMeters: number | null;
-    diagramUrl: string | null;
-    diagramCredit: string | null;
   };
   onSaved: () => void;
 }) {
@@ -876,7 +909,6 @@ function LayoutDetailsForm({
   const [elevation, setElevation] = useState(
     layout.elevationMeters?.toString() ?? "",
   );
-  const [credit, setCredit] = useState(layout.diagramCredit ?? "");
   const save = api.track.updateLayout.useMutation({ onSuccess: onSaved });
 
   const numberOrNull = (value: string) =>
@@ -934,26 +966,6 @@ function LayoutDetailsForm({
         </label>
       </div>
 
-      <div className="space-y-2">
-        <p className="text-xs font-medium">Layout map</p>
-        <ImageUpload
-          purpose="diagram"
-          value={layout.diagramUrl}
-          onChange={(url) =>
-            save.mutate({ layoutId: layout.id, diagramUrl: url ?? null })
-          }
-          label="Upload a circuit diagram or an aerial"
-        />
-        <label className="block text-xs font-medium">
-          Credit
-          <input
-            className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
-            value={credit}
-            onChange={(e) => setCredit(e.target.value)}
-            placeholder="Whose map this is — someone else's diagram needs crediting"
-          />
-        </label>
-      </div>
 
       {save.error && (
         <p className="text-sm text-brand-red">{save.error.message}</p>
@@ -969,7 +981,6 @@ function LayoutDetailsForm({
             shape: shape === "" ? null : shape,
             bankingDegrees: numberOrNull(banking),
             elevationMeters: numberOrNull(elevation),
-            diagramCredit: credit.trim() || null,
           })
         }
       >

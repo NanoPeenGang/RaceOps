@@ -162,20 +162,32 @@ The seed files are `.mts` so Node can run them directly by stripping types — n
 extra toolchain. `tsconfig.json` sets `allowImportingTsExtensions` for the same
 reason: Node's loader needs the real extension on relative imports.
 
-#### Layout diagrams
+#### Layout diagrams and photographs
 
-Three states, and the third is as deliberate as the first two:
+Every track carries a gallery — `TrackImage` — rather than one picture slot.
+A venue genuinely has several images worth keeping and they are not
+interchangeable: the official map, an aerial that shows the elevation a map
+flattens, and the paddock plan that tells a transporter which gate to use.
+`layoutId` is nullable on purpose: a paddock plan belongs to the facility, not
+to one configuration.
 
-1. **A real map**, uploaded to the bucket or linked from the circuit, with a
-   credit line — someone else's diagram needs crediting.
-2. **A generated schematic**, for ovals only. An oval's plan shape follows from
+Anyone who may correct a track may add photos to it — which on a reference
+track means anyone signed in, audited. That is deliberate: the platform will
+not draw a road course, so an upload is the only way most circuits here ever
+get a picture, and a narrower permission would leave that gap open permanently.
+
+What a layout shows, in order of preference:
+
+1. **A real photo or map**, uploaded from a phone or computer (or linked), with
+   a credit line — someone else's diagram needs crediting.
+2. **A generated schematic**, for ovals with no photo. An oval's plan shape follows from
    facts a circuit publishes (tri-oval, 33-degree banking, run anticlockwise),
    so drawing it invents nothing; it is the same information the sentence
    carries, arranged so you can take it in at a glance. Labelled *schematic —
    shape and direction only, not to scale*, because a diagram that looks
    surveyed will be read as surveyed.
-3. **Nothing**, with an invitation to upload one. This is the answer for every
-   road course. A circuit's outline is survey data — there is no function from
+3. **An invitation to upload one.** This is the answer for every road course
+   until somebody supplies a picture. A circuit's outline is survey data — there is no function from
    "4.048 km, 14 turns, clockwise" to the shape of Road America — and a
    plausible squiggle under a real venue's name would be a fabricated map in a
    tool people use to plan race weekends.

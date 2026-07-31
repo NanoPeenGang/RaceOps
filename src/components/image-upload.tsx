@@ -24,7 +24,12 @@ export function ImageUpload({
   onChange,
   label,
   hint,
-  /** Rendered preview shape; a banner and an avatar want different frames. */
+  /**
+   * Rendered preview shape. A banner and an avatar want different frames, and
+   * a track map wants a third: `map` fits the whole image inside the frame
+   * instead of cropping to fill it, because a centre-cropped circuit diagram
+   * shows you the infield and none of the corners.
+   */
   aspect = "square",
 }: {
   purpose: UploadPurpose;
@@ -32,7 +37,7 @@ export function ImageUpload({
   onChange: (url: string | null) => void;
   label: string;
   hint?: string;
-  aspect?: "square" | "wide";
+  aspect?: "square" | "wide" | "map";
 }) {
   const config = api.upload.config.useQuery();
   const createUrl = api.upload.createUploadUrl.useMutation();
@@ -120,7 +125,11 @@ export function ImageUpload({
       {value && (
         <div
           className={`overflow-hidden rounded-lg border border-brand-black/10 bg-brand-black/[0.03] ${
-            aspect === "wide" ? "aspect-[4/1]" : "h-24 w-24"
+            aspect === "wide"
+              ? "aspect-[4/1]"
+              : aspect === "map"
+                ? "max-h-64 w-full bg-white"
+                : "h-24 w-24"
           }`}
         >
           {/* A plain img: these are arbitrary user URLs on arbitrary hosts,
@@ -129,7 +138,11 @@ export function ImageUpload({
           <img
             src={value}
             alt=""
-            className="h-full w-full object-cover"
+            className={
+              aspect === "map"
+                ? "max-h-64 w-full object-contain"
+                : "h-full w-full object-cover"
+            }
             loading="lazy"
           />
         </div>

@@ -23,7 +23,16 @@ import { uploadRateLimiter } from "@/server/services/ratelimit";
  * expiry — is decided here and none of it is taken from the client.
  */
 
-const PURPOSES = [
+/**
+ * Purposes the server will sign an upload for.
+ *
+ * A separate list from `UPLOAD_RULES` because this one bounds what a client
+ * may ask for, and `z.enum` needs a literal tuple. Exported so a test can
+ * assert the two never drift: a purpose the client offers but the server does
+ * not sign produces a file picker that always fails, and only for that one
+ * feature, which is exactly the kind of gap that ships.
+ */
+export const PURPOSES = [
   "avatar",
   "logo",
   "banner",

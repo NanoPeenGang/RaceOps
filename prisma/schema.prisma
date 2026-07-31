@@ -146,6 +146,7 @@ model User {
   sponsorshipsOffered    Sponsorship[]            @relation("SponsorshipSponsor")
   sponsorshipsCreated    Sponsorship[]            @relation("SponsorshipCreator")
   tracksCreated          Track[]                  @relation("TrackCreator")
+  trackImages            TrackImage[]             @relation("TrackImageUploader")
   conditionsRecorded     SessionCondition[]       @relation("ConditionRecorder")
   carsOwned              Car[]                    @relation("CarOwner")
   carsCreated            Car[]                    @relation("CarCreator")
@@ -1674,6 +1675,7 @@ model Track {
   createdBy User?         @relation("TrackCreator", fields: [createdById], references: [id], onDelete: SetNull)
   layouts   TrackLayout[]
   rules     TrackRule[]
+  images    TrackImage[]
 
   @@index([country, name])
   @@index([kind])
@@ -1795,14 +1797,6 @@ model TrackLayout {
   shape           LayoutShape?
   /// Banking through the turns, degrees. Feeds the schematic and reads well.
   bankingDegrees  Int?
-  /**
-   * A real map of this layout — a circuit's own diagram or an aerial. Held as
-   * a URL because it is either uploaded to the bucket or linked from the
-   * facility, and both are just a URL to the page rendering it.
-   */
-  diagramUrl      String?
-  /// Who the diagram belongs to. Someone else's map needs crediting.
-  diagramCredit   String?
   /// The layout an event defaults to when none is chosen.
   isPrimary       Boolean        @default(false)
   active          Boolean        @default(true)
@@ -1814,9 +1808,70 @@ model TrackLayout {
   turns   TrackTurn[]
   sectors TrackSector[]
   events  RaceEvent[]
+  images  TrackImage[]
 
   @@unique([trackId, name])
   @@index([trackId, isPrimary])
+}
+
+/**
+ * What a picture of a circuit is showing.
+ *
+ * Worth distinguishing because they answer different questions and are wanted
+ * at different moments: a driver studying a layout wants the map, a crew chief
+ * arriving on Thursday wants the paddock plan, and neither is served by
+ * scrolling a mixed gallery to find it.
+ */
+enum TrackImageKind {
+  /// The circuit's own layout diagram — corner numbers, pit entry, sectors.
+  MAP
+  /// Photographed from above; shows elevation and run-off a diagram flattens.
+  AERIAL
+  /// Facility plan: paddock, garages, gates, scrutineering bay, camping.
+  PADDOCK
+  /// A corner, the pit lane, the grid. Everything else.
+  PHOTO
+}
+
+/**
+ * A photograph or diagram of a track.
+ *
+ * A gallery rather than one slot per layout, because a venue genuinely has
+ * several pictures worth keeping and they are not interchangeable: the
+ * official map, an aerial that shows the elevation the map flattens, and the
+ * paddock plan that tells a transporter which gate to use.
+ *
+ * `layoutId` is nullable and that nullability is the design: a paddock plan
+ * and a site photograph belong to the facility, not to one configuration,
+ * whereas a layout map is meaningless detached from the layout it draws.
+ *
+ * `credit` is not decoration. Most circuit maps belong to the circuit, and a
+ * platform that hosts them without a visible attribution is a platform whose
+ * users are quietly republishing someone else's work.
+ */
+model TrackImage {
+  id           String         @id @default(cuid())
+  trackId      String
+  /// Null when the image is about the whole facility rather than one layout.
+  layoutId     String?
+  kind         TrackImageKind @default(MAP)
+  url          String
+  caption      String?
+  /// Whose image this is: "Circuit of the Americas", "Jane Doe / CC BY-SA".
+  credit       String?
+  /// Manual order within a track. The first MAP is what the cards show.
+  position     Int            @default(0)
+  /// Who added it, for the audit trail. Null once that account is deleted.
+  uploadedById String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  track      Track        @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  layout     TrackLayout? @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+  uploadedBy User?        @relation("TrackImageUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([trackId, position])
+  @@index([layoutId, position])
 }
 
 /**

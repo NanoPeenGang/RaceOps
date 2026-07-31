@@ -1,3 +1,4 @@
+import { PURPOSES } from "@/server/trpc/routers/upload";
 import { describe, expect, it } from "vitest";
 import {
   buildObjectKey,
@@ -248,5 +249,31 @@ describe("upload rules", () => {
     expect(UPLOAD_RULES.avatar.maxEdge).toBe(512);
     // Re-encoding a photographer's work through a canvas would be vandalism.
     expect(UPLOAD_RULES.media.maxEdge).toBeNull();
+  });
+});
+
+describe("purpose coverage", () => {
+  it("signs every purpose the client can offer", () => {
+    // The client picks a purpose from UPLOAD_RULES and the server signs one
+    // from PURPOSES. If they drift, the file picker renders and every upload
+    // is rejected — and only for whichever feature added the new purpose.
+    expect([...PURPOSES].sort()).toEqual(Object.keys(UPLOAD_RULES).sort());
+  });
+
+  it("gives every purpose a usable rule", () => {
+    for (const purpose of PURPOSES) {
+      const rules = UPLOAD_RULES[purpose];
+      expect(rules.label, purpose).toBeTruthy();
+      expect(rules.maxBytes, purpose).toBeGreaterThan(0);
+      expect(rules.accept.length, purpose).toBeGreaterThan(0);
+      // An SVG can carry script, so it must never be offered as an image.
+      expect(rules.accept, purpose).not.toContain("image/svg+xml");
+    }
+  });
+
+  it("keeps a track map readable rather than shrinking it to a logo", () => {
+    // A circuit diagram is read for detail — corner numbers, pit entry, an
+    // access road. Downscaling it to 1024px like a logo loses exactly that.
+    expect(UPLOAD_RULES.diagram.maxEdge).toBeGreaterThanOrEqual(2048);
   });
 });

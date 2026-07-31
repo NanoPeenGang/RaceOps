@@ -5,6 +5,7 @@ import {
   LayoutShape,
   Prisma,
   TrackDirection,
+  TrackImageKind,
   TrackKind,
   TrackRuleKind,
 } from "@prisma/client";
@@ -18,6 +19,7 @@ import { slugify } from "@/lib/slug";
 import { MAX_TURN_NAME_LENGTH } from "@/lib/tracks";
 import { trackRecordsForLayout } from "@/server/services/track-records";
 import { recordAudit } from "@/server/services/audit";
+import { nextPosition, reorder } from "@/lib/track-images";
 
 /**
  * Tracks are shared reference data rather than something a series owns: two
@@ -152,7 +154,11 @@ export const trackRouter = createTRPCRouter({
               turnCount: true,
               shape: true,
               direction: true,
-              diagramUrl: true,
+              images: {
+                orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+                take: 1,
+                select: { id: true, url: true, kind: true, credit: true, position: true },
+              },
             },
           },
         },
@@ -213,6 +219,12 @@ export const trackRouter = createTRPCRouter({
             },
           },
           rules: { orderBy: [{ kind: "asc" }, { createdAt: "asc" }] },
+          images: {
+            orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+            include: {
+              uploadedBy: { select: { id: true, profile: true } },
+            },
+          },
           createdBy: { select: { id: true, profile: true } },
         },
       });
@@ -366,6 +378,157 @@ export const trackRouter = createTRPCRouter({
       return { deleted: true };
     }),
 
+  // -- Photographs and maps ------------------------------------------------
+
+  /*
+   * Curated on exactly the same terms as the track itself: whoever added the
+   * venue, or anyone signed in on a reference track. Uploading is how the road
+   * courses get the maps the platform will not draw for them, so putting it
+   * behind a narrower permission than "can correct this track" would leave the
+   * gap permanently open.
+   */
+
+  addImage: protectedProcedure
+    .input(
+      z.object({
+        trackId: z.string().cuid(),
+        /// Omit for a facility image — a paddock plan is not one layout's.
+        layoutId: z.string().cuid().nullish(),
+        kind: z.nativeEnum(TrackImageKind).default(TrackImageKind.MAP),
+        url: z.string().url().max(600),
+        caption: z.string().max(300).optional(),
+        credit: z.string().max(200).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const track = await assertTrackCurator(ctx.db, input.trackId, ctx.user.id);
+
+      if (input.layoutId) {
+        // A layout id from another track would attach the image to a venue the
+        // caller was never authorised for.
+        const layout = await ctx.db.trackLayout.findUnique({
+          where: { id: input.layoutId },
+          select: { trackId: true },
+        });
+        if (!layout || layout.trackId !== input.trackId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "That layout is not part of this track.",
+          });
+        }
+      }
+
+      const existing = await ctx.db.trackImage.findMany({
+        where: { trackId: input.trackId },
+        select: { id: true, kind: true, url: true, position: true },
+      });
+      if (existing.some((image) => image.url === input.url)) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "That image is already on this track.",
+        });
+      }
+
+      if (track.isReference) {
+        await recordAudit(ctx.db, {
+          actorId: ctx.user.id,
+          action: AuditAction.CREATE,
+          entityType: "TrackImage",
+          entityId: input.trackId,
+          summary: `Added an image to the reference track "${track.name}"`,
+        });
+      }
+
+      return ctx.db.trackImage.create({
+        data: {
+          trackId: input.trackId,
+          layoutId: input.layoutId ?? null,
+          kind: input.kind,
+          url: input.url,
+          caption: input.caption ?? null,
+          credit: input.credit ?? null,
+          position: nextPosition(existing),
+          uploadedById: ctx.user.id,
+        },
+      });
+    }),
+
+  updateImage: protectedProcedure
+    .input(
+      z.object({
+        imageId: z.string().cuid(),
+        kind: z.nativeEnum(TrackImageKind).optional(),
+        caption: z.string().max(300).nullish(),
+        credit: z.string().max(200).nullish(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { imageId, ...rest } = input;
+      const image = await ctx.db.trackImage.findUnique({
+        where: { id: imageId },
+        select: { trackId: true },
+      });
+      if (!image) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertTrackCurator(ctx.db, image.trackId, ctx.user.id);
+      return ctx.db.trackImage.update({ where: { id: imageId }, data: rest });
+    }),
+
+  /** Moves one image a single step. The whole order is rewritten together. */
+  moveImage: protectedProcedure
+    .input(
+      z.object({
+        imageId: z.string().cuid(),
+        direction: z.enum(["up", "down"]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const image = await ctx.db.trackImage.findUnique({
+        where: { id: input.imageId },
+        select: { trackId: true },
+      });
+      if (!image) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertTrackCurator(ctx.db, image.trackId, ctx.user.id);
+
+      const images = await ctx.db.trackImage.findMany({
+        where: { trackId: image.trackId },
+        select: { id: true, kind: true, url: true, position: true, layoutId: true },
+      });
+      const moves = reorder(images, input.imageId, input.direction);
+      if (moves.length === 0) return { moved: false };
+
+      await ctx.db.$transaction(
+        moves.map((move) =>
+          ctx.db.trackImage.update({
+            where: { id: move.id },
+            data: { position: move.position },
+          }),
+        ),
+      );
+      return { moved: true };
+    }),
+
+  deleteImage: protectedProcedure
+    .input(z.object({ imageId: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const image = await ctx.db.trackImage.findUnique({
+        where: { id: input.imageId },
+        select: { trackId: true },
+      });
+      if (!image) throw new TRPCError({ code: "NOT_FOUND" });
+      const track = await assertTrackCurator(ctx.db, image.trackId, ctx.user.id);
+      if (track.isReference) {
+        await recordAudit(ctx.db, {
+          actorId: ctx.user.id,
+          action: AuditAction.DELETE,
+          entityType: "TrackImage",
+          entityId: input.imageId,
+          summary: `Removed an image from the reference track "${track.name}"`,
+        });
+      }
+      await ctx.db.trackImage.delete({ where: { id: input.imageId } });
+      return { deleted: true };
+    }),
+
   // -- Facility rules ------------------------------------------------------
 
   /*
@@ -493,8 +656,6 @@ export const trackRouter = createTRPCRouter({
         turnCount: z.number().int().min(1).max(100).optional(),
         shape: z.nativeEnum(LayoutShape).optional(),
         bankingDegrees: z.number().int().min(0).max(60).optional(),
-        diagramUrl: z.string().url().max(600).optional(),
-        diagramCredit: z.string().max(200).optional(),
         notes: z.string().max(2000).optional(),
       }),
     )
@@ -532,8 +693,6 @@ export const trackRouter = createTRPCRouter({
         turnCount: z.number().int().min(1).max(100).nullish(),
         shape: z.nativeEnum(LayoutShape).nullish(),
         bankingDegrees: z.number().int().min(0).max(60).nullish(),
-        diagramUrl: z.string().url().max(600).nullish(),
-        diagramCredit: z.string().max(200).nullish(),
         active: z.boolean().optional(),
         notes: z.string().max(2000).nullish(),
       }),

@@ -205,10 +205,14 @@ export default function TracksPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex gap-3">
-                  {primary && (primary.shape || primary.diagramUrl) && (
+                  {primary && (primary.shape || primary.images.length > 0) && (
                     <div className="w-20 shrink-0">
                       <TrackDiagram
-                        layout={{ ...primary, name: primary.name }}
+                        layout={primary}
+                        images={primary.images.map((image) => ({
+                          ...image,
+                          layoutId: primary.id,
+                        }))}
                         className="[&_figcaption]:hidden"
                       />
                     </div>
