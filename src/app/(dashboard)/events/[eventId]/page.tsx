@@ -15,6 +15,9 @@ import { DocumentsPanel } from "@/components/documents-panel";
 import { GeneratedDocuments } from "@/components/generated-documents";
 import { MediaPanel } from "@/components/media-panel";
 import { PaddockChat } from "@/components/paddock-chat";
+import { BrandHeader, BrandTheme } from "@/components/brand-theme";
+import { brandingForEvent } from "@/server/services/branding";
+import { db } from "@/server/db/client";
 import { EntryPanels } from "./entry-panels";
 
 /**
@@ -84,36 +87,36 @@ export default async function EventLandingPage({
   const span = scheduleSpan(sessions);
   const isOrganizer = Boolean(event.myRole);
 
+  const branding = await brandingForEvent(db, eventId);
+
   return (
-    <div className="space-y-10">
-      {/* Hero */}
-      <header className="space-y-4 border-b border-brand-black/10 pb-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2">
-            {event.series && (
-              <Link
-                href={`/series/${event.series.slug}`}
-                className="text-xs font-semibold uppercase tracking-widest text-brand-red hover:underline"
-              >
-                {event.series.name}
-              </Link>
-            )}
-            <h1 className="text-4xl font-bold tracking-tight">{event.name}</h1>
-            <p className="text-sm text-brand-black/60">
-              {[
-                eventVenueLabel(event),
-                event.platform,
-                span && span.days > 1
-                  ? `${new Date(span.start).toLocaleDateString()} – ${new Date(
-                      span.end,
-                    ).toLocaleDateString()} · ${span.days} days`
-                  : new Date(event.date).toLocaleString(),
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+    <BrandTheme branding={branding} className="space-y-10">
+      <BrandHeader
+        branding={branding}
+        name={event.name}
+        eyebrow={
+          event.series ? (
+            <Link
+              href={`/series/${event.series.slug}`}
+              className="hover:text-brand-red"
+            >
+              {event.series.name}
+            </Link>
+          ) : undefined
+        }
+        meta={[
+          eventVenueLabel(event),
+          event.platform,
+          span && span.days > 1
+            ? `${new Date(span.start).toLocaleDateString()} – ${new Date(
+                span.end,
+              ).toLocaleDateString()} · ${span.days} days`
+            : new Date(event.date).toLocaleString(),
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+        actions={
+          <>
             <Badge variant={event.status === "PUBLISHED" ? "verified" : "default"}>
               {EVENT_STATUS_LABELS[event.status]}
             </Badge>
@@ -144,9 +147,11 @@ export default async function EventLandingPage({
                 </Button>
               </Link>
             )}
-          </div>
-        </div>
+          </>
+        }
+      />
 
+      <div className="space-y-4">
         {event.description && (
           <p className="max-w-3xl whitespace-pre-wrap text-sm leading-relaxed text-brand-black/80">
             {event.description}
@@ -163,7 +168,7 @@ export default async function EventLandingPage({
             value={sessions.length === 0 ? "TBC" : String(sessions.length)}
           />
         </div>
-      </header>
+      </div>
 
       {days.length > 0 && (
         <section className="space-y-3">
@@ -237,7 +242,7 @@ export default async function EventLandingPage({
         allowOrganizerOnly={isOrganizer}
       />
       <PaddockChat scope={{ eventId }} />
-    </div>
+    </BrandTheme>
   );
 }
 

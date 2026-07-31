@@ -11,6 +11,9 @@ import { RESULT_STATUS_LABELS } from "@/lib/standings";
 import { roleTagsOf } from "@/lib/roles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BrandHeader, BrandTheme } from "@/components/brand-theme";
+import { brandingForTeam } from "@/server/services/branding";
+import { db } from "@/server/db/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MediaPanel } from "@/components/media-panel";
 
@@ -83,26 +86,23 @@ export default async function TeamLandingPage({
     })),
   ).slice(0, 8);
 
+  const branding = await brandingForTeam(db, team.id);
+
   return (
-    <div className="space-y-10">
-      <header className="space-y-4 border-b border-brand-black/10 pb-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-widest text-brand-red">
-              Race team
-            </p>
-            <h1 className="text-4xl font-bold tracking-tight">{team.name}</h1>
-            <p className="text-sm text-brand-black/60">
-              {[
-                team.homeBase,
-                `${roster.active.length} member${roster.active.length === 1 ? "" : "s"}`,
-                `${roster.drivers.length} driver${roster.drivers.length === 1 ? "" : "s"}`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+    <BrandTheme branding={branding} className="space-y-10">
+      <BrandHeader
+        branding={branding}
+        name={team.name}
+        eyebrow="Race team"
+        meta={[
+          team.homeBase,
+          `${roster.active.length} member${roster.active.length === 1 ? "" : "s"}`,
+          `${roster.drivers.length} driver${roster.drivers.length === 1 ? "" : "s"}`,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+        actions={
+          <>
             {team.websiteUrl && (
               <a href={team.websiteUrl} target="_blank" rel="noopener noreferrer">
                 <Button variant="outline">Website</Button>
@@ -113,9 +113,11 @@ export default async function TeamLandingPage({
                 <Button variant="primary">Team console</Button>
               </Link>
             )}
-          </div>
-        </div>
+          </>
+        }
+      />
 
+      <div className="space-y-4">
         {team.description && (
           <p className="max-w-3xl whitespace-pre-wrap text-sm leading-relaxed text-brand-black/80">
             {team.description}
@@ -132,7 +134,7 @@ export default async function TeamLandingPage({
             value={totals.bestFinish === null ? "—" : `P${totals.bestFinish}`}
           />
         </div>
-      </header>
+      </div>
 
       {season.summaries.length > 0 && (
         <section className="space-y-3">
@@ -265,7 +267,7 @@ export default async function TeamLandingPage({
         description="Team imagery and race coverage."
         canManage={membership?.myRole === "OWNER" || membership?.myRole === "MANAGER"}
       />
-    </div>
+    </BrandTheme>
   );
 }
 

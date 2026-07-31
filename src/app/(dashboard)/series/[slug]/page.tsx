@@ -11,6 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AnnouncementsPanel } from "@/components/announcements-panel";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { MediaPanel } from "@/components/media-panel";
+import { BrandHeader, BrandTheme } from "@/components/brand-theme";
+import { brandingForSeries } from "@/server/services/branding";
+import { db } from "@/server/db/client";
 import { StandingsPreview } from "./standings-preview";
 
 /**
@@ -85,28 +88,23 @@ export default async function SeriesLandingPage({
     (event) => event.status === EventStatus.COMPLETED,
   );
 
+  const branding = await brandingForSeries(db, series.id);
+
   return (
-    <div className="space-y-10">
-      {/* Hero */}
-      <header className="space-y-4 border-b border-brand-black/10 pb-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-widest text-brand-red">
-              {series.discipline === "SIM" ? "Sim racing" : "Real-world racing"}
-              {series.season ? ` · ${series.season}` : ""}
-            </p>
-            <h1 className="text-4xl font-bold tracking-tight">{series.name}</h1>
-            <p className="text-sm text-brand-black/60">
-              {[
-                series.platform,
-                `${published.length} round${published.length === 1 ? "" : "s"}`,
-                `${completed.length} completed`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+    <BrandTheme branding={branding} className="space-y-10">
+      <BrandHeader
+        branding={branding}
+        name={series.name}
+        eyebrow={`${series.discipline === "SIM" ? "Sim racing" : "Real-world racing"}${series.season ? ` · ${series.season}` : ""}`}
+        meta={[
+          series.platform,
+          `${published.length} round${published.length === 1 ? "" : "s"}`,
+          `${completed.length} completed`,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+        actions={
+          <>
             <Link href={`/series/${slug}/standings`}>
               <Button variant="outline">Standings</Button>
             </Link>
@@ -115,9 +113,11 @@ export default async function SeriesLandingPage({
                 <Button variant="primary">Manage series</Button>
               </Link>
             )}
-          </div>
-        </div>
+          </>
+        }
+      />
 
+      <div className="space-y-4">
         {series.description && (
           <p className="max-w-3xl whitespace-pre-wrap text-sm leading-relaxed text-brand-black/80">
             {series.description}
@@ -153,7 +153,7 @@ export default async function SeriesLandingPage({
             </CardContent>
           </Card>
         )}
-      </header>
+      </div>
 
       <StandingsPreview seriesId={series.id} slug={slug} />
 
@@ -245,6 +245,6 @@ export default async function SeriesLandingPage({
           ))}
         </div>
       </section>
-    </div>
+    </BrandTheme>
   );
 }

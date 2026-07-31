@@ -15,6 +15,8 @@ import { DocumentsPanel } from "@/components/documents-panel";
 import { MediaPanel } from "@/components/media-panel";
 import { DangerZone } from "@/components/danger-zone";
 import { BrandingEditor } from "@/components/branding-editor";
+import { Tabs } from "@/components/ui/tabs";
+import { SeriesStaffPanel } from "./staff-panel";
 import { useRouter } from "next/navigation";
 
 export default function SeriesDashboardPage({
@@ -126,6 +128,14 @@ export default function SeriesDashboardPage({
         />
       )}
 
+      <Tabs
+        tabs={[
+          {
+            id: "calendar",
+            label: "Calendar",
+            badge: data.events.length || undefined,
+            content: (
+              <div className="space-y-8">
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Calendar</h2>
         {data.events.length === 0 && (
@@ -199,47 +209,73 @@ export default function SeriesDashboardPage({
           ))}
         </div>
       </section>
-
-      <ClassesPanel seriesId={data.id} canManage={isOwner || data.myRole === "ADMIN"} />
-
-      <RequirementsPanel
-        seriesId={data.id}
-        canManage={isOwner || data.myRole === "ADMIN"}
+              </div>
+            ),
+          },
+          {
+            id: "regulations",
+            label: "Regulations",
+            content: (
+              <div className="space-y-8">
+                <ClassesPanel
+                  seriesId={data.id}
+                  canManage={isOwner || data.myRole === "ADMIN"}
+                />
+                <RequirementsPanel
+                  seriesId={data.id}
+                  canManage={isOwner || data.myRole === "ADMIN"}
+                />
+                <DocumentsPanel
+                  scope={{ seriesId: data.id }}
+                  canManage={canPublish}
+                  title="Regulations & documents"
+                />
+              </div>
+            ),
+          },
+          {
+            id: "staff",
+            label: "Staff & roles",
+            badge: data.organizers.length || undefined,
+            content: (
+              <SeriesStaffPanel
+                seriesId={data.id}
+                organizationId={data.organizationId}
+                organizers={data.organizers}
+                onChanged={() => utils.series.bySlug.invalidate({ slug })}
+              />
+            ),
+          },
+          {
+            id: "comms",
+            label: "Notices & media",
+            content: (
+              <div className="space-y-8">
+                <AnnouncementsPanel
+                  scope={{ seriesId: data.id }}
+                  canManage={canPublish}
+                  title="Series announcements"
+                />
+                <MediaPanel
+                  scope={{ seriesId: data.id }}
+                  title="Series media"
+                  description="Season coverage and approved imagery."
+                  canManage={canPublish}
+                  allowOrganizerOnly={canPublish}
+                />
+              </div>
+            ),
+          },
+          {
+            id: "settings",
+            label: "Look and feel",
+            visible: isOwner,
+            content: (
+              <BrandingEditor scope={{ seriesId: data.id }} name={data.name} />
+            ),
+          },
+        ]}
       />
-
-      <AnnouncementsPanel
-        scope={{ seriesId: data.id }}
-        canManage={canPublish}
-        title="Series announcements"
-      />
-      <DocumentsPanel
-        scope={{ seriesId: data.id }}
-        canManage={canPublish}
-        title="Regulations & documents"
-      />
-      <MediaPanel
-        scope={{ seriesId: data.id }}
-        title="Series media"
-        description="Season coverage and approved imagery."
-        canManage={canPublish}
-        allowOrganizerOnly={canPublish}
-      />
-
-      {isOwner && (
-        <BrandingEditor scope={{ seriesId: data.id }} name={data.name} />
-      )}
-
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Organizers</h2>
-        <div className="flex flex-wrap gap-2">
-          {data.organizers.map((organizer) => (
-            <Badge key={organizer.id}>
-              {organizer.user.profile?.displayName ?? "Unnamed"} ·{" "}
-              {organizer.role.replace("_", " ").toLowerCase()}
-            </Badge>
-          ))}
-        </div>
-      </section>
 
       {isOwner && (
         <DangerZone
