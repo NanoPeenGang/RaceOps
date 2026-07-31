@@ -258,6 +258,45 @@ meeting actually runs on.
   a penalty replayed from a stale queue could land after the stewards already
   ruled), and everything else fails loudly offline so the person knows.
 
+**Organizations, staff roles & branding (done):**
+
+- **Organizations** — the club, promoter or company behind a series or team.
+  Entirely optional: a one-person league never creates one, and series and
+  teams work standalone. Reach for it when several people share the work, or
+  when one body runs several series and wants one staff list across them.
+- **Custom staff roles** — a role is a named bundle of granular permissions,
+  so a club with a "Chief Scrutineer" and a "Media Officer" can say so instead
+  of picking the nearest of five fixed roles. Roles live on an organization or
+  on a single series. Two guards close the obvious holes: nobody may grant a
+  permission they do not hold themselves (otherwise staff management is a
+  two-click path to everything), and deleting a series or organization and
+  minting an owner check the built-in OWNER role only — those are ownership
+  acts, not delegable capabilities. Permissions are checked one at a time and
+  never derived from "an admin can do this too", which is exactly how a narrow
+  role escalates.
+- **Branding** — logo, banner, tagline and two colours per organization,
+  series, event or team, each field inheriting independently down the chain.
+  Colours are stored as authored and the readable foreground is computed from
+  WCAG luminance, so a club picking pale gold from a letterhead does not get
+  white text. The editor warns about both failure modes — a colour text cannot
+  sit on, and a colour that vanishes as a link against the page — and refuses
+  neither, because it is their brand.
+- **Direct uploads** — profile pictures, logos, banners and event media upload
+  from a phone camera or a computer. Images are downscaled in the browser
+  first and the bytes go straight to object storage on a presigned PUT, so a
+  6 MB camera JPEG does not travel over circuit wifi at full size. Content
+  type is a signed header and object keys are server-generated; SVG is never
+  accepted. Where no bucket is configured the UI falls back to attach-by-URL.
+- **A signed-in dashboard** — `/home` replaces the marketing page after login,
+  ordered by what needs you: anything live or blocking, then your next race.
+  Someone with nothing set up gets a first-run screen with three routes rather
+  than a wall of empty cards.
+- **Consoles reorganised** — the event console was eighteen stacked panels and
+  is now seven tabs grouped by when you use them; the series console is five.
+  Tab state lives in the URL so a reload lands back where you were and a
+  screen can be linked to. Shared `PageHeader` / `Section` / `EmptyState`
+  primitives replaced the per-page markup each screen had invented.
+
 **Race organizer module (done):** run a whole championship from one place.
 Create a **Series** (organizer roster with OWNER / ADMIN / RACE_CONTROL /
 VOLUNTEER_COORDINATOR roles), schedule **events** through a
