@@ -36,7 +36,7 @@ Who it is for, and what they do here:
 cp .env.example .env    # fill in DATABASE_URL + Clerk keys at minimum
 npm install             # also runs `prisma generate`
 npm run db:migrate      # apply prisma/migrations to your Postgres
-npm run db:seed         # load the reference track directory (optional, idempotent)
+npm run db:seed         # load the reference track directory (idempotent)
 npm run dev
 ```
 
@@ -69,7 +69,8 @@ Create Database → Neon (Postgres)** — linking it injects `DATABASE_URL`
 (and `DATABASE_URL_UNPOOLED`) into the project automatically. Migrations
 run during every Vercel build via the `vercel-build` script
 (`scripts/migrate-deploy.mjs`, idempotent `prisma migrate deploy` over the
-direct connection), so no manual migration step is needed. If you bring your
+direct connection), which then seeds the reference tracks, so no manual
+migration or seeding step is needed. If you bring your
 own Postgres instead, set `DATABASE_URL` (runtime, pooled is fine) and
 optionally `DIRECT_URL` (migrations).
 
@@ -118,10 +119,20 @@ prisma/
 
 ### Reference tracks
 
-`npm run db:seed` loads a directory of real circuits and ovals — two to five
-per state across the contiguous United States, road courses and permanent
-circuits first — so a fresh deployment is not an empty venue list. It is
-optional; nothing depends on it.
+A directory of real circuits and ovals — two to five per state across the
+contiguous United States, road courses and permanent circuits first — so a
+fresh deployment is not an empty venue list.
+
+It loads automatically on Vercel: `vercel-build` seeds straight after applying
+migrations. Locally, run it once after `npm run db:migrate`:
+
+```bash
+npm run db:seed
+```
+
+A seeding failure warns but does not fail the build — the app works fine with
+an empty track list, and blocking a release over optional reference data would
+be the worse outcome.
 
 Two rules make it safe to run against a database already in use:
 
