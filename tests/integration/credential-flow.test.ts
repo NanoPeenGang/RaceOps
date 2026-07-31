@@ -10,6 +10,7 @@ import {
 import { createCaller } from "@/server/trpc/root";
 import { isValidPass, zoneSummary } from "@/lib/credentials";
 import { credentialUrl, qrSvg } from "@/server/services/qr";
+import { buildPassJson } from "@/lib/wallet";
 
 /**
  * Auto-generated accreditation, end to end.
@@ -328,6 +329,98 @@ describe.skipIf(!ENABLED)("credential generation (integration)", () => {
     const after = await organizer.caller.document.credentialSheet({ eventId });
     const badge = after.badges.find((b) => b.holderName === `Mechanic ${run}`);
     expect(badge?.qr).toContain("<svg");
+  });
+
+  it("puts a person's own passes in front of them", async () => {
+    /*
+     * The whole point of accreditation is arriving at a gate with the right
+     * thing in hand. Making somebody remember which event page it was on, at
+     * a circuit with patchy signal, is how they end up queueing at the desk
+     * for a pass issued three weeks ago.
+     */
+    const mine = await coDriver.caller.paddock.myCredentials();
+    expect(mine.credentials).toHaveLength(1);
+    expect(mine.credentials[0].credentialType.name).toBe("Competitor");
+    expect(mine.credentials[0].qrToken).toBeTruthy();
+    expect(mine.credentials[0].event.name).toBe("Round 1");
+    expect(mine.credentials[0].registration?.carNumber).toBe("24");
+  });
+
+  it("shows nobody a pass that is not theirs", async () => {
+    expect((await stranger.caller.paddock.myCredentials()).credentials).toEqual(
+      [],
+    );
+
+    const someoneElses = await db.credential.findFirstOrThrow({
+      where: { eventId, holderUserId: coDriver.user.id },
+    });
+    // NOT_FOUND rather than FORBIDDEN: whether an id is a pass at all is not
+    // something to confirm to somebody it does not belong to.
+    await expect(
+      stranger.caller.paddock.myCredential({ credentialId: someoneElses.id }),
+    ).rejects.toThrow(/NOT_FOUND|not found/i);
+  });
+
+  it("keeps a voided pass out of the holder's own list", async () => {
+    // A cancelled pass on somebody's phone is a card they wave at a gate in
+    // poor light. Better it is not there at all.
+    const pass = await db.credential.findFirstOrThrow({
+      where: { eventId, holderUserId: coDriver.user.id },
+    });
+    await organizer.caller.paddock.setCredentialStatus({
+      credentialId: pass.id,
+      status: CredentialStatus.VOID,
+    });
+    expect(
+      (await coDriver.caller.paddock.myCredentials()).credentials,
+    ).toEqual([]);
+
+    await organizer.caller.paddock.setCredentialStatus({
+      credentialId: pass.id,
+      status: CredentialStatus.ISSUED,
+    });
+  });
+
+  it("builds a wallet pass from what the holder actually holds", async () => {
+    const mine = await coDriver.caller.paddock.myCredentials();
+    const pass = mine.credentials[0];
+    const json = buildPassJson(
+      {
+        token: pass.qrToken!,
+        holderName: pass.holderName,
+        holderRole: pass.holderRole,
+        typeName: pass.credentialType.name,
+        zones: pass.credentialType.zones,
+        teamName: pass.registration?.team?.name ?? null,
+        carNumber: pass.registration?.carNumber ?? null,
+        serial: pass.serial,
+        status: pass.status,
+        eventName: pass.event.name,
+        seriesName: pass.event.series?.name ?? null,
+        eventDate: pass.event.date,
+        venue: null,
+        url: credentialUrl(pass.qrToken!),
+      },
+      {
+        passTypeIdentifier: "pass.test",
+        teamIdentifier: "TEAM1",
+        organizationName: "RaceOps",
+      },
+    );
+    // The barcode resolves to the same place the printed badge's does.
+    expect((json.barcodes as { message: string }[])[0].message).toContain(
+      pass.qrToken!,
+    );
+    expect(json.serialNumber).toBe(pass.qrToken);
+  });
+
+  it("tells the UI whether Wallet can be offered at all", async () => {
+    // No Apple certificates in this environment, so the button must not be
+    // rendered — a download the phone silently refuses is worse than no
+    // button, because the person believes they have a pass.
+    const mine = await coDriver.caller.paddock.myCredentials();
+    expect(typeof mine.walletAvailable).toBe("boolean");
+    expect(mine.walletAvailable).toBe(false);
   });
 
   it("will not let an outsider sweep or scan-manage an event", async () => {

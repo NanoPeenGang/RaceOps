@@ -63,6 +63,7 @@ Environment Variables** (all environments):
 | `NEXT_PUBLIC_APP_URL` | for billing | Absolute site URL used in Stripe redirects |
 | `RESEND_API_KEY` / `RESEND_FROM` | for email | Notification emails; in-app notifications work without them |
 | `PUSHER_APP_ID` / `PUSHER_KEY` / `PUSHER_SECRET` / `PUSHER_CLUSTER` | for instant live timing | All four or none; without them boards poll instead |
+| `APPLE_WALLET_PASS_TYPE_ID` / `APPLE_WALLET_TEAM_ID` / `APPLE_WALLET_SIGNER_CERT` / `APPLE_WALLET_SIGNER_KEY` / `APPLE_WALLET_WWDR_CERT` | for Apple Wallet passes | All five or none; without them the Wallet button is hidden and passes are shown on screen and printed instead. Certificates are PEM; the signer key mints passes under your Apple identity, so treat it as a secret. |
 
 **Database:** the easiest path is Vercel → your project → **Storage →
 Create Database → Neon (Postgres)** — linking it injects `DATABASE_URL`
@@ -499,6 +500,24 @@ results feed the championship standings immediately.
   driver who would otherwise turn up on Saturday with nothing and appear in no
   error message. Re-running it issues nobody a second pass, and a voided pass
   is re-issued rather than skipped.
+
+  **The holder gets their pass, not just the organizer.** Issued passes appear
+  on the dashboard and under *My passes*, each with a full-screen QR for a gate,
+  a print view that produces a card for a lanyard, and — where the deployment
+  is configured for it — an **Add to Apple Wallet** button. The pass page is
+  server-rendered and keeps working once loaded, which is the case that matters
+  in a paddock with no signal. Only the holder can reach their own pass, and a
+  voided one disappears from their list rather than becoming a greyed-out card
+  somebody waves at a gate in poor light.
+
+  Apple Wallet needs a Pass Type ID certificate from the Apple Developer
+  portal: set `APPLE_WALLET_PASS_TYPE_ID`, `APPLE_WALLET_TEAM_ID`,
+  `APPLE_WALLET_SIGNER_CERT`, `APPLE_WALLET_SIGNER_KEY` (PEM, plus
+  `APPLE_WALLET_SIGNER_KEY_PASSPHRASE` if it has one) and
+  `APPLE_WALLET_WWDR_CERT`. Without them the button is not rendered at all —
+  iOS silently refuses an unsigned pass, and a download that produces a file
+  the phone rejects is worse than no button, because the person believes they
+  have a pass.
 
   Every issued pass gets an unguessable QR code and prints onto a badge sheet.
   Scanning it opens `/pass/<token>` — public, because the person scanning is a

@@ -18,6 +18,9 @@ const isProtectedRoute = createRouteMatcher([
   "/applications(.*)",
   "/billing(.*)",
   "/notifications(.*)",
+  // A pass is personal and carries a scannable code. Signing in is also what
+  // makes "my passes" mean anything at all.
+  "/passes(.*)",
 ]);
 
 /**

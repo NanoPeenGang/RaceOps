@@ -29,6 +29,7 @@ import {
   credentialToken,
   gatherCandidates,
 } from "@/server/services/credential-sweep";
+import { walletConfig } from "@/server/services/pkpass";
 
 /**
  * Paddock allocation and credentials.
@@ -500,6 +501,117 @@ export const paddockRouter = createTRPCRouter({
         }
         throw error;
       }
+    }),
+
+  // -- What a person holds -------------------------------------------------
+
+  /**
+   * Every pass issued to the signed-in person, across every event.
+   *
+   * The point of accreditation is that somebody arrives at a gate holding the
+   * right thing. Making them dig through an event page for it, at a circuit
+   * with no signal, is how people end up in a queue at accreditation for a
+   * pass that was issued weeks ago.
+   *
+   * Only passes that are actually valid: a requested one is not something they
+   * can use yet, and a voided one showing up in a personal list would be waved
+   * at a gate in poor light.
+   */
+  myCredentials: protectedProcedure.query(async ({ ctx }) => {
+    const credentials = await ctx.db.credential.findMany({
+      where: {
+        holderUserId: ctx.user.id,
+        status: { in: [CredentialStatus.ISSUED, CredentialStatus.COLLECTED] },
+      },
+      orderBy: [{ event: { date: "asc" } }],
+      select: {
+        id: true,
+        holderName: true,
+        holderRole: true,
+        serial: true,
+        qrToken: true,
+        status: true,
+        credentialType: {
+          select: { name: true, description: true, zones: true },
+        },
+        registration: {
+          select: {
+            carNumber: true,
+            carClass: true,
+            team: { select: { name: true, slug: true } },
+          },
+        },
+        event: {
+          select: {
+            id: true,
+            name: true,
+            date: true,
+            venue: true,
+            series: { select: { name: true, slug: true } },
+            trackLayout: {
+              select: { name: true, track: { select: { name: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      credentials,
+      /*
+       * Whether this deployment can sign Apple Wallet passes at all. Asked
+       * here so the UI can hide the button rather than hand somebody a file
+       * their phone silently refuses — which is worse than no button, because
+       * they will believe they have a pass.
+       */
+      walletAvailable: walletConfig() !== null,
+    };
+  }),
+
+  /** One of my passes, by id, for the full-screen and print views. */
+  myCredential: protectedProcedure
+    .input(z.object({ credentialId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      const credential = await ctx.db.credential.findUnique({
+        where: { id: input.credentialId },
+        select: {
+          id: true,
+          holderUserId: true,
+          holderName: true,
+          holderRole: true,
+          serial: true,
+          qrToken: true,
+          status: true,
+          credentialType: {
+            select: { name: true, description: true, zones: true },
+          },
+          registration: {
+            select: {
+              carNumber: true,
+              carClass: true,
+              team: { select: { name: true } },
+            },
+          },
+          event: {
+            select: {
+              id: true,
+              name: true,
+              date: true,
+              venue: true,
+              series: { select: { name: true } },
+              trackLayout: {
+                select: { name: true, track: { select: { name: true } } },
+              },
+            },
+          },
+        },
+      });
+      if (!credential || credential.holderUserId !== ctx.user.id) {
+        // Not FORBIDDEN: whether a given id is a pass at all is not something
+        // to confirm to somebody it does not belong to.
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      return { ...credential, walletAvailable: walletConfig() !== null };
     }),
 
   // -- Generating and scanning ---------------------------------------------

@@ -11,6 +11,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { MyPasses } from "@/components/my-passes";
 import { EmptyState, PageHeader, Section, Stat } from "@/components/ui/page";
 
 /**
@@ -182,6 +183,8 @@ export default function HomePage() {
               </div>
             )}
           </Section>
+
+          <MyPasses />
 
           {data.shifts.length > 0 && (
             <Section
