@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { AuditAction, Prisma, TrackDirection, TrackKind } from "@prisma/client";
+import {
+  AuditAction,
+  LayoutShape,
+  Prisma,
+  TrackDirection,
+  TrackKind,
+  TrackRuleKind,
+} from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import {
   createTRPCRouter,
@@ -142,6 +149,10 @@ export const trackRouter = createTRPCRouter({
               platform: true,
               isPrimary: true,
               lengthMeters: true,
+              turnCount: true,
+              shape: true,
+              direction: true,
+              diagramUrl: true,
             },
           },
         },
@@ -201,6 +212,7 @@ export const trackRouter = createTRPCRouter({
               _count: { select: { events: true } },
             },
           },
+          rules: { orderBy: [{ kind: "asc" }, { createdAt: "asc" }] },
           createdBy: { select: { id: true, profile: true } },
         },
       });
@@ -251,6 +263,10 @@ export const trackRouter = createTRPCRouter({
         country: z.string().length(2).optional(),
         region: z.string().max(120).optional(),
         city: z.string().max(120).optional(),
+        addressLine: z.string().max(200).optional(),
+        postalCode: z.string().max(20).optional(),
+        latitude: z.number().min(-90).max(90).optional(),
+        longitude: z.number().min(-180).max(180).optional(),
         timezone: z.string().max(60).optional(),
         websiteUrl: z.string().url().max(300).optional(),
         licenceGrade: z.string().max(80).optional(),
@@ -286,6 +302,10 @@ export const trackRouter = createTRPCRouter({
         country: z.string().length(2).nullish(),
         region: z.string().max(120).nullish(),
         city: z.string().max(120).nullish(),
+        addressLine: z.string().max(200).nullish(),
+        postalCode: z.string().max(20).nullish(),
+        latitude: z.number().min(-90).max(90).nullish(),
+        longitude: z.number().min(-180).max(180).nullish(),
         timezone: z.string().max(60).nullish(),
         websiteUrl: z.string().url().max(300).nullish(),
         licenceGrade: z.string().max(80).nullish(),
@@ -346,6 +366,119 @@ export const trackRouter = createTRPCRouter({
       return { deleted: true };
     }),
 
+  // -- Facility rules ------------------------------------------------------
+
+  /*
+   * Rules are curated exactly like the track they hang off: the person who
+   * added the venue, or anyone signed in on a reference track. Deliberately
+   * not restricted to the facility itself — RaceOps has no way to prove
+   * somebody works for a circuit, and the club that runs there every month
+   * knows the sound limit better than a verification flow would.
+   */
+
+  addRule: protectedProcedure
+    .input(
+      z.object({
+        trackId: z.string().cuid(),
+        kind: z.nativeEnum(TrackRuleKind),
+        title: z.string().min(3).max(160),
+        detail: z.string().max(4000).optional(),
+        source: z.string().max(200).optional(),
+        sourceUrl: z.string().url().max(600).optional(),
+        verifiedOn: z.date().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { trackId, ...rest } = input;
+      const track = await assertTrackCurator(ctx.db, trackId, ctx.user.id);
+      if (track.isReference) {
+        await recordAudit(ctx.db, {
+          actorId: ctx.user.id,
+          action: AuditAction.CREATE,
+          entityType: "TrackRule",
+          entityId: trackId,
+          summary: `Added a facility rule to "${track.name}": ${input.title}`,
+        });
+      }
+      return ctx.db.trackRule.create({ data: { ...rest, trackId } });
+    }),
+
+  updateRule: protectedProcedure
+    .input(
+      z.object({
+        ruleId: z.string().cuid(),
+        kind: z.nativeEnum(TrackRuleKind).optional(),
+        title: z.string().min(3).max(160).optional(),
+        detail: z.string().max(4000).nullish(),
+        source: z.string().max(200).nullish(),
+        sourceUrl: z.string().url().max(600).nullish(),
+        verifiedOn: z.date().nullish(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { ruleId, ...rest } = input;
+      const rule = await ctx.db.trackRule.findUnique({
+        where: { id: ruleId },
+        select: { trackId: true, title: true },
+      });
+      if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
+      const track = await assertTrackCurator(ctx.db, rule.trackId, ctx.user.id);
+      if (track.isReference) {
+        await recordAudit(ctx.db, {
+          actorId: ctx.user.id,
+          action: AuditAction.UPDATE,
+          entityType: "TrackRule",
+          entityId: ruleId,
+          summary: `Corrected a facility rule on "${track.name}": ${rule.title}`,
+        });
+      }
+      return ctx.db.trackRule.update({ where: { id: ruleId }, data: rest });
+    }),
+
+  /**
+   * Marks a rule as checked today.
+   *
+   * Separate from `updateRule` because it is a different act: confirming a
+   * limit is still what it says is the common case, and burying it inside an
+   * edit form means nobody ever does it and every rule looks stale.
+   */
+  verifyRule: protectedProcedure
+    .input(z.object({ ruleId: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const rule = await ctx.db.trackRule.findUnique({
+        where: { id: input.ruleId },
+        select: { trackId: true },
+      });
+      if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertTrackCurator(ctx.db, rule.trackId, ctx.user.id);
+      return ctx.db.trackRule.update({
+        where: { id: input.ruleId },
+        data: { verifiedOn: new Date() },
+      });
+    }),
+
+  deleteRule: protectedProcedure
+    .input(z.object({ ruleId: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const rule = await ctx.db.trackRule.findUnique({
+        where: { id: input.ruleId },
+        select: { trackId: true, title: true },
+      });
+      if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
+      const track = await assertTrackCurator(ctx.db, rule.trackId, ctx.user.id);
+      if (track.isReference) {
+        await recordAudit(ctx.db, {
+          actorId: ctx.user.id,
+          action: AuditAction.DELETE,
+          entityType: "TrackRule",
+          entityId: input.ruleId,
+          summary: `Removed a facility rule from "${track.name}": ${rule.title}`,
+        });
+      }
+      await ctx.db.trackRule.delete({ where: { id: input.ruleId } });
+      return { deleted: true };
+    }),
+
   // -- Layouts -------------------------------------------------------------
 
   addLayout: protectedProcedure
@@ -357,6 +490,11 @@ export const trackRouter = createTRPCRouter({
         lengthMeters: z.number().int().min(1).max(200_000).optional(),
         direction: z.nativeEnum(TrackDirection).default(TrackDirection.CLOCKWISE),
         elevationMeters: z.number().int().min(0).max(5_000).optional(),
+        turnCount: z.number().int().min(1).max(100).optional(),
+        shape: z.nativeEnum(LayoutShape).optional(),
+        bankingDegrees: z.number().int().min(0).max(60).optional(),
+        diagramUrl: z.string().url().max(600).optional(),
+        diagramCredit: z.string().max(200).optional(),
         notes: z.string().max(2000).optional(),
       }),
     )
@@ -391,6 +529,11 @@ export const trackRouter = createTRPCRouter({
         lengthMeters: z.number().int().min(1).max(200_000).nullish(),
         direction: z.nativeEnum(TrackDirection).optional(),
         elevationMeters: z.number().int().min(0).max(5_000).nullish(),
+        turnCount: z.number().int().min(1).max(100).nullish(),
+        shape: z.nativeEnum(LayoutShape).nullish(),
+        bankingDegrees: z.number().int().min(0).max(60).nullish(),
+        diagramUrl: z.string().url().max(600).nullish(),
+        diagramCredit: z.string().max(200).nullish(),
         active: z.boolean().optional(),
         notes: z.string().max(2000).nullish(),
       }),

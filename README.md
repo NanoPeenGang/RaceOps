@@ -134,16 +134,22 @@ A seeding failure warns but does not fail the build — the app works fine with
 an empty track list, and blocking a release over optional reference data would
 be the worse outcome.
 
-Two rules make it safe to run against a database already in use:
+Each track carries its layouts with length, turn count, direction, banking and
+plan shape; its location; and any **facility rules** — sound limits, curfews,
+licence requirements — as separate, sourced records rather than prose.
 
-- **It only adds.** Existing tracks and layouts are never updated or deleted,
-  including ones a previous run created. Correcting a figure in
-  `prisma/seed-data/us-tracks.mts` therefore does *not* propagate to a database
-  that already has that track — deliberately, because a seed that overwrites is
-  a seed nobody dares run twice.
-- **It stands aside.** A venue somebody already added by hand is left alone
-  rather than duplicated, matched on name and state. Two rows for one circuit
-  would split its lap records in half.
+Three operations, and the middle one is what makes a re-run useful rather than
+merely harmless:
+
+- **Add** a row that is not there. A venue somebody already added by hand is
+  left alone rather than duplicated, matched on name and state — two rows for
+  one circuit would split its lap records in half.
+- **Fill** a column that is currently null. This is how a *new field* reaches a
+  database seeded before that field existed; without it, turn counts and shapes
+  would only ever appear on a database seeded from empty, which is nobody's.
+- **Overwrite** a column that already holds a value. Never. Correcting a figure
+  in `prisma/seed-data/us-tracks.mts` does not propagate to a database where
+  somebody has already set that field, and correcting it in the app always wins.
 
 Seeded tracks are marked `isReference` and have no creator. That flips the
 curation rule: instead of "only whoever added it may edit it", **anyone signed
@@ -155,6 +161,42 @@ season.
 The seed files are `.mts` so Node can run them directly by stripping types — no
 extra toolchain. `tsconfig.json` sets `allowImportingTsExtensions` for the same
 reason: Node's loader needs the real extension on relative imports.
+
+#### Layout diagrams
+
+Three states, and the third is as deliberate as the first two:
+
+1. **A real map**, uploaded to the bucket or linked from the circuit, with a
+   credit line — someone else's diagram needs crediting.
+2. **A generated schematic**, for ovals only. An oval's plan shape follows from
+   facts a circuit publishes (tri-oval, 33-degree banking, run anticlockwise),
+   so drawing it invents nothing; it is the same information the sentence
+   carries, arranged so you can take it in at a glance. Labelled *schematic —
+   shape and direction only, not to scale*, because a diagram that looks
+   surveyed will be read as surveyed.
+3. **Nothing**, with an invitation to upload one. This is the answer for every
+   road course. A circuit's outline is survey data — there is no function from
+   "4.048 km, 14 turns, clockwise" to the shape of Road America — and a
+   plausible squiggle under a real venue's name would be a fabricated map in a
+   tool people use to plan race weekends.
+
+#### Facility rules
+
+`TrackRule` is separate from the regulations library because it answers a
+different question: not what the series regulates, but what the *venue*
+imposes and no club can negotiate away. A sound limit or a Sunday curfew
+changes whether you load the trailer at all.
+
+Each rule carries a source and a last-checked date, and the page flags one
+nobody has confirmed in over a season. Both exist because an uncited dB figure
+from an anonymous edit is not something to plan a weekend around, and because a
+stale limit is worse than a missing one. "Never verified" and "verified long
+ago" are shown differently — they are different states.
+
+Only three sets of rules ship seeded (Laguna Seca, Lime Rock, Sonoma), because
+those are the ones that were actually researched and cited. The rest is for the
+people who run there; guessing a sound limit would send somebody home from the
+gate with a trailer they did not need to load.
 
 ## Build phases
 

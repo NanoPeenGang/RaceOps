@@ -1,4 +1,9 @@
-import { TrackDirection, TrackKind } from "@prisma/client";
+import {
+  LayoutShape,
+  TrackDirection,
+  TrackKind,
+  TrackRuleKind,
+} from "@prisma/client";
 
 /**
  * Reference tracks for the lower 48 US states.
@@ -35,8 +40,37 @@ export interface SeedLayout {
   /** Metres. Omitted where the figure is not well established. */
   lengthMeters?: number;
   direction?: TrackDirection;
+  /** Corners as the circuit counts them. Omitted rather than guessed. */
+  turnCount?: number;
+  /**
+   * Plan shape, for the generated schematic. Set only on ovals: a road
+   * course's outline is survey data and is not derivable from its figures,
+   * so those carry a real uploaded map or no picture at all.
+   */
+  shape?: LayoutShape;
+  /** Banking through the turns, degrees. */
+  bankingDegrees?: number;
   isPrimary?: boolean;
   notes?: string;
+}
+
+/**
+ * A facility rule or local ordinance.
+ *
+ * Seeded only where it is sourced. A wrong sound limit sends somebody home
+ * from the gate with a trailer they did not need to load, so the standard for
+ * putting one here is higher than for a track length: `source` is not
+ * optional in practice, and anything we cannot cite is left for the people
+ * who actually run there to add.
+ */
+export interface SeedRule {
+  kind: TrackRuleKind;
+  title: string;
+  detail?: string;
+  source?: string;
+  sourceUrl?: string;
+  /** ISO date somebody last checked this. */
+  verifiedOn?: string;
 }
 
 export interface SeedTrack {
@@ -45,9 +79,13 @@ export interface SeedTrack {
   city: string;
   /** Two-letter US state, stored on `Track.region`. */
   state: string;
+  /** Decimal degrees, WGS 84. Omitted where not known to within a few metres. */
+  latitude?: number;
+  longitude?: number;
   licenceGrade?: string;
   notes?: string;
   layouts: SeedLayout[];
+  rules?: SeedRule[];
 }
 
 /** Miles to metres, rounded — the unit US circuits publish. */
@@ -55,6 +93,15 @@ const mi = (miles: number): number => Math.round(miles * 1609.344);
 
 const CW = TrackDirection.CLOCKWISE;
 const CCW = TrackDirection.ANTICLOCKWISE;
+
+// Shapes, abbreviated because they appear on nearly every oval below.
+const OV = LayoutShape.OVAL;
+const TRI = LayoutShape.TRI_OVAL;
+const QUAD = LayoutShape.QUAD_OVAL;
+const CLIP = LayoutShape.PAPERCLIP;
+const DEE = LayoutShape.D_SHAPE;
+const TRIANGLE = LayoutShape.TRIANGLE;
+const RECTANGLE = LayoutShape.RECTANGLE;
 
 export const US_REFERENCE_TRACKS: SeedTrack[] = [
   // -- Alabama ---------------------------------------------------------------
@@ -64,7 +111,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Birmingham",
     state: "AL",
     licenceGrade: "FIA Grade 2",
-    layouts: [{ name: "Grand Prix", lengthMeters: mi(2.38), direction: CW, isPrimary: true }],
+    layouts: [{ name: "Grand Prix", lengthMeters: mi(2.38), direction: CW, turnCount: 17, isPrimary: true }],
   },
   {
     name: "Talladega Superspeedway",
@@ -72,14 +119,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Lincoln",
     state: "AL",
     notes: "Tri-oval with 33-degree banking; the fastest oval in NASCAR.",
-    layouts: [{ name: "Superspeedway", lengthMeters: mi(2.66), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Superspeedway", lengthMeters: mi(2.66), direction: CCW, turnCount: 4, shape: TRI, bankingDegrees: 33, isPrimary: true }],
   },
   {
     name: "Mobile International Speedway",
     kind: TrackKind.OVAL,
     city: "Irvington",
     state: "AL",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Arizona ---------------------------------------------------------------
@@ -90,7 +137,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     state: "AZ",
     notes: "Low-banked tri-oval with a distinctive dogleg on the back straight.",
     layouts: [
-      { name: "Oval", lengthMeters: mi(1.0), direction: CCW, isPrimary: true },
+      { name: "Oval", lengthMeters: mi(1.0), direction: CCW, turnCount: 4, shape: TRI, isPrimary: true },
       { name: "Road Course", lengthMeters: mi(1.51), direction: CW },
     ],
   },
@@ -106,7 +153,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.OVAL,
     city: "Tucson",
     state: "AZ",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Arkansas --------------------------------------------------------------
@@ -116,7 +163,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Locust Grove",
     state: "AR",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "I-30 Speedway",
@@ -124,7 +171,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Little Rock",
     state: "AR",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- California ------------------------------------------------------------
@@ -135,7 +182,25 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     state: "CA",
     licenceGrade: "FIA Grade 2",
     notes: "The Corkscrew drops roughly 59 feet over turns 8 and 8A.",
-    layouts: [{ name: "Grand Prix", lengthMeters: mi(2.238), direction: CW, isPrimary: true }],
+    layouts: [{ name: "Grand Prix", lengthMeters: mi(2.238), direction: CW, turnCount: 11, isPrimary: true }],
+    rules: [
+      {
+        kind: TrackRuleKind.SOUND,
+        title: "90 dBA on most days, 105 dBA on a limited number",
+        detail:
+          "The county use permit caps noise, and the limit depends on the day you are entered for rather than on the car. Individual organizers publish anything from 90 to 92 dBA for standard days — check the supplementary regulations for your event before booking, because cars are turned away at the gate for this more often than for anything else.",
+        source: "Monterey County use permit",
+        verifiedOn: "2026-07-01",
+      },
+      {
+        kind: TrackRuleKind.CURFEW,
+        title: "35 event days per year",
+        detail:
+          "The same use permit limits the circuit to roughly 35 days of event use a year, 24 of them capped at 5,000 spectators. Dates are correspondingly hard to get and are not released at short notice.",
+        source: "Monterey County use permit",
+        verifiedOn: "2026-07-01",
+      },
+    ],
   },
   {
     name: "Sonoma Raceway",
@@ -143,8 +208,18 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Sonoma",
     state: "CA",
     layouts: [
-      { name: "Grand Prix", lengthMeters: mi(2.52), direction: CW, isPrimary: true },
+      { name: "Grand Prix", lengthMeters: mi(2.52), direction: CW, turnCount: 12, isPrimary: true },
       { name: "NASCAR Course", lengthMeters: mi(1.99), direction: CW },
+    ],
+    rules: [
+      {
+        kind: TrackRuleKind.SOUND,
+        title: "103 dBA at 50 ft on a typical club day",
+        detail:
+          "One warning between 103 and 106 dBA; a second reading over 103 ends your day. Anything over 106 dBA is excluded immediately. Organizers vary the limit by event, so confirm it against your entry rather than assuming the club figure.",
+        source: "Circuit and event-organizer regulations",
+        verifiedOn: "2026-07-01",
+      },
     ],
   },
   {
@@ -173,7 +248,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     state: "CA",
     notes: "Opened 1953; among the oldest permanent road courses in the US.",
     layouts: [
-      { name: "Big Willow", lengthMeters: mi(2.5), direction: CCW, isPrimary: true },
+      { name: "Big Willow", lengthMeters: mi(2.5), direction: CCW, turnCount: 9, isPrimary: true },
       { name: "Streets of Willow", lengthMeters: mi(1.8) },
     ],
   },
@@ -184,7 +259,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.OVAL,
     city: "Fountain",
     state: "CO",
-    layouts: [{ name: "Oval", lengthMeters: mi(1.0), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(1.0), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "High Plains Raceway",
@@ -205,7 +280,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.OVAL,
     city: "Dacono",
     state: "CO",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Connecticut -----------------------------------------------------------
@@ -216,8 +291,35 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     state: "CT",
     notes: "No Sunday racing, by long-standing local ordinance.",
     layouts: [
-      { name: "Full Course", lengthMeters: mi(1.53), direction: CW, isPrimary: true },
+      { name: "Full Course", lengthMeters: mi(1.53), direction: CW, turnCount: 7, isPrimary: true },
       { name: "Classic Course", lengthMeters: mi(1.5), direction: CW },
+    ],
+    rules: [
+      {
+        kind: TrackRuleKind.CURFEW,
+        title: "No racing on Sundays",
+        detail:
+          "A court injunction dating from 1959, upheld since, bars racing on Sundays — believed to be the only such restriction on a US circuit. Plan a two-day weekend as Friday–Saturday, not Saturday–Sunday.",
+        source: "1959 court injunction, Town of Salisbury CT",
+        verifiedOn: "2026-07-01",
+      },
+      {
+        kind: TrackRuleKind.SOUND,
+        title: "86 dBA muffled, zero tolerance over 88 dBA",
+        detail:
+          "Cars must be muffled to 86 dBA at all events except on specific unmuffled dates, of which there are very few. The 88 dBA ceiling comes from the town ordinance and is not negotiable at the gate.",
+        source: "Town of Salisbury CT ordinance; circuit regulations",
+        sourceUrl: "https://limerock.com/regulations/",
+        verifiedOn: "2026-07-01",
+      },
+      {
+        kind: TrackRuleKind.CURFEW,
+        title: "On track 9:00–18:00, Monday to Saturday",
+        detail: "Quiet hours are enforced from 22:00 to 07:00.",
+        source: "Circuit regulations",
+        sourceUrl: "https://limerock.com/regulations/",
+        verifiedOn: "2026-07-01",
+      },
     ],
   },
   {
@@ -235,14 +337,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.OVAL,
     city: "Stafford Springs",
     state: "CT",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "New London-Waterford Speedbowl",
     kind: TrackKind.OVAL,
     city: "Waterford",
     state: "CT",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Delaware --------------------------------------------------------------
@@ -252,7 +354,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Dover",
     state: "DE",
     notes: "Concrete surface, 24-degree banking; known as the Monster Mile.",
-    layouts: [{ name: "Oval", lengthMeters: mi(1.0), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(1.0), direction: CCW, turnCount: 4, shape: OV, bankingDegrees: 24, isPrimary: true }],
   },
   {
     name: "Delaware International Speedway",
@@ -260,7 +362,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Delmar",
     state: "DE",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Georgetown Speedway",
@@ -268,7 +370,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Georgetown",
     state: "DE",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Florida ---------------------------------------------------------------
@@ -280,8 +382,8 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     licenceGrade: "FIA Grade 2",
     notes: "31-degree banking; hosts the Daytona 500 and the Rolex 24.",
     layouts: [
-      { name: "Tri-Oval", lengthMeters: mi(2.5), direction: CCW, isPrimary: true },
-      { name: "Sports Car Course", lengthMeters: mi(3.56), direction: CW },
+      { name: "Tri-Oval", lengthMeters: mi(2.5), direction: CCW, turnCount: 4, shape: TRI, bankingDegrees: 31, isPrimary: true },
+      { name: "Sports Car Course", lengthMeters: mi(3.56), direction: CW, turnCount: 12 },
     ],
   },
   {
@@ -291,7 +393,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     state: "FL",
     licenceGrade: "FIA Grade 2",
     notes: "Partly original airfield concrete; famously bumpy.",
-    layouts: [{ name: "Full Course", lengthMeters: mi(3.74), direction: CW, isPrimary: true }],
+    layouts: [{ name: "Full Course", lengthMeters: mi(3.74), direction: CW, turnCount: 17, isPrimary: true }],
   },
   {
     name: "Homestead-Miami Speedway",
@@ -299,7 +401,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Homestead",
     state: "FL",
     notes: "Variable banking, 18 to 20 degrees.",
-    layouts: [{ name: "Oval", lengthMeters: mi(1.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(1.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Palm Beach International Raceway",
@@ -317,7 +419,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     state: "GA",
     licenceGrade: "FIA Grade 2",
     notes: "Home of Petit Le Mans.",
-    layouts: [{ name: "Full Course", lengthMeters: mi(2.54), direction: CW, isPrimary: true }],
+    layouts: [{ name: "Full Course", lengthMeters: mi(2.54), direction: CW, turnCount: 12, isPrimary: true }],
   },
   {
     name: "Atlanta Motor Speedway",
@@ -325,7 +427,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Hampton",
     state: "GA",
     notes: "Reconfigured in 2022 to 28-degree banking and a narrower surface.",
-    layouts: [{ name: "Quad-Oval", lengthMeters: mi(1.54), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Quad-Oval", lengthMeters: mi(1.54), direction: CCW, turnCount: 4, shape: QUAD, bankingDegrees: 28, isPrimary: true }],
   },
   {
     name: "Roebling Road Raceway",
@@ -349,21 +451,21 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.OVAL,
     city: "Meridian",
     state: "ID",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Magic Valley Speedway",
     kind: TrackKind.OVAL,
     city: "Twin Falls",
     state: "ID",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.4), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.4), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Stateline Speedway",
     kind: TrackKind.OVAL,
     city: "Post Falls",
     state: "ID",
-    layouts: [{ name: "Oval", direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Illinois --------------------------------------------------------------
@@ -373,7 +475,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Madison",
     state: "IL",
     notes: "Serves St. Louis but sits on the Illinois side of the river.",
-    layouts: [{ name: "Oval", lengthMeters: mi(1.25), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(1.25), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Autobahn Country Club",
@@ -391,7 +493,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.CIRCUIT,
     city: "South Beloit",
     state: "IL",
-    layouts: [{ name: "Full Course", lengthMeters: mi(1.95), direction: CW, isPrimary: true }],
+    layouts: [{ name: "Full Course", lengthMeters: mi(1.95), direction: CW, turnCount: 7, isPrimary: true }],
   },
   {
     name: "Chicagoland Speedway",
@@ -399,7 +501,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Joliet",
     state: "IL",
     notes: "No national events since 2019; the facility remains.",
-    layouts: [{ name: "Tri-Oval", lengthMeters: mi(1.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Tri-Oval", lengthMeters: mi(1.5), direction: CCW, turnCount: 4, shape: TRI, isPrimary: true }],
   },
 
   // -- Indiana ---------------------------------------------------------------
@@ -411,8 +513,8 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     licenceGrade: "FIA Grade 1",
     notes: "Opened 1909. Hosts the Indianapolis 500.",
     layouts: [
-      { name: "Oval", lengthMeters: mi(2.5), direction: CCW, isPrimary: true },
-      { name: "Grand Prix Circuit", lengthMeters: mi(2.439), direction: CW },
+      { name: "Oval", lengthMeters: mi(2.5), direction: CCW, turnCount: 4, shape: RECTANGLE, bankingDegrees: 9, isPrimary: true },
+      { name: "Grand Prix Circuit", lengthMeters: mi(2.439), direction: CW, turnCount: 14 },
     ],
   },
   {
@@ -427,7 +529,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.OVAL,
     city: "Brownsburg",
     state: "IN",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.686), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.686), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Winchester Speedway",
@@ -435,7 +537,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Winchester",
     state: "IN",
     notes: "One of the most steeply banked half-miles in the country, at 37 degrees.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Iowa ------------------------------------------------------------------
@@ -444,7 +546,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.OVAL,
     city: "Newton",
     state: "IA",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.875), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.875), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Knoxville Raceway",
@@ -452,14 +554,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Knoxville",
     state: "IA",
     notes: "Dirt oval; home of the Knoxville Nationals.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Hawkeye Downs Speedway",
     kind: TrackKind.OVAL,
     city: "Cedar Rapids",
     state: "IA",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Kansas ----------------------------------------------------------------
@@ -469,7 +571,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Kansas City",
     state: "KS",
     notes: "Variable banking, 17 to 20 degrees.",
-    layouts: [{ name: "Tri-Oval", lengthMeters: mi(1.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Tri-Oval", lengthMeters: mi(1.5), direction: CCW, turnCount: 4, shape: TRI, isPrimary: true }],
   },
   {
     name: "Heartland Motorsports Park",
@@ -485,7 +587,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Kansas City",
     state: "KS",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Kentucky --------------------------------------------------------------
@@ -495,7 +597,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Sparta",
     state: "KY",
     notes: "No national events since 2020.",
-    layouts: [{ name: "Tri-Oval", lengthMeters: mi(1.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Tri-Oval", lengthMeters: mi(1.5), direction: CCW, turnCount: 4, shape: TRI, isPrimary: true }],
   },
   {
     name: "NCM Motorsports Park",
@@ -503,7 +605,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Bowling Green",
     state: "KY",
     notes: "Across from the National Corvette Museum.",
-    layouts: [{ name: "Full Course", lengthMeters: mi(3.15), isPrimary: true }],
+    layouts: [{ name: "Full Course", lengthMeters: mi(3.15), turnCount: 23, isPrimary: true }],
   },
   {
     name: "Florence Speedway",
@@ -511,7 +613,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Union",
     state: "KY",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Louisiana -------------------------------------------------------------
@@ -537,14 +639,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Oxford",
     state: "ME",
     notes: "Home of the Oxford 250.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Wiscasset Speedway",
     kind: TrackKind.OVAL,
     city: "Wiscasset",
     state: "ME",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.333), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.333), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Maryland --------------------------------------------------------------
@@ -554,7 +656,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Hagerstown",
     state: "MD",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Potomac Speedway",
@@ -562,7 +664,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Budds Creek",
     state: "MD",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Massachusetts ---------------------------------------------------------
@@ -574,8 +676,8 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     notes:
       "Whiskey Hill Raceway: 14 turns up and down roughly 190 feet of Whiskey Hill. Run in both directions.",
     layouts: [
-      { name: "Whiskey Hill Raceway", lengthMeters: mi(2.3), direction: CW, isPrimary: true },
-      { name: "Whiskey Hill Raceway (Reverse)", lengthMeters: mi(2.3), direction: CCW },
+      { name: "Whiskey Hill Raceway", lengthMeters: mi(2.3), direction: CW, turnCount: 14, isPrimary: true },
+      { name: "Whiskey Hill Raceway (Reverse)", lengthMeters: mi(2.3), direction: CCW, turnCount: 14 },
     ],
   },
   {
@@ -584,7 +686,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Seekonk",
     state: "MA",
     notes: "Opened 1946.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.333), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.333), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Michigan --------------------------------------------------------------
@@ -594,7 +696,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Brooklyn",
     state: "MI",
     notes: "18-degree banking and wide sightlines; among the fastest ovals in NASCAR.",
-    layouts: [{ name: "D-Oval", lengthMeters: mi(2.0), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "D-Oval", lengthMeters: mi(2.0), direction: CCW, turnCount: 4, shape: DEE, bankingDegrees: 18, isPrimary: true }],
   },
   {
     name: "GingerMan Raceway",
@@ -632,7 +734,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Brainerd",
     state: "MN",
     layouts: [
-      { name: "Donnybrooke", lengthMeters: mi(3.1), isPrimary: true },
+      { name: "Donnybrooke", lengthMeters: mi(3.1), turnCount: 10, isPrimary: true },
       { name: "Competition Course", lengthMeters: mi(2.5) },
     ],
   },
@@ -641,7 +743,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.OVAL,
     city: "Elko New Market",
     state: "MN",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Mississippi -----------------------------------------------------------
@@ -651,7 +753,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Byram",
     state: "MS",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Columbus Speedway",
@@ -659,7 +761,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Columbus",
     state: "MS",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Missouri --------------------------------------------------------------
@@ -669,7 +771,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Wheatland",
     state: "MO",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Missouri State Fair Speedway",
@@ -677,7 +779,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Sedalia",
     state: "MO",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Montana ---------------------------------------------------------------
@@ -686,7 +788,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.OVAL,
     city: "Kalispell",
     state: "MT",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Electric City Speedway",
@@ -694,7 +796,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Great Falls",
     state: "MT",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Nebraska --------------------------------------------------------------
@@ -704,7 +806,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Greenwood",
     state: "NE",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Eagle Raceway",
@@ -712,7 +814,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Eagle",
     state: "NE",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.333), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.333), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Nevada ----------------------------------------------------------------
@@ -722,7 +824,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Las Vegas",
     state: "NV",
     layouts: [
-      { name: "Superspeedway", lengthMeters: mi(1.5), direction: CCW, isPrimary: true },
+      { name: "Superspeedway", lengthMeters: mi(1.5), direction: CCW, turnCount: 4, shape: TRI, bankingDegrees: 20, isPrimary: true },
       { name: "Outside Road Course", lengthMeters: mi(2.4) },
     ],
   },
@@ -749,7 +851,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Loudon",
     state: "NH",
     layouts: [
-      { name: "Oval", lengthMeters: mi(1.058), direction: CCW, isPrimary: true },
+      { name: "Oval", lengthMeters: mi(1.058), direction: CCW, turnCount: 4, shape: OV, bankingDegrees: 7, isPrimary: true },
       { name: "Road Course", lengthMeters: mi(1.6) },
     ],
   },
@@ -766,14 +868,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.OVAL,
     city: "Lee",
     state: "NH",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Monadnock Speedway",
     kind: TrackKind.OVAL,
     city: "Winchester",
     state: "NH",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- New Jersey ------------------------------------------------------------
@@ -783,8 +885,8 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Millville",
     state: "NJ",
     layouts: [
-      { name: "Thunderbolt", lengthMeters: mi(2.25), isPrimary: true },
-      { name: "Lightning", lengthMeters: mi(1.9) },
+      { name: "Thunderbolt", lengthMeters: mi(2.25), turnCount: 14, isPrimary: true },
+      { name: "Lightning", lengthMeters: mi(1.9), turnCount: 10 },
     ],
   },
   {
@@ -792,7 +894,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.OVAL,
     city: "Wall Township",
     state: "NJ",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.333), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.333), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- New Mexico ------------------------------------------------------------
@@ -812,7 +914,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Las Cruces",
     state: "NM",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- New York --------------------------------------------------------------
@@ -824,8 +926,8 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     licenceGrade: "FIA Grade 2",
     notes: "Hosted the United States Grand Prix from 1961 to 1980.",
     layouts: [
-      { name: "Long Course", lengthMeters: mi(3.4), direction: CW, isPrimary: true },
-      { name: "Short Course", lengthMeters: mi(2.45), direction: CW },
+      { name: "Long Course", lengthMeters: mi(3.4), direction: CW, turnCount: 11, isPrimary: true },
+      { name: "Short Course", lengthMeters: mi(2.45), direction: CW, turnCount: 7 },
     ],
   },
   {
@@ -841,14 +943,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Oswego",
     state: "NY",
     notes: "Asphalt oval; home of the Supermodified Classic.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.625), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.625), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Riverhead Raceway",
     kind: TrackKind.OVAL,
     city: "Riverhead",
     state: "NY",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- North Carolina --------------------------------------------------------
@@ -858,7 +960,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Concord",
     state: "NC",
     layouts: [
-      { name: "Quad-Oval", lengthMeters: mi(1.5), direction: CCW, isPrimary: true },
+      { name: "Quad-Oval", lengthMeters: mi(1.5), direction: CCW, turnCount: 4, shape: QUAD, bankingDegrees: 24, isPrimary: true },
       { name: "Roval", lengthMeters: mi(2.28) },
     ],
   },
@@ -868,14 +970,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "North Wilkesboro",
     state: "NC",
     notes: "Reopened in 2023 after 27 years dormant. The frontstretch and backstretch have different gradients.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.625), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.625), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Rockingham Speedway",
     kind: TrackKind.OVAL,
     city: "Rockingham",
     state: "NC",
-    layouts: [{ name: "Oval", lengthMeters: mi(1.017), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(1.017), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Hickory Motor Speedway",
@@ -883,7 +985,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Newton",
     state: "NC",
     notes: "Opened 1951; long known as a proving ground for NASCAR drivers.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.363), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.363), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- North Dakota ----------------------------------------------------------
@@ -893,7 +995,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Mandan",
     state: "ND",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Red River Valley Speedway",
@@ -901,7 +1003,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "West Fargo",
     state: "ND",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Ohio ------------------------------------------------------------------
@@ -911,7 +1013,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Lexington",
     state: "OH",
     layouts: [
-      { name: "Full Course", lengthMeters: mi(2.4), direction: CW, isPrimary: true },
+      { name: "Full Course", lengthMeters: mi(2.4), direction: CW, turnCount: 13, isPrimary: true },
       { name: "Club Course", lengthMeters: mi(2.258), direction: CW },
     ],
   },
@@ -928,14 +1030,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Rossburg",
     state: "OH",
     notes: "Dirt oval with 24-degree banking; home of the Kings Royal and the World 100.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Columbus Motor Speedway",
     kind: TrackKind.OVAL,
     city: "Columbus",
     state: "OH",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.333), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.333), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Oklahoma --------------------------------------------------------------
@@ -956,7 +1058,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Tulsa",
     state: "OK",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Oregon ----------------------------------------------------------------
@@ -985,7 +1087,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Long Pond",
     state: "PA",
     notes: "Three corners, each with different banking — the Tricky Triangle.",
-    layouts: [{ name: "Tri-Oval", lengthMeters: mi(2.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Tri-Oval", lengthMeters: mi(2.5), direction: CCW, turnCount: 3, shape: TRIANGLE, isPrimary: true }],
   },
   {
     name: "Pittsburgh International Race Complex",
@@ -1003,14 +1105,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Mechanicsburg",
     state: "PA",
     notes: "Dirt oval; a cornerstone of Pennsylvania sprint car racing.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Jennerstown Speedway Complex",
     kind: TrackKind.OVAL,
     city: "Jennerstown",
     state: "PA",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.522), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.522), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- South Carolina --------------------------------------------------------
@@ -1020,21 +1122,21 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Darlington",
     state: "SC",
     notes: "Egg-shaped, with each end a different radius — the track too tough to tame.",
-    layouts: [{ name: "Oval", lengthMeters: mi(1.366), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(1.366), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Carolina Motorsports Park",
     kind: TrackKind.CIRCUIT,
     city: "Kershaw",
     state: "SC",
-    layouts: [{ name: "Full Course", lengthMeters: mi(2.27), isPrimary: true }],
+    layouts: [{ name: "Full Course", lengthMeters: mi(2.27), turnCount: 14, isPrimary: true }],
   },
   {
     name: "Greenville-Pickens Speedway",
     kind: TrackKind.OVAL,
     city: "Easley",
     state: "SC",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- South Dakota ----------------------------------------------------------
@@ -1044,7 +1146,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Brandon",
     state: "SD",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Black Hills Speedway",
@@ -1052,7 +1154,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Rapid City",
     state: "SD",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Tennessee -------------------------------------------------------------
@@ -1062,7 +1164,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Bristol",
     state: "TN",
     notes: "Concrete, with banking between 24 and 30 degrees. Converted to dirt for selected events.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.533), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.533), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Nashville Superspeedway",
@@ -1070,7 +1172,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Lebanon",
     state: "TN",
     notes: "Concrete surface.",
-    layouts: [{ name: "Oval", lengthMeters: mi(1.33), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(1.33), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Nashville Fairgrounds Speedway",
@@ -1078,14 +1180,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Nashville",
     state: "TN",
     notes: "Opened 1904; one of the oldest operating speedways in the country.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.596), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.596), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Memphis International Raceway",
     kind: TrackKind.OVAL,
     city: "Millington",
     state: "TN",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.75), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.75), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Texas -----------------------------------------------------------------
@@ -1096,14 +1198,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     state: "TX",
     licenceGrade: "FIA Grade 1",
     notes: "Hosts the United States Grand Prix. Turn 1 climbs roughly 133 feet.",
-    layouts: [{ name: "Grand Prix", lengthMeters: mi(3.426), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Grand Prix", lengthMeters: mi(3.426), direction: CCW, turnCount: 20, isPrimary: true }],
   },
   {
     name: "Texas Motor Speedway",
     kind: TrackKind.OVAL,
     city: "Fort Worth",
     state: "TX",
-    layouts: [{ name: "Quad-Oval", lengthMeters: mi(1.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Quad-Oval", lengthMeters: mi(1.5), direction: CCW, turnCount: 4, shape: QUAD, isPrimary: true }],
   },
   {
     name: "MotorSport Ranch Cresson",
@@ -1155,7 +1257,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Price",
     state: "UT",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Vermont ---------------------------------------------------------------
@@ -1164,7 +1266,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.OVAL,
     city: "Barre",
     state: "VT",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Devil's Bowl Speedway",
@@ -1172,7 +1274,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "West Haven",
     state: "VT",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Virginia --------------------------------------------------------------
@@ -1184,7 +1286,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     licenceGrade: "FIA Grade 2",
     notes: "Several configurations run independently or combined.",
     layouts: [
-      { name: "Full Course", lengthMeters: mi(3.27), direction: CW, isPrimary: true },
+      { name: "Full Course", lengthMeters: mi(3.27), direction: CW, turnCount: 17, isPrimary: true },
       { name: "Grand Course", lengthMeters: mi(4.2), direction: CW },
       { name: "North Course", lengthMeters: mi(2.25), direction: CW },
       { name: "Patriot Course", lengthMeters: mi(1.1), direction: CW },
@@ -1196,14 +1298,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Ridgeway",
     state: "VA",
     notes: "Paperclip shape with concrete corners; the shortest track in the NASCAR Cup Series.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.526), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.526), direction: CCW, turnCount: 4, shape: CLIP, bankingDegrees: 12, isPrimary: true }],
   },
   {
     name: "Richmond Raceway",
     kind: TrackKind.OVAL,
     city: "Richmond",
     state: "VA",
-    layouts: [{ name: "D-Oval", lengthMeters: mi(0.75), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "D-Oval", lengthMeters: mi(0.75), direction: CCW, turnCount: 4, shape: DEE, bankingDegrees: 14, isPrimary: true }],
   },
   {
     name: "Dominion Raceway",
@@ -1237,8 +1339,8 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Monroe",
     state: "WA",
     layouts: [
-      { name: "Oval", lengthMeters: mi(0.646), direction: CCW, isPrimary: true },
-      { name: "Short Oval", lengthMeters: mi(0.375), direction: CCW },
+      { name: "Oval", lengthMeters: mi(0.646), direction: CCW, turnCount: 4, shape: OV, isPrimary: true },
+      { name: "Short Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV },
     ],
   },
 
@@ -1250,7 +1352,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     state: "WV",
     notes: "Three independent circuits on one site.",
     layouts: [
-      { name: "Main Circuit", lengthMeters: mi(2.0), direction: CW, isPrimary: true },
+      { name: "Main Circuit", lengthMeters: mi(2.0), direction: CW, turnCount: 10, isPrimary: true },
       { name: "Shenandoah Circuit", lengthMeters: mi(2.2) },
       { name: "Jefferson Circuit", lengthMeters: mi(1.1) },
     ],
@@ -1260,7 +1362,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     kind: TrackKind.OVAL,
     city: "Milton",
     state: "WV",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Wisconsin -------------------------------------------------------------
@@ -1271,7 +1373,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     state: "WI",
     licenceGrade: "FIA Grade 2",
     notes: "Four miles with no chicanes on the original layout; among the fastest road courses in North America.",
-    layouts: [{ name: "Full Course", lengthMeters: mi(4.048), direction: CW, isPrimary: true }],
+    layouts: [{ name: "Full Course", lengthMeters: mi(4.048), direction: CW, turnCount: 14, isPrimary: true }],
   },
   {
     name: "Milwaukee Mile",
@@ -1279,7 +1381,7 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "West Allis",
     state: "WI",
     notes: "Racing since 1903; the oldest continuously operating motor speedway in the world.",
-    layouts: [{ name: "Oval", lengthMeters: mi(1.0), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(1.0), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Slinger Speedway",
@@ -1287,14 +1389,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Slinger",
     state: "WI",
     notes: "Steeply banked quarter-mile.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Madison International Speedway",
     kind: TrackKind.OVAL,
     city: "Oregon",
     state: "WI",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.5), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 
   // -- Wyoming ---------------------------------------------------------------
@@ -1304,14 +1406,14 @@ export const US_REFERENCE_TRACKS: SeedTrack[] = [
     city: "Rock Springs",
     state: "WY",
     notes: "Dirt oval.",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.375), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
   {
     name: "Big Country Speedway",
     kind: TrackKind.OVAL,
     city: "Cheyenne",
     state: "WY",
-    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, isPrimary: true }],
+    layouts: [{ name: "Oval", lengthMeters: mi(0.25), direction: CCW, turnCount: 4, shape: OV, isPrimary: true }],
   },
 ];
 

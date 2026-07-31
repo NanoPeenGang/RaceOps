@@ -1635,6 +1635,17 @@ model Track {
   country      String?
   region       String?
   city         String?
+  /// Street address of the paddock gate, for the people driving a transporter.
+  addressLine  String?
+  postalCode   String?
+  /**
+   * Decimal degrees, WGS 84. Kept as a pair of nullable floats rather than
+   * PostGIS: the only questions asked of it are "put a pin here" and "how far
+   * is this from me", and a geography column would make every deployment need
+   * an extension for that.
+   */
+  latitude     Float?
+  longitude    Float?
   timezone     String?
   websiteUrl   String?
   /**
@@ -1662,9 +1673,91 @@ model Track {
 
   createdBy User?         @relation("TrackCreator", fields: [createdById], references: [id], onDelete: SetNull)
   layouts   TrackLayout[]
+  rules     TrackRule[]
 
   @@index([country, name])
   @@index([kind])
+}
+
+/**
+ * What a facility restricts, as distinct from what a series regulates.
+ *
+ * A club can write its own sporting regulations but cannot negotiate away the
+ * county ordinance that caps noise at 90 dBA, and a driver turned away at
+ * scrutineering for a loud exhaust is not helped by the series rule book. The
+ * kinds here are the ones that actually stop someone running.
+ */
+enum TrackRuleKind {
+  /// Noise limit, how it is measured, and any louder days.
+  SOUND
+  /// Running hours, quiet days, days of use permitted per year.
+  CURFEW
+  /// Competition licence required, novice restrictions, minimum age.
+  LICENCE
+  /// Safety equipment the facility mandates beyond the series regulations.
+  SAFETY
+  /// Camping, generators, open flame, awnings, tyre storage.
+  PADDOCK
+  /// Fuel handling, spill kits, tyre and fluid disposal.
+  ENVIRONMENTAL
+  /// Gate times, minors, animals, spectator areas.
+  ACCESS
+  OTHER
+}
+
+/**
+ * One rule or ordinance a facility operates under.
+ *
+ * Sourced rather than asserted: `source` and `sourceUrl` exist because "90
+ * dBA" from an anonymous edit is worth nothing to a competitor deciding
+ * whether to fit a quieter exhaust, and `verifiedOn` exists because facility
+ * rules change between seasons — a stale sound limit is worse than a missing
+ * one, so the page can show its age and let people judge.
+ */
+model TrackRule {
+  id         String        @id @default(cuid())
+  trackId    String
+  kind       TrackRuleKind
+  /// The rule in one line: "90 dBA, measured at 50 ft".
+  title      String
+  /// The detail a competitor needs before they load the trailer.
+  detail     String?       @db.Text
+  /// Citation in words: "Monterey County use permit", "Salisbury CT ordinance".
+  source     String?
+  sourceUrl  String?
+  /// When somebody last checked this against the facility. Null = never.
+  verifiedOn DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  track Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  @@index([trackId, kind])
+}
+
+/**
+ * Plan shape of an oval, precise enough to draw and no more.
+ *
+ * Only shapes whose outline follows from figures we actually hold are listed.
+ * There is no ROAD member on purpose: a road course's outline is survey data,
+ * not something derivable from its length and turn count, so those get a real
+ * uploaded map or nothing at all.
+ */
+enum LayoutShape {
+  /// Symmetric four-turn oval; the default bullring or superspeedway.
+  OVAL
+  /// One straight bulges outward into a shallow third bend — Talladega.
+  TRI_OVAL
+  /// The front straight bends twice — Texas, Atlanta.
+  QUAD_OVAL
+  /// Long straights, tight hairpins at each end — Martinsville.
+  PAPERCLIP
+  /// One end noticeably wider than the other — Michigan, Richmond.
+  D_SHAPE
+  /// Three straights, three corners — Pocono.
+  TRIANGLE
+  /// Four long straights joined by short corners — Indianapolis.
+  RECTANGLE
 }
 
 /**
@@ -1683,6 +1776,33 @@ model TrackLayout {
   direction       TrackDirection @default(CLOCKWISE)
   /// Elevation change over a lap, where the venue publishes it.
   elevationMeters Int?
+  /**
+   * How many corners the layout has, as the circuit counts them.
+   *
+   * Deliberately not `turns.length`: the headline number is known for every
+   * circuit ("14 turns"), whereas the `turns` relation only fills up once
+   * somebody types in the corner names, and most never will. Storing the count
+   * separately means a layout can say "14 turns" on day one and still gain
+   * named corners later.
+   */
+  turnCount       Int?
+  /**
+   * Rough plan shape, used to draw a schematic where no map has been
+   * uploaded. Null for anything whose shape is not derivable from figures —
+   * which is every road course, because drawing a plausible squiggle and
+   * labelling it with a real circuit's name would be inventing a map.
+   */
+  shape           LayoutShape?
+  /// Banking through the turns, degrees. Feeds the schematic and reads well.
+  bankingDegrees  Int?
+  /**
+   * A real map of this layout — a circuit's own diagram or an aerial. Held as
+   * a URL because it is either uploaded to the bucket or linked from the
+   * facility, and both are just a URL to the page rendering it.
+   */
+  diagramUrl      String?
+  /// Who the diagram belongs to. Someone else's map needs crediting.
+  diagramCredit   String?
   /// The layout an event defaults to when none is chosen.
   isPrimary       Boolean        @default(false)
   active          Boolean        @default(true)

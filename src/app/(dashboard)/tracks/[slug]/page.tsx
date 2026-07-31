@@ -1,13 +1,30 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { TrackDirection } from "@prisma/client";
+import { LayoutShape, TrackDirection, TrackRuleKind } from "@prisma/client";
 import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ImageUpload } from "@/components/image-upload";
+import { TrackDiagram } from "@/components/track-diagram";
 import { formatLapTime } from "@/lib/lap-time";
 import { placeLabel } from "@/lib/regions";
+import {
+  formatBanking,
+  formatCoordinates,
+  formatTurns,
+  shapeLabel,
+  venueMapUrl,
+} from "@/lib/track-diagram";
+import {
+  groupRules,
+  isStale,
+  TRACK_RULE_DESCRIPTIONS,
+  TRACK_RULE_LABELS,
+  TRACK_RULE_ORDER,
+  verifiedLabel,
+} from "@/lib/track-rules";
 import {
   formatLength,
   TRACK_DIRECTION_LABELS,
@@ -49,9 +66,36 @@ export default function TrackPage({
           )}
         </div>
         <p className="text-sm text-brand-black/60">
-          {placeLabel(data) ?? "Location not given"}
+          {[data.addressLine, placeLabel(data), data.postalCode]
+            .filter(Boolean)
+            .join(", ") || "Location not given"}
           {data.pitBoxCount ? ` · ${data.pitBoxCount} pit boxes` : ""}
           {data.garageCount ? ` · ${data.garageCount} garages` : ""}
+        </p>
+        <p className="flex flex-wrap items-center gap-3 text-xs">
+          <a
+            href={venueMapUrl({ ...data, name: data.name })}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-brand-red hover:underline"
+          >
+            Open in maps ↗
+          </a>
+          {formatCoordinates(data) && (
+            <span className="tabular-nums text-brand-black/50">
+              {formatCoordinates(data)}
+            </span>
+          )}
+          {data.websiteUrl && (
+            <a
+              href={data.websiteUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-brand-red hover:underline"
+            >
+              Circuit website ↗
+            </a>
+          )}
         </p>
         {data.notes && <p className="max-w-3xl text-sm">{data.notes}</p>}
         {data.isReference ? (
@@ -104,23 +148,81 @@ export default function TrackPage({
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-xs text-brand-black/60">
-                  {[
-                    formatLength(layout.lengthMeters),
-                    TRACK_DIRECTION_LABELS[layout.direction],
-                    `${layout.turns.length} turn${layout.turns.length === 1 ? "" : "s"}`,
-                    layout.sectors.length > 0
-                      ? `${layout.sectors.length} sectors`
-                      : null,
-                    `${layout._count.events} event${layout._count.events === 1 ? "" : "s"}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
+                <div className="grid gap-4 sm:grid-cols-[minmax(0,200px)_1fr]">
+                  <div>
+                    <TrackDiagram layout={layout} />
+                    {!layout.diagramUrl && !layout.shape && (
+                      <p className="rounded-lg border border-dashed border-brand-black/20 p-4 text-center text-xs text-brand-black/50">
+                        No map yet.
+                        {canCurate
+                          ? " Add one below — a circuit diagram or an aerial."
+                          : " Sign in to add one."}
+                      </p>
+                    )}
+                  </div>
+
+                  <dl className="grid max-w-2xl grid-cols-2 gap-x-6 gap-y-3 self-start text-xs sm:grid-cols-3">
+                    <Spec label="Length" value={formatLength(layout.lengthMeters)} />
+                    <Spec
+                      label="Turns"
+                      value={formatTurns(layout.turnCount)}
+                    />
+                    <Spec
+                      label="Direction"
+                      value={TRACK_DIRECTION_LABELS[layout.direction]}
+                    />
+                    <Spec
+                      label="Banking"
+                      value={formatBanking(layout.bankingDegrees)}
+                    />
+                    <Spec
+                      label="Shape"
+                      value={layout.shape ? shapeLabel(layout.shape) : null}
+                    />
+                    <Spec
+                      label="Elevation"
+                      value={
+                        layout.elevationMeters
+                          ? `${layout.elevationMeters} m`
+                          : null
+                      }
+                    />
+                    <Spec
+                      label="Named corners"
+                      value={
+                        layout.turns.length > 0
+                          ? String(layout.turns.length)
+                          : null
+                      }
+                    />
+                    <Spec
+                      label="Sectors"
+                      value={
+                        layout.sectors.length > 0
+                          ? String(layout.sectors.length)
+                          : null
+                      }
+                    />
+                    <Spec
+                      label="Events"
+                      value={
+                        layout._count.events > 0
+                          ? String(layout._count.events)
+                          : null
+                      }
+                    />
+                  </dl>
+                </div>
 
                 {openLayout === layout.id && (
                   <div className="space-y-5 border-t border-brand-black/10 pt-4">
                     <LapRecords layoutId={layout.id} />
+                    {canCurate && (
+                      <LayoutDetailsForm
+                        layout={layout}
+                        onSaved={() => track.refetch()}
+                      />
+                    )}
                     {canCurate ? (
                       <TurnEditor
                         layoutId={layout.id}
@@ -137,6 +239,26 @@ export default function TrackPage({
           ))}
         </div>
       </section>
+
+      <TrackRules
+        trackId={data.id}
+        rules={data.rules}
+        canCurate={canCurate}
+        onChanged={() => track.refetch()}
+      />
+    </div>
+  );
+}
+
+/** One figure in a layout's spec grid. Renders nothing when unknown. */
+function Spec({ label, value }: { label: string; value: string | null }) {
+  if (!value) return null;
+  return (
+    <div>
+      <dt className="font-semibold uppercase tracking-wide text-brand-black/45">
+        {label}
+      </dt>
+      <dd className="tabular-nums text-brand-black/80">{value}</dd>
     </div>
   );
 }
@@ -492,5 +614,367 @@ function AddLayoutForm({ trackId }: { trackId: string }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * What the facility itself imposes, as opposed to what a series regulates.
+ *
+ * Deliberately its own section rather than a line in the notes: a sound limit
+ * or a Sunday curfew changes whether you load the trailer at all, and burying
+ * it in prose is how people find out at the gate. Sources and a last-checked
+ * date are shown because an uncited limit from an anonymous edit is not
+ * something anyone should plan a weekend around.
+ */
+function TrackRules({
+  trackId,
+  rules,
+  canCurate,
+  onChanged,
+}: {
+  trackId: string;
+  rules: {
+    id: string;
+    kind: TrackRuleKind;
+    title: string;
+    detail: string | null;
+    source: string | null;
+    sourceUrl: string | null;
+    verifiedOn: Date | string | null;
+  }[];
+  canCurate: boolean;
+  onChanged: () => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const verify = api.track.verifyRule.useMutation({ onSuccess: onChanged });
+  const remove = api.track.deleteRule.useMutation({ onSuccess: onChanged });
+  const groups = groupRules(rules);
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-xl font-semibold">Rules & ordinances</h2>
+          <p className="text-sm text-brand-black/60">
+            What this facility requires, on top of whatever your series
+            regulates.
+          </p>
+        </div>
+        {canCurate && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setAdding((open) => !open)}
+          >
+            {adding ? "Cancel" : "Add a rule"}
+          </Button>
+        )}
+      </div>
+
+      {adding && (
+        <RuleForm
+          trackId={trackId}
+          onSaved={() => {
+            setAdding(false);
+            onChanged();
+          }}
+        />
+      )}
+
+      {groups.length === 0 && !adding && (
+        <p className="rounded-lg border border-dashed border-brand-black/20 p-6 text-center text-sm text-brand-black/55">
+          Nothing recorded yet. If you run here, the sound limit and the running
+          hours are the two worth adding first — they are what turn people away
+          at the gate.
+        </p>
+      )}
+
+      {groups.map((group) => (
+        <div key={group.kind} className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-brand-black/50">
+            {TRACK_RULE_LABELS[group.kind]}
+          </h3>
+          {group.rules.map((rule) => (
+            <Card key={rule.id}>
+              <CardContent className="space-y-2 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <p className="font-medium">{rule.title}</p>
+                  {isStale(rule.verifiedOn) && (
+                    <Badge variant="outline">May be out of date</Badge>
+                  )}
+                </div>
+                {rule.detail && (
+                  <p className="text-sm leading-relaxed text-brand-black/75">
+                    {rule.detail}
+                  </p>
+                )}
+                <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-brand-black/50">
+                  {rule.source && <span>{rule.source}</span>}
+                  {rule.sourceUrl && (
+                    <a
+                      href={rule.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="text-brand-red hover:underline"
+                    >
+                      Source ↗
+                    </a>
+                  )}
+                  <span>{verifiedLabel(rule.verifiedOn)}</span>
+                  {canCurate && (
+                    <>
+                      <button
+                        type="button"
+                        className="hover:text-brand-black"
+                        onClick={() => verify.mutate({ ruleId: rule.id })}
+                      >
+                        Still current
+                      </button>
+                      <button
+                        type="button"
+                        className="hover:text-brand-red"
+                        onClick={() => remove.mutate({ ruleId: rule.id })}
+                      >
+                        Remove
+                      </button>
+                    </>
+                  )}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function RuleForm({
+  trackId,
+  onSaved,
+}: {
+  trackId: string;
+  onSaved: () => void;
+}) {
+  const [kind, setKind] = useState<TrackRuleKind>("SOUND");
+  const [title, setTitle] = useState("");
+  const [detail, setDetail] = useState("");
+  const [source, setSource] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const add = api.track.addRule.useMutation({ onSuccess: onSaved });
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-4">
+        <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
+          <label className="block text-sm font-medium">
+            Kind
+            <select
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+              value={kind}
+              onChange={(e) => setKind(e.target.value as TrackRuleKind)}
+            >
+              {TRACK_RULE_ORDER.map((value) => (
+                <option key={value} value={value}>
+                  {TRACK_RULE_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm font-medium">
+            The rule, in one line
+            <input
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="103 dBA at 50 ft"
+            />
+          </label>
+        </div>
+        <p className="text-xs text-brand-black/55">
+          {TRACK_RULE_DESCRIPTIONS[kind]}
+        </p>
+        <label className="block text-sm font-medium">
+          Detail
+          <textarea
+            rows={3}
+            className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+            value={detail}
+            onChange={(e) => setDetail(e.target.value)}
+            placeholder="What a competitor needs to know before they load the trailer."
+          />
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block text-sm font-medium">
+            Where this comes from
+            <input
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              placeholder="County use permit; circuit regulations"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Link (optional)
+            <input
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              placeholder="https://"
+            />
+          </label>
+        </div>
+        {add.error && (
+          <p className="text-sm text-brand-red">{add.error.message}</p>
+        )}
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={add.isPending || title.trim().length < 3}
+          onClick={() =>
+            add.mutate({
+              trackId,
+              kind,
+              title: title.trim(),
+              detail: detail.trim() || undefined,
+              source: source.trim() || undefined,
+              sourceUrl: sourceUrl.trim() || undefined,
+              // Somebody adding a rule has just looked it up. Recording that
+              // is what keeps the staleness warning meaningful later.
+              verifiedOn: new Date(),
+            })
+          }
+        >
+          {add.isPending ? "Saving…" : "Add rule"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Curator form for the figures and the map that describe a layout. */
+function LayoutDetailsForm({
+  layout,
+  onSaved,
+}: {
+  layout: {
+    id: string;
+    turnCount: number | null;
+    shape: LayoutShape | null;
+    bankingDegrees: number | null;
+    elevationMeters: number | null;
+    diagramUrl: string | null;
+    diagramCredit: string | null;
+  };
+  onSaved: () => void;
+}) {
+  const [turnCount, setTurnCount] = useState(layout.turnCount?.toString() ?? "");
+  const [shape, setShape] = useState<LayoutShape | "">(layout.shape ?? "");
+  const [banking, setBanking] = useState(
+    layout.bankingDegrees?.toString() ?? "",
+  );
+  const [elevation, setElevation] = useState(
+    layout.elevationMeters?.toString() ?? "",
+  );
+  const [credit, setCredit] = useState(layout.diagramCredit ?? "");
+  const save = api.track.updateLayout.useMutation({ onSuccess: onSaved });
+
+  const numberOrNull = (value: string) =>
+    value.trim() === "" ? null : Number(value);
+
+  return (
+    <div className="space-y-3 rounded-lg border border-brand-black/10 p-4">
+      <p className="text-sm font-medium">Layout details</p>
+      <div className="grid gap-3 sm:grid-cols-4">
+        <label className="block text-xs font-medium">
+          Turns
+          <input
+            type="number"
+            min={1}
+            className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+            value={turnCount}
+            onChange={(e) => setTurnCount(e.target.value)}
+          />
+        </label>
+        <label className="block text-xs font-medium">
+          Shape
+          <select
+            className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+            value={shape}
+            onChange={(e) => setShape(e.target.value as LayoutShape | "")}
+          >
+            <option value="">Not an oval</option>
+            {Object.values(LayoutShape).map((value) => (
+              <option key={value} value={value}>
+                {shapeLabel(value)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-xs font-medium">
+          Banking (°)
+          <input
+            type="number"
+            min={0}
+            max={60}
+            className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+            value={banking}
+            onChange={(e) => setBanking(e.target.value)}
+          />
+        </label>
+        <label className="block text-xs font-medium">
+          Elevation (m)
+          <input
+            type="number"
+            min={0}
+            className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+            value={elevation}
+            onChange={(e) => setElevation(e.target.value)}
+          />
+        </label>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-medium">Layout map</p>
+        <ImageUpload
+          purpose="diagram"
+          value={layout.diagramUrl}
+          onChange={(url) =>
+            save.mutate({ layoutId: layout.id, diagramUrl: url ?? null })
+          }
+          label="Upload a circuit diagram or an aerial"
+        />
+        <label className="block text-xs font-medium">
+          Credit
+          <input
+            className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm"
+            value={credit}
+            onChange={(e) => setCredit(e.target.value)}
+            placeholder="Whose map this is — someone else's diagram needs crediting"
+          />
+        </label>
+      </div>
+
+      {save.error && (
+        <p className="text-sm text-brand-red">{save.error.message}</p>
+      )}
+      <Button
+        size="sm"
+        variant="primary"
+        disabled={save.isPending}
+        onClick={() =>
+          save.mutate({
+            layoutId: layout.id,
+            turnCount: numberOrNull(turnCount),
+            shape: shape === "" ? null : shape,
+            bankingDegrees: numberOrNull(banking),
+            elevationMeters: numberOrNull(elevation),
+            diagramCredit: credit.trim() || null,
+          })
+        }
+      >
+        {save.isPending ? "Saving…" : "Save details"}
+      </Button>
+    </div>
   );
 }

@@ -169,3 +169,118 @@ describe("US reference tracks: layouts", () => {
     expect(withLength.length / US_REFERENCE_TRACKS.length).toBeGreaterThan(0.9);
   });
 });
+
+describe("US reference tracks: details", () => {
+  const layouts = US_REFERENCE_TRACKS.flatMap((track) =>
+    track.layouts.map((layout) => ({ track, layout })),
+  );
+
+  it("gives every oval layout a shape, so it gets a diagram", () => {
+    // Ovals are the one case where the outline follows from the figures, so
+    // an oval with no shape is a card with a blank where a picture should be.
+    const missing = layouts.filter(
+      ({ track, layout }) =>
+        track.kind === TrackKind.OVAL &&
+        !layout.shape &&
+        !/road|roval|grand prix|sports car/i.test(layout.name),
+    );
+    expect(missing.map((m) => `${m.track.name} — ${m.layout.name}`)).toEqual([]);
+  });
+
+  it("never shapes a road course", () => {
+    // Drawing a plausible outline under a real circuit's name would be
+    // inventing a map. Road layouts get an uploaded one or nothing.
+    const shaped = layouts.filter(
+      ({ track, layout }) => track.kind === TrackKind.CIRCUIT && layout.shape,
+    );
+    expect(shaped.map((s) => s.track.name)).toEqual([]);
+  });
+
+  it("keeps turn counts plausible", () => {
+    for (const { track, layout } of layouts) {
+      if (layout.turnCount === undefined) continue;
+      const label = `${track.name} — ${layout.name}`;
+      expect(layout.turnCount, label).toBeGreaterThanOrEqual(3);
+      expect(layout.turnCount, label).toBeLessThanOrEqual(30);
+      if (track.kind === TrackKind.OVAL && layout.shape) {
+        // An oval has three or four corners. Anything else is a road course
+        // that has been mislabelled as an oval.
+        expect(layout.turnCount, label).toBeLessThanOrEqual(4);
+      }
+    }
+  });
+
+  it("keeps banking plausible", () => {
+    // Talladega's 33 degrees is the steepest in the directory; 60 is past
+    // anything ever built for cars.
+    for (const { track, layout } of layouts) {
+      if (layout.bankingDegrees === undefined) continue;
+      const label = `${track.name} — ${layout.name}`;
+      expect(layout.bankingDegrees, label).toBeGreaterThanOrEqual(0);
+      expect(layout.bankingDegrees, label).toBeLessThanOrEqual(40);
+    }
+  });
+
+  it("only records a coordinate as a complete, in-range pair", () => {
+    for (const track of US_REFERENCE_TRACKS) {
+      const hasLat = track.latitude !== undefined;
+      const hasLng = track.longitude !== undefined;
+      expect(hasLat, track.name).toBe(hasLng);
+      if (!hasLat) continue;
+      // The lower 48, generously bounded. A pin outside it is a typo, and a
+      // wrong pin sends a transporter to the wrong state.
+      expect(track.latitude!, track.name).toBeGreaterThan(24);
+      expect(track.latitude!, track.name).toBeLessThan(50);
+      expect(track.longitude!, track.name).toBeGreaterThan(-125);
+      expect(track.longitude!, track.name).toBeLessThan(-66);
+    }
+  });
+});
+
+describe("US reference tracks: rules", () => {
+  const rules = US_REFERENCE_TRACKS.flatMap((track) =>
+    (track.rules ?? []).map((rule) => ({ track, rule })),
+  );
+
+  it("cites a source for every rule it asserts", () => {
+    // A sound limit from an anonymous edit is worth nothing to somebody
+    // deciding whether to fit a quieter exhaust. Seeded rules must be
+    // traceable or they should not be seeded.
+    const uncited = rules.filter(({ rule }) => !rule.source?.trim());
+    expect(uncited.map((u) => `${u.track.name}: ${u.rule.title}`)).toEqual([]);
+  });
+
+  it("records when each rule was checked", () => {
+    for (const { track, rule } of rules) {
+      expect(rule.verifiedOn, `${track.name}: ${rule.title}`).toMatch(
+        /^\d{4}-\d{2}-\d{2}$/,
+      );
+      expect(
+        Number.isNaN(new Date(rule.verifiedOn!).getTime()),
+        rule.title,
+      ).toBe(false);
+    }
+  });
+
+  it("has no two rules with the same title on one track", () => {
+    // Title is the seed's match key, so a duplicate would make the loader
+    // re-add one of them on every deploy.
+    for (const track of US_REFERENCE_TRACKS) {
+      const titles = (track.rules ?? []).map((rule) => rule.title);
+      expect(new Set(titles).size, track.name).toBe(titles.length);
+    }
+  });
+
+  it("covers the venues whose rules most often catch people out", () => {
+    // Regression guard on the three sets that were actually researched. If
+    // somebody strips them out, that should be a deliberate act.
+    const withRules = new Set(
+      US_REFERENCE_TRACKS.filter((track) => track.rules?.length).map(
+        (track) => track.name,
+      ),
+    );
+    expect(withRules.has("Lime Rock Park")).toBe(true);
+    expect(withRules.has("WeatherTech Raceway Laguna Seca")).toBe(true);
+    expect(withRules.has("Sonoma Raceway")).toBe(true);
+  });
+});

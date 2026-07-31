@@ -16,6 +16,7 @@ export type UploadPurpose =
   | "avatar"
   | "logo"
   | "banner"
+  | "diagram"
   | "media"
   | "document";
 
@@ -57,6 +58,15 @@ export const UPLOAD_RULES: Record<UploadPurpose, PurposeRules> = {
     // display sharp without shipping a 12-megapixel phone photo.
     maxBytes: 15 * 1024 * 1024,
     maxEdge: 2560,
+    accept: IMAGE_TYPES,
+  },
+  diagram: {
+    label: "Track map",
+    // A circuit diagram is read for detail — corner numbers, pit entry, an
+    // access road — so it keeps more resolution than a logo and less than a
+    // banner, which is decoration and can afford to be huge.
+    maxBytes: 10 * 1024 * 1024,
+    maxEdge: 2048,
     accept: IMAGE_TYPES,
   },
   media: {

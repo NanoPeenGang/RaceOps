@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, PageHeader, Section } from "@/components/ui/page";
 import { TRACK_KIND_LABELS, formatLength } from "@/lib/tracks";
+import { TrackDiagram } from "@/components/track-diagram";
+import { formatTurns } from "@/lib/track-diagram";
 import { REGION_LABELS, countryLabel, placeLabel } from "@/lib/regions";
 
 /**
@@ -202,7 +204,16 @@ export default function TracksPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-2">
+                <CardContent className="flex gap-3">
+                  {primary && (primary.shape || primary.diagramUrl) && (
+                    <div className="w-20 shrink-0">
+                      <TrackDiagram
+                        layout={{ ...primary, name: primary.name }}
+                        className="[&_figcaption]:hidden"
+                      />
+                    </div>
+                  )}
+                  <div className="min-w-0 space-y-2">
                   <p className="text-xs text-brand-black/60">
                     {placeLabel(track) ?? "Location not given"}
                     {track.licenceGrade ? ` · ${track.licenceGrade}` : ""}
@@ -216,11 +227,18 @@ export default function TracksPage() {
                           .join(", ")}`
                       : ""}
                   </p>
-                  {primary?.lengthMeters && (
+                  {primary && (
                     <p className="text-xs tabular-nums text-brand-black/60">
-                      {formatLength(primary.lengthMeters)} · {primary.name}
+                      {[
+                        formatLength(primary.lengthMeters),
+                        formatTurns(primary.turnCount),
+                        primary.name,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </p>
                   )}
+                  </div>
                 </CardContent>
               </Card>
             );

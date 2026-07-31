@@ -27,6 +27,7 @@ const PURPOSES = [
   "avatar",
   "logo",
   "banner",
+  "diagram",
   "media",
   "document",
 ] as const satisfies readonly UploadPurpose[];

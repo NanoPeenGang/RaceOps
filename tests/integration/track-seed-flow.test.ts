@@ -1,6 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PrismaClient, TrackKind, TrackDirection } from "@prisma/client";
+import {
+  LayoutShape,
+  PrismaClient,
+  TrackDirection,
+  TrackKind,
+  TrackRuleKind,
+} from "@prisma/client";
 import { createCaller } from "@/server/trpc/root";
+import { layoutDiagram, venueMapUrl } from "@/lib/track-diagram";
+import { isStale } from "@/lib/track-rules";
 import {
   referenceSlug,
   seedReferenceTracks,
@@ -82,7 +90,6 @@ describe.skipIf(!ENABLED)("reference track seeding (integration)", () => {
     if (!ENABLED) return;
     await db.track.deleteMany({ where: { region: "ZZ" } });
     await db.user.deleteMany({ where: { id: driver.user.id } });
-    await db.$disconnect();
   });
 
   it("creates the tracks it does not find, as reference tracks with no owner", async () => {
@@ -220,4 +227,209 @@ describe.skipIf(!ENABLED)("reference track seeding (integration)", () => {
       driver.caller.track.delete({ trackId: track.id }),
     ).rejects.toThrow(/reference track/i);
   });
+});
+
+describe.skipIf(!ENABLED)("track details and facility rules (integration)", () => {
+  const run = Date.now();
+  const fixture: SeedTrack[] = [
+    {
+      name: `Detail Circuit ${run}`,
+      kind: TrackKind.CIRCUIT,
+      city: "Lakeville",
+      state: "ZY",
+      layouts: [
+        { name: "Full Course", lengthMeters: 2462, turnCount: 7, isPrimary: true },
+      ],
+      rules: [
+        {
+          kind: TrackRuleKind.CURFEW,
+          title: `No racing on Sundays ${run}`,
+          detail: "A court injunction dating from 1959.",
+          source: "Town ordinance",
+          verifiedOn: "2026-07-01",
+        },
+      ],
+    },
+    {
+      name: `Detail Oval ${run}`,
+      kind: TrackKind.OVAL,
+      city: "Lincoln",
+      state: "ZY",
+      layouts: [
+        {
+          name: "Superspeedway",
+          lengthMeters: 4281,
+          direction: TrackDirection.ANTICLOCKWISE,
+          turnCount: 4,
+          shape: LayoutShape.TRI_OVAL,
+          bankingDegrees: 33,
+          isPrimary: true,
+        },
+      ],
+    },
+  ];
+  const slugs = fixture.map(referenceSlug);
+  let driver: Awaited<ReturnType<typeof makeUser>>;
+
+  beforeAll(async () => {
+    driver = await makeUser(`detailuser_${run}`);
+    await seedReferenceTracks(db, fixture);
+  });
+
+  afterAll(async () => {
+    if (!ENABLED) return;
+    await db.track.deleteMany({ where: { region: "ZY" } });
+    await db.user.deleteMany({ where: { id: driver.user.id } });
+  });
+
+  it("stores the figures a schematic is drawn from", async () => {
+    const layout = await db.trackLayout.findFirstOrThrow({
+      where: { track: { slug: slugs[1] } },
+    });
+    expect(layout.turnCount).toBe(4);
+    expect(layout.shape).toBe(LayoutShape.TRI_OVAL);
+    expect(layout.bankingDegrees).toBe(33);
+    // A drawable layout is exactly one the diagram function accepts.
+    expect(layoutDiagram(layout)).not.toBeNull();
+  });
+
+  it("leaves a road course undrawable rather than inventing an outline", async () => {
+    const layout = await db.trackLayout.findFirstOrThrow({
+      where: { track: { slug: slugs[0] } },
+    });
+    expect(layout.shape).toBeNull();
+    expect(layoutDiagram(layout)).toBeNull();
+  });
+
+  it("seeds a sourced rule and serves it on the track page", async () => {
+    const track = await driver.caller.track.bySlug({ slug: slugs[0] });
+    expect(track.rules).toHaveLength(1);
+    expect(track.rules[0].kind).toBe(TrackRuleKind.CURFEW);
+    expect(track.rules[0].source).toBe("Town ordinance");
+    expect(track.rules[0].verifiedOn).toBeInstanceOf(Date);
+  });
+
+  it("adds no rule twice, however often the seed runs", async () => {
+    const summary = await seedReferenceTracks(db, fixture);
+    expect(summary.rulesCreated).toBe(0);
+    expect(
+      await db.trackRule.count({ where: { track: { slug: slugs[0] } } }),
+    ).toBe(1);
+  });
+
+  it("leaves an edited rule alone on the next deploy", async () => {
+    // Same contract as the rest of the seed: a club that corrected the dB
+    // figure from experience must not have it reverted by a redeploy.
+    const track = await driver.caller.track.bySlug({ slug: slugs[0] });
+    await driver.caller.track.updateRule({
+      ruleId: track.rules[0].id,
+      detail: "Corrected by the club that runs here.",
+    });
+
+    await seedReferenceTracks(db, fixture);
+
+    const after = await driver.caller.track.bySlug({ slug: slugs[0] });
+    expect(after.rules).toHaveLength(1);
+    expect(after.rules[0].detail).toBe("Corrected by the club that runs here.");
+  });
+
+  it("lets a curator add, verify and remove a rule", async () => {
+    const track = await driver.caller.track.bySlug({ slug: slugs[1] });
+    const added = await driver.caller.track.addRule({
+      trackId: track.id,
+      kind: TrackRuleKind.SOUND,
+      title: "No sound limit",
+      source: "Circuit regulations",
+    });
+    expect(added.verifiedOn).toBeNull();
+
+    const verified = await driver.caller.track.verifyRule({ ruleId: added.id });
+    expect(verified.verifiedOn).toBeInstanceOf(Date);
+    expect(isStale(verified.verifiedOn)).toBe(false);
+
+    await driver.caller.track.deleteRule({ ruleId: added.id });
+    expect(
+      await db.trackRule.count({ where: { track: { slug: slugs[1] } } }),
+    ).toBe(0);
+  });
+
+  it("audits a rule change on a reference track", async () => {
+    // Open editing is only defensible with a trail — the same rule that
+    // applies to correcting the track itself.
+    const track = await driver.caller.track.bySlug({ slug: slugs[0] });
+    await driver.caller.track.updateRule({
+      ruleId: track.rules[0].id,
+      source: "Town ordinance, re-checked",
+    });
+    const entries = await db.auditEvent.count({
+      where: { entityType: "TrackRule", actorId: driver.user.id },
+    });
+    expect(entries).toBeGreaterThan(0);
+  });
+
+  it("fills a field added after the database was seeded", async () => {
+    /*
+     * The failure this guards against is silent and total: a deployment
+     * seeded before turn counts existed would otherwise keep a column of
+     * nulls forever, because the rows already existed and an insert-only
+     * seed never touches them. The directory would only ever be complete on
+     * a database nobody has.
+     */
+    const layout = await db.trackLayout.findFirstOrThrow({
+      where: { track: { slug: slugs[1] } },
+    });
+    await db.trackLayout.update({
+      where: { id: layout.id },
+      data: { turnCount: null, shape: null, bankingDegrees: null },
+    });
+
+    await seedReferenceTracks(db, fixture);
+
+    const after = await db.trackLayout.findUniqueOrThrow({
+      where: { id: layout.id },
+    });
+    expect(after.turnCount).toBe(4);
+    expect(after.shape).toBe(LayoutShape.TRI_OVAL);
+    expect(after.bankingDegrees).toBe(33);
+  });
+
+  it("still refuses to overwrite a field that holds an answer", async () => {
+    // Filling a null takes nothing from anyone. Replacing a value somebody
+    // set is the line this script does not cross, on any field.
+    const layout = await db.trackLayout.findFirstOrThrow({
+      where: { track: { slug: slugs[1] } },
+    });
+    await db.trackLayout.update({
+      where: { id: layout.id },
+      data: { turnCount: 99, bankingDegrees: 1 },
+    });
+
+    await seedReferenceTracks(db, fixture);
+
+    const after = await db.trackLayout.findUniqueOrThrow({
+      where: { id: layout.id },
+    });
+    expect(after.turnCount).toBe(99);
+    expect(after.bankingDegrees).toBe(1);
+  });
+
+  it("keeps coordinates and address round-tripping through the router", async () => {
+    const track = await driver.caller.track.bySlug({ slug: slugs[1] });
+    await driver.caller.track.update({
+      trackId: track.id,
+      addressLine: "3366 Speedway Blvd",
+      postalCode: "35160",
+      latitude: 33.5687,
+      longitude: -86.0661,
+    });
+    const after = await driver.caller.track.bySlug({ slug: slugs[1] });
+    expect(after.addressLine).toBe("3366 Speedway Blvd");
+    expect(after.latitude).toBeCloseTo(33.5687, 4);
+    // The map link prefers a real pin over a name search once it has one.
+    expect(venueMapUrl({ ...after, name: after.name })).toContain("33.5687");
+  });
+});
+
+afterAll(async () => {
+  if (ENABLED) await db.$disconnect();
 });
