@@ -14,6 +14,7 @@ import { SchedulePanel } from "./schedule-panel";
 import { ResultsPanel } from "./results-panel";
 import { SponsorsPanel } from "./sponsors-panel";
 import { GaragePanel } from "./garage-panel";
+import { BrandingEditor } from "@/components/branding-editor";
 
 /**
  * Team console — one page to run a race team: who is on the books, what races
@@ -84,6 +85,10 @@ export default function TeamManagePage({
       </header>
 
       {isTeamManager(data.myRole) && <TeamSettings team={data} onSaved={refresh} />}
+
+      {isTeamManager(data.myRole) && (
+        <BrandingEditor scope={{ teamId: data.id }} name={data.name} />
+      )}
 
       <RosterPanel team={data} onChanged={refresh} />
       <GaragePanel team={data} />

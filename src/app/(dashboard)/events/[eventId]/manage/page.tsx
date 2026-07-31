@@ -34,6 +34,7 @@ import { AnnouncementsPanel } from "@/components/announcements-panel";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { DangerZone } from "@/components/danger-zone";
 import { VenuePanel } from "@/components/venue-panel";
+import { BrandingEditor } from "@/components/branding-editor";
 import { useRouter } from "next/navigation";
 
 export default function ManageEventPage({
@@ -150,6 +151,13 @@ export default function ManageEventPage({
         </Link>
       </div>
 
+      {canDelete && (
+        <BrandingEditor
+          scope={{ eventId }}
+          name={data.name}
+          description="Anything left blank is inherited from the series. Most rounds need nothing here."
+        />
+      )}
       <VenuePanel eventId={eventId} />
       <SchedulePanel eventId={eventId} />
       <TimingConsole eventId={eventId} />

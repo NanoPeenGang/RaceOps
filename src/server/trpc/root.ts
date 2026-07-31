@@ -28,6 +28,7 @@ import { logRouter } from "@/server/trpc/routers/log";
 import { waiverRouter } from "@/server/trpc/routers/waiver";
 import { organizationRouter } from "@/server/trpc/routers/organization";
 import { uploadRouter } from "@/server/trpc/routers/upload";
+import { brandingRouter } from "@/server/trpc/routers/branding";
 
 export const appRouter = createTRPCRouter({
   user: userRouter,
@@ -59,6 +60,7 @@ export const appRouter = createTRPCRouter({
   waiver: waiverRouter,
   organization: organizationRouter,
   upload: uploadRouter,
+  branding: brandingRouter,
 });
 
 export type AppRouter = typeof appRouter;

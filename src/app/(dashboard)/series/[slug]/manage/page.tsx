@@ -14,6 +14,7 @@ import { AnnouncementsPanel } from "@/components/announcements-panel";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { MediaPanel } from "@/components/media-panel";
 import { DangerZone } from "@/components/danger-zone";
+import { BrandingEditor } from "@/components/branding-editor";
 import { useRouter } from "next/navigation";
 
 export default function SeriesDashboardPage({
@@ -223,6 +224,10 @@ export default function SeriesDashboardPage({
         canManage={canPublish}
         allowOrganizerOnly={canPublish}
       />
+
+      {isOwner && (
+        <BrandingEditor scope={{ seriesId: data.id }} name={data.name} />
+      )}
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Organizers</h2>
