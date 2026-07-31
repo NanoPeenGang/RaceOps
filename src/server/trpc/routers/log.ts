@@ -63,7 +63,7 @@ export const logRouter = createTRPCRouter({
         localUser && event.seriesId
           ? await getSeriesRole(ctx.db, event.seriesId, localUser.id)
           : null;
-      const isOfficial = Boolean(role && SERIES_EVENT_ROLES.includes(role));
+      const isOfficial = Boolean(role && SERIES_EVENT_ROLES.roles.includes(role));
 
       const entries = await ctx.db.officialLogEntry.findMany({
         where: {

@@ -118,45 +118,47 @@ model User {
   applications           Application[]
   sponsorshipProfile     SponsorshipProfile?
   raceReports            RaceReport[]
-  endorsementsGiven      Endorsement[]        @relation("EndorsementFrom")
-  endorsementsReceived   Endorsement[]        @relation("EndorsementTo")
-  opportunitiesPosted    Opportunity[]        @relation("OpportunityPostedByUser")
+  endorsementsGiven      Endorsement[]            @relation("EndorsementFrom")
+  endorsementsReceived   Endorsement[]            @relation("EndorsementTo")
+  opportunitiesPosted    Opportunity[]            @relation("OpportunityPostedByUser")
   raceEntries            RaceEntry[]
   media                  Media[]
   subscriptions          Subscription[]
   notifications          Notification[]
   seriesMemberships      SeriesMembership[]
-  registrationsEntered   EventRegistration[]  @relation("RegistrationEntrant")
-  registrationsSubmitted EventRegistration[]  @relation("RegistrationSubmitter")
+  registrationsEntered   EventRegistration[]      @relation("RegistrationEntrant")
+  registrationsSubmitted EventRegistration[]      @relation("RegistrationSubmitter")
   volunteerSignups       VolunteerSignup[]
   strategyPlans          StrategyPlan[]
-  penaltiesIssued        Penalty[]            @relation("PenaltyIssuer")
-  appealsFiled           PenaltyAppeal[]      @relation("AppealFiler")
-  appealsDecided         PenaltyAppeal[]      @relation("AppealDecider")
+  penaltiesIssued        Penalty[]                @relation("PenaltyIssuer")
+  appealsFiled           PenaltyAppeal[]          @relation("AppealFiler")
+  appealsDecided         PenaltyAppeal[]          @relation("AppealDecider")
   documentsUploaded      RaceDocument[]
   announcements          Announcement[]
   chatMessages           ChatMessage[]
   lineupEntries          RegistrationDriver[]
-  waiversReceived        RequirementWaiver[]  @relation("WaiverSubject")
-  waiversDecided         RequirementWaiver[]  @relation("WaiverDecider")
+  waiversReceived        RequirementWaiver[]      @relation("WaiverSubject")
+  waiversDecided         RequirementWaiver[]      @relation("WaiverDecider")
   inspectionsPerformed   Inspection[]
-  incidentsReported      Incident[]           @relation("IncidentReportedBy")
-  incidentsDecided       Incident[]           @relation("IncidentDecidedBy")
+  incidentsReported      Incident[]               @relation("IncidentReportedBy")
+  incidentsDecided       Incident[]               @relation("IncidentDecidedBy")
   incidentResponses      IncidentResponse[]
-  sponsorshipsOffered    Sponsorship[]        @relation("SponsorshipSponsor")
-  sponsorshipsCreated    Sponsorship[]        @relation("SponsorshipCreator")
-  tracksCreated          Track[]              @relation("TrackCreator")
-  conditionsRecorded     SessionCondition[]   @relation("ConditionRecorder")
-  carsOwned              Car[]                @relation("CarOwner")
-  carsCreated            Car[]                @relation("CarCreator")
-  transpondersOwned      Transponder[]        @relation("TransponderOwner")
-  tireSetsAllocated      TireSet[]            @relation("TireAllocator")
-  paddockAssignments     PaddockAllocation[]  @relation("PaddockAssigner")
-  credentialsHeld        Credential[]         @relation("CredentialHolder")
-  logEntries             OfficialLogEntry[]   @relation("LogOfficial")
-  auditEvents            AuditEvent[]         @relation("AuditActor")
-  waiversAuthored        Waiver[]             @relation("WaiverAuthor")
-  waiverSignatures       WaiverSignature[]    @relation("WaiverSigner")
+  sponsorshipsOffered    Sponsorship[]            @relation("SponsorshipSponsor")
+  sponsorshipsCreated    Sponsorship[]            @relation("SponsorshipCreator")
+  tracksCreated          Track[]                  @relation("TrackCreator")
+  conditionsRecorded     SessionCondition[]       @relation("ConditionRecorder")
+  carsOwned              Car[]                    @relation("CarOwner")
+  carsCreated            Car[]                    @relation("CarCreator")
+  transpondersOwned      Transponder[]            @relation("TransponderOwner")
+  tireSetsAllocated      TireSet[]                @relation("TireAllocator")
+  orgMemberships         OrganizationMembership[]
+  staffAssignments       StaffAssignment[]
+  paddockAssignments     PaddockAllocation[]      @relation("PaddockAssigner")
+  credentialsHeld        Credential[]             @relation("CredentialHolder")
+  logEntries             OfficialLogEntry[]       @relation("LogOfficial")
+  auditEvents            AuditEvent[]             @relation("AuditActor")
+  waiversAuthored        Waiver[]                 @relation("WaiverAuthor")
+  waiverSignatures       WaiverSignature[]        @relation("WaiverSigner")
 
   @@index([verificationStatus])
 }
@@ -281,15 +283,18 @@ model Team {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  roster        TeamMembership[]
-  opportunities Opportunity[]       @relation("OpportunityPostedByTeam")
-  registrations EventRegistration[]
-  strategyPlans StrategyPlan[]
-  media         Media[]
-  sponsorships  Sponsorship[]
-  chatMessages  ChatMessage[]
-  cars          Car[]
-  transponders  Transponder[]
+  roster         TeamMembership[]
+  opportunities  Opportunity[]       @relation("OpportunityPostedByTeam")
+  registrations  EventRegistration[]
+  strategyPlans  StrategyPlan[]
+  media          Media[]
+  sponsorships   Sponsorship[]
+  chatMessages   ChatMessage[]
+  cars           Car[]
+  transponders   Transponder[]
+  organizationId String?
+  organization   Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  branding       Branding?
 }
 
 enum SponsorshipStatus {
@@ -539,6 +544,11 @@ model Series {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
+  organizationId      String?
+  organization        Organization?        @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  branding            Branding?
+  staffRoles          StaffRole[]
+  staffAssignments    StaffAssignment[]
   organizers          SeriesMembership[]
   events              RaceEvent[]
   media               Media[]
@@ -664,27 +674,29 @@ model RaceEvent {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  series          Series?             @relation(fields: [seriesId], references: [id], onDelete: SetNull)
-  trackLayout     TrackLayout?        @relation(fields: [trackLayoutId], references: [id], onDelete: SetNull)
-  participants    RaceEntry[]
-  strategyPlans   StrategyPlan[]
-  registrations   EventRegistration[]
-  volunteerShifts VolunteerShift[]
-  results         EventResult[]
-  penalties       Penalty[]
-  media           Media[]
-  sessions        EventSession[]
-  documents       RaceDocument[]
-  announcements   Announcement[]
-  chatMessages    ChatMessage[]
-  raceReports     RaceReport[]
-  incidents       Incident[]
-  tireSets        TireSet[]
-  paddock         PaddockAllocation[]
-  credentialTypes CredentialType[]
-  credentials     Credential[]
-  officialLog     OfficialLogEntry[]
-  waivers         Waiver[]
+  series           Series?             @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  trackLayout      TrackLayout?        @relation(fields: [trackLayoutId], references: [id], onDelete: SetNull)
+  participants     RaceEntry[]
+  strategyPlans    StrategyPlan[]
+  registrations    EventRegistration[]
+  volunteerShifts  VolunteerShift[]
+  results          EventResult[]
+  penalties        Penalty[]
+  media            Media[]
+  sessions         EventSession[]
+  documents        RaceDocument[]
+  announcements    Announcement[]
+  chatMessages     ChatMessage[]
+  raceReports      RaceReport[]
+  incidents        Incident[]
+  tireSets         TireSet[]
+  paddock          PaddockAllocation[]
+  credentialTypes  CredentialType[]
+  credentials      Credential[]
+  officialLog      OfficialLogEntry[]
+  waivers          Waiver[]
+  branding         Branding?
+  staffAssignments StaffAssignment[]
 
   @@index([seriesLabel, date])
   @@index([seriesId, date])
@@ -2234,4 +2246,196 @@ model WaiverSignature {
   @@index([waiverId, signedAt])
   @@index([signerUserId])
   @@index([registrationId])
+}
+
+// ---------------------------------------------------------------------------
+// Organizations, permissions & staff roles
+// ---------------------------------------------------------------------------
+
+/**
+ * A granular capability.
+ * Built-in `SeriesRole`s are bundles of these, and a custom staff role is a
+ * bundle an organization writes itself — which is the whole point: a club that
+ * has a "Chief Scrutineer" and a "Media Officer" should be able to say so,
+ * rather than picking the closest of five fixed roles.
+ * Permissions are checked individually at each call site, never derived from
+ * "this role can do everything an admin can". Deriving them that way is how a
+ * narrow custom role quietly gains admin powers.
+ */
+enum Permission {
+  /// Organization settings, branding, and deleting the organization.
+  ORG_MANAGE
+  /// Invite staff, create roles, assign them.
+  ORG_STAFF_MANAGE
+  /// Series settings, classes, championship rules, branding.
+  SERIES_MANAGE
+  /// Create and publish events, run the schedule, decide entries.
+  EVENT_MANAGE
+  /// Issue penalties and work the stewards' queue.
+  PENALTY_ISSUE
+  /// Rule on appeals. Deliberately separate from issuing.
+  APPEAL_DECIDE
+  /// Manage volunteer shifts and signups.
+  VOLUNTEER_MANAGE
+  /// Read the audit trail of everyone's changes.
+  AUDIT_READ
+}
+
+/**
+ * An organization: the club, promoter or company behind a series or a team.
+ * Optional throughout. A one-person league does not need one and never has to
+ * create one — series and teams work standalone exactly as before. An
+ * organization is what you reach for when several people share the work, or
+ * when one body runs several series and wants one staff list and one look.
+ */
+model Organization {
+  id           String  @id @default(cuid())
+  name         String  @unique
+  slug         String  @unique
+  description  String? @db.Text
+  websiteUrl   String?
+  contactEmail String?
+  location     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members    OrganizationMembership[]
+  staffRoles StaffRole[]
+  series     Series[]
+  teams      Team[]
+  branding   Branding?
+}
+
+/**
+ * Built-in organization roles.
+ * Kept tiny on purpose: everything finer-grained is a custom `StaffRole`.
+ * OWNER exists so an organization can never be left with nobody who can
+ * administer it.
+ */
+enum OrgRole {
+  OWNER
+  ADMIN
+  /// Belongs to the organization but holds only what custom roles grant.
+  STAFF
+}
+
+model OrganizationMembership {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrgRole  @default(STAFF)
+  /// What this person does, printed on the staff list: "Clerk of the Course".
+  title          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignments  StaffAssignment[]
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+/**
+ * A named bundle of permissions an organization or series defines itself.
+ * "Chief Scrutineer", "Assistant Clerk", "Media Officer" — the roles clubs
+ * actually have, rather than the five the platform guessed at. A role belongs
+ * to an organization or to a single series; the series case matters because a
+ * one-off championship should not have to create an organization first.
+ */
+model StaffRole {
+  id             String       @id @default(cuid())
+  organizationId String?
+  seriesId       String?
+  name           String
+  description    String?
+  permissions    Permission[]
+  /// Chip colour on the staff list, so a roster is scannable.
+  color          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization?     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  series       Series?           @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  assignments  StaffAssignment[]
+
+  @@index([organizationId])
+  @@index([seriesId])
+}
+
+/**
+ * One person holding one custom role.
+ * Scoped so a role granted at organization level applies across every series
+ * it owns, while a role granted for one series stops there. A scrutineer hired
+ * for a single round should not inherit the run of the championship.
+ */
+model StaffAssignment {
+  id           String  @id @default(cuid())
+  staffRoleId  String
+  userId       String
+  /// Set when the assignment came through an organization membership.
+  membershipId String?
+  /// Narrows an organization-level role to one series.
+  seriesId     String?
+  /// Narrows it further to a single event — a hired-in official for one round.
+  eventId      String?
+  notes        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staffRole  StaffRole               @relation(fields: [staffRoleId], references: [id], onDelete: Cascade)
+  user       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membership OrganizationMembership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
+  series     Series?                 @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  event      RaceEvent?              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([staffRoleId, userId, seriesId, eventId])
+  @@index([userId])
+  @@index([seriesId])
+  @@index([eventId])
+}
+
+// ---------------------------------------------------------------------------
+// Branding
+// ---------------------------------------------------------------------------
+
+/**
+ * Look and feel for a public page.
+ * One embeddable shape rather than a column per model, because the same four
+ * things are wanted in four places and the resolution rules — event inherits
+ * from series, series from organization, organization from RaceOps — only make
+ * sense if they are all the same shape.
+ * Colours are stored as authored and never trusted for contrast: a series that
+ * picks pale yellow gets a readable foreground computed for it rather than
+ * white-on-yellow. See `src/lib/branding.ts`.
+ */
+model Branding {
+  id String @id @default(cuid())
+
+  /// Exactly one owner; a CHECK enforces it.
+  organizationId String? @unique
+  seriesId       String? @unique
+  eventId        String? @unique
+  teamId         String? @unique
+
+  /// Square-ish mark for cards, headers and the entry list.
+  logoUrl      String?
+  /// Wide image across the top of the landing page.
+  bannerUrl    String?
+  /// Authored hex, e.g. "#D91E1E". Foreground is derived, never stored.
+  primaryColor String?
+  accentColor  String?
+  /// A short line under the name on the landing page.
+  tagline      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  series       Series?       @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  event        RaceEvent?    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team         Team?         @relation(fields: [teamId], references: [id], onDelete: Cascade)
 }

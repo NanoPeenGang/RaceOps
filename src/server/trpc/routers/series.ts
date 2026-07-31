@@ -18,6 +18,7 @@ import {
 import { slugify } from "@/lib/slug";
 import {
   assertEventOrganizer,
+  assertSeriesOwner,
   assertSeriesRole,
   getSeriesRole,
   SERIES_ADMIN_ROLES,
@@ -466,9 +467,7 @@ export const seriesRouter = createTRPCRouter({
   deletionImpact: protectedProcedure
     .input(z.object({ seriesId: z.string().cuid() }))
     .query(async ({ ctx, input }) => {
-      await assertSeriesRole(ctx.db, input.seriesId, ctx.user.id, [
-        SeriesRole.OWNER,
-      ]);
+      await assertSeriesOwner(ctx.db, input.seriesId, ctx.user.id);
       const series = await ctx.db.series.findUnique({
         where: { id: input.seriesId },
         select: { name: true },
@@ -529,9 +528,7 @@ export const seriesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await assertSeriesRole(ctx.db, input.seriesId, ctx.user.id, [
-        SeriesRole.OWNER,
-      ]);
+      await assertSeriesOwner(ctx.db, input.seriesId, ctx.user.id);
       const series = await ctx.db.series.findUnique({
         where: { id: input.seriesId },
         include: { organizers: { select: { userId: true } } },
@@ -600,9 +597,7 @@ export const seriesRouter = createTRPCRouter({
       );
       // Only an OWNER may mint another OWNER.
       if (input.role === SeriesRole.OWNER) {
-        await assertSeriesRole(ctx.db, input.seriesId, ctx.user.id, [
-          SeriesRole.OWNER,
-        ]);
+        await assertSeriesOwner(ctx.db, input.seriesId, ctx.user.id);
       }
       return ctx.db.seriesMembership.upsert({
         where: {

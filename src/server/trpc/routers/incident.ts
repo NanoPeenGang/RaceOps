@@ -130,7 +130,7 @@ export const incidentRouter = createTRPCRouter({
         localUser && event.seriesId
           ? await getSeriesRole(ctx.db, event.seriesId, localUser.id)
           : null;
-      const isOfficial = Boolean(role && SERIES_PENALTY_ROLES.includes(role));
+      const isOfficial = Boolean(role && SERIES_PENALTY_ROLES.roles.includes(role));
 
       const rows = await ctx.db.incident.findMany({
         where: {
@@ -188,7 +188,7 @@ export const incidentRouter = createTRPCRouter({
         localUser && incident.event.seriesId
           ? await getSeriesRole(ctx.db, incident.event.seriesId, localUser.id)
           : null;
-      const isOfficial = Boolean(role && SERIES_PENALTY_ROLES.includes(role));
+      const isOfficial = Boolean(role && SERIES_PENALTY_ROLES.roles.includes(role));
 
       const involved =
         localUser !== null &&
@@ -266,7 +266,7 @@ export const incidentRouter = createTRPCRouter({
       const role =
         event.seriesId &&
         (await getSeriesRole(ctx.db, event.seriesId, ctx.user.id));
-      const isOfficial = Boolean(role && SERIES_PENALTY_ROLES.includes(role));
+      const isOfficial = Boolean(role && SERIES_PENALTY_ROLES.roles.includes(role));
 
       if (
         !isOfficial &&
@@ -318,7 +318,7 @@ export const incidentRouter = createTRPCRouter({
       // Officials need to know something landed in the queue.
       if (event.seriesId) {
         const officials = await ctx.db.seriesMembership.findMany({
-          where: { seriesId: event.seriesId, role: { in: SERIES_PENALTY_ROLES } },
+          where: { seriesId: event.seriesId, role: { in: [...SERIES_PENALTY_ROLES.roles] } },
           select: { userId: true },
         });
         await Promise.all(
@@ -547,7 +547,7 @@ export const incidentRouter = createTRPCRouter({
       const role = incident.event.seriesId
         ? await getSeriesRole(ctx.db, incident.event.seriesId, ctx.user.id)
         : null;
-      const isOfficial = Boolean(role && SERIES_PENALTY_ROLES.includes(role));
+      const isOfficial = Boolean(role && SERIES_PENALTY_ROLES.roles.includes(role));
 
       const involved =
         incident.reportedById === ctx.user.id ||

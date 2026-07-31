@@ -42,7 +42,7 @@ async function assertCanManageEntry(
   const role = registration.event.seriesId
     ? await getSeriesRole(db, registration.event.seriesId, userId)
     : null;
-  if (role && SERIES_EVENT_ROLES.includes(role)) {
+  if (role && SERIES_EVENT_ROLES.roles.includes(role)) {
     return { eventId: registration.eventId, isOrganizer: true };
   }
 

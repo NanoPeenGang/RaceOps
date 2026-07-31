@@ -121,15 +121,17 @@ describe.skipIf(!ENABLED)("deletion (integration)", () => {
 
   it("refuses a series delete from a non-owner", async () => {
     const { series } = await seedSeries("NonOwner");
+    // Deleting a championship is an ownership act, not a permission — no
+    // staff role, however broad, reaches it.
     await expect(
       raceControl.caller.series.delete({
         seriesId: series.id,
         confirmName: series.name,
       }),
-    ).rejects.toThrow(/permission/i);
+    ).rejects.toThrow(/Ownership cannot be delegated/i);
     await expect(
       racer.caller.series.deletionImpact({ seriesId: series.id }),
-    ).rejects.toThrow(/permission/i);
+    ).rejects.toThrow(/owner/i);
     await owner.caller.series.delete({
       seriesId: series.id,
       confirmName: series.name,

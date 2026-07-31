@@ -81,7 +81,7 @@ async function assertEventChatAccess(
   const role = event.seriesId
     ? await getSeriesRole(db, event.seriesId, userId)
     : null;
-  if (role && SERIES_EVENT_ROLES.includes(role)) {
+  if (role && SERIES_EVENT_ROLES.roles.includes(role)) {
     return { canModerate: true };
   }
 
