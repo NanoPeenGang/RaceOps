@@ -54,6 +54,7 @@ export const profileRouter = createTRPCRouter({
     .input(
       z.object({
         displayName: z.string().min(2).max(80).optional(),
+        avatarUrl: z.string().url().max(2000).nullish(),
         bio: z.string().max(2000).nullish(),
         location: z.string().max(120).nullish(),
         availability: z.string().max(200).nullish(),

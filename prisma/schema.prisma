@@ -167,6 +167,8 @@ model Profile {
   id             String          @id @default(cuid())
   userId         String          @unique
   displayName    String
+  /// Uploaded or linked. Falls back to initials rather than a stock silhouette.
+  avatarUrl      String?
   bio            String?         @db.Text
   location       String?
   availability   String?

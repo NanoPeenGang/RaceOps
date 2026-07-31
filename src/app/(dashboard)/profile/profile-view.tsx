@@ -13,6 +13,8 @@ import {
 } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
+import { ImageUpload } from "@/components/image-upload";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RoleTagPicker } from "@/components/role-tag-picker";
 
@@ -48,9 +50,16 @@ export function ProfileView() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold">{profile?.displayName}</h1>
-          <p className="text-brand-black/60">{profile?.location}</p>
+        <div className="flex items-center gap-4">
+          <Avatar
+            src={profile?.avatarUrl}
+            name={profile?.displayName}
+            size="lg"
+          />
+          <div>
+            <h1 className="text-3xl font-bold">{profile?.displayName}</h1>
+            <p className="text-brand-black/60">{profile?.location}</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {me.data.verificationStatus === "VERIFIED" && (
@@ -104,6 +113,7 @@ export function ProfileView() {
 
 interface EditableProfile {
   displayName: string;
+  avatarUrl: string | null;
   bio: string | null;
   location: string | null;
   availability: string | null;
@@ -122,6 +132,7 @@ function ProfileEditor({
   onCancel: () => void;
 }) {
   const [displayName, setDisplayName] = useState(profile.displayName);
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatarUrl);
   const [bio, setBio] = useState(profile.bio ?? "");
   const [location, setLocation] = useState(profile.location ?? "");
   const [availability, setAvailability] = useState(profile.availability ?? "");
@@ -146,6 +157,13 @@ function ProfileEditor({
           <CardTitle>Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <ImageUpload
+            purpose="avatar"
+            value={avatarUrl}
+            onChange={setAvatarUrl}
+            label="Profile picture"
+            hint="Taken with your phone or picked from your computer."
+          />
           <label className="block text-sm font-medium">
             Display name
             <input
@@ -222,6 +240,7 @@ function ProfileEditor({
           onClick={() =>
             update.mutate({
               displayName: displayName.trim(),
+              avatarUrl: avatarUrl || null,
               // Empty strings clear the field rather than storing "".
               bio: bio.trim() || null,
               location: location.trim() || null,

@@ -34,3 +34,10 @@ export const aiRateLimiter = buildLimiter(10, 60);
 
 /** General public API limit per IP. */
 export const apiRateLimiter = buildLimiter(120, 60);
+
+/**
+ * Presigned uploads. Each one authorises a write to the bucket, so an
+ * unthrottled endpoint is a way to run up someone's storage bill. Generous
+ * enough for a media-day gallery: 40 files a minute.
+ */
+export const uploadRateLimiter = buildLimiter(40, 60);
