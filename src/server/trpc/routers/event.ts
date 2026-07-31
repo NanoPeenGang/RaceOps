@@ -90,6 +90,14 @@ export const eventRouter = createTRPCRouter({
         where: { id: input.eventId },
         include: {
           series: { select: { id: true, name: true, slug: true } },
+          /*
+           * The whole venue, not just its name. An entrant reading this page
+           * is deciding what to load into the trailer, and the layout being
+           * run — its map, its length, which of the circuit's configurations
+           * it actually is — is the thing they came for. Sibling layouts come
+           * with it so "Full Course" is legible as one of four rather than as
+           * an unexplained label.
+           */
           trackLayout: {
             select: {
               id: true,
@@ -97,7 +105,50 @@ export const eventRouter = createTRPCRouter({
               platform: true,
               lengthMeters: true,
               direction: true,
-              track: { select: { id: true, name: true, slug: true } },
+              turnCount: true,
+              shape: true,
+              bankingDegrees: true,
+              elevationMeters: true,
+              track: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  city: true,
+                  region: true,
+                  country: true,
+                  latitude: true,
+                  longitude: true,
+                  websiteUrl: true,
+                  images: {
+                    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+                    select: {
+                      id: true,
+                      url: true,
+                      kind: true,
+                      caption: true,
+                      credit: true,
+                      position: true,
+                      layoutId: true,
+                    },
+                  },
+                  layouts: {
+                    where: { active: true },
+                    orderBy: [{ isPrimary: "desc" }, { name: "asc" }],
+                    select: {
+                      id: true,
+                      name: true,
+                      platform: true,
+                      lengthMeters: true,
+                      turnCount: true,
+                      direction: true,
+                      shape: true,
+                      bankingDegrees: true,
+                      isPrimary: true,
+                    },
+                  },
+                },
+              },
               turns: {
                 orderBy: { number: "asc" },
                 select: {

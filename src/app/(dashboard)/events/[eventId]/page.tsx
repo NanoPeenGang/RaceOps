@@ -16,6 +16,7 @@ import { GeneratedDocuments } from "@/components/generated-documents";
 import { MediaPanel } from "@/components/media-panel";
 import { PaddockChat } from "@/components/paddock-chat";
 import { BrandHeader, BrandTheme } from "@/components/brand-theme";
+import { EventVenue } from "@/components/event-venue";
 import { brandingForEvent } from "@/server/services/branding";
 import { db } from "@/server/db/client";
 import { EntryPanels } from "./entry-panels";
@@ -169,6 +170,8 @@ export default async function EventLandingPage({
           />
         </div>
       </div>
+
+      {event.trackLayout && <EventVenue layout={event.trackLayout} />}
 
       {days.length > 0 && (
         <section className="space-y-3">

@@ -6,6 +6,7 @@ import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { TrackPicker } from "@/components/track-picker";
 import { formatLength, layoutLabel, turnLabel } from "@/lib/tracks";
 
 /**
@@ -19,13 +20,7 @@ import { formatLength, layoutLabel, turnLabel } from "@/lib/tracks";
 export function VenuePanel({ eventId }: { eventId: string }) {
   const utils = api.useUtils();
   const event = api.event.byId.useQuery({ eventId });
-  const [query, setQuery] = useState("");
   const [picking, setPicking] = useState(false);
-
-  const tracks = api.track.list.useQuery(
-    { query: query.trim() || undefined, limit: 10 },
-    { enabled: picking },
-  );
 
   const update = api.event.update.useMutation({
     onSuccess: async () => {
@@ -116,45 +111,22 @@ export function VenuePanel({ eventId }: { eventId: string }) {
           )}
 
           {picking && (
-            <div className="space-y-3 border-t border-brand-black/10 pt-3">
-              <input
-                className="w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-                placeholder="Search tracks"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+            <div className="border-t border-brand-black/10 pt-3">
+              <TrackPicker
+                value={
+                  layout
+                    ? {
+                        id: layout.id,
+                        name: layout.name,
+                        track: layout.track,
+                      }
+                    : null
+                }
+                onSelect={(trackLayoutId) =>
+                  update.mutate({ eventId, trackLayoutId })
+                }
+                disabled={update.isPending}
               />
-              {tracks.data?.items.length === 0 && (
-                <p className="text-sm text-brand-black/60">
-                  No match.{" "}
-                  <Link href="/tracks" className="text-brand-red hover:underline">
-                    Add the track
-                  </Link>{" "}
-                  and come back.
-                </p>
-              )}
-              <ul className="space-y-2">
-                {tracks.data?.items.map((track) => (
-                  <li key={track.id} className="space-y-1">
-                    <p className="text-sm font-medium">{track.name}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {track.layouts.map((option) => (
-                        <Button
-                          key={option.id}
-                          size="sm"
-                          variant="outline"
-                          disabled={update.isPending}
-                          onClick={() =>
-                            update.mutate({ eventId, trackLayoutId: option.id })
-                          }
-                        >
-                          {option.name}
-                          {option.platform ? ` (${option.platform})` : ""}
-                        </Button>
-                      ))}
-                    </div>
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
 

@@ -7,6 +7,7 @@ import { api } from "@/lib/trpc/client";
 import { EVENT_STATUS_LABELS } from "@/lib/events";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { TrackPicker } from "@/components/track-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClassesPanel } from "./classes-panel";
 import { RequirementsPanel } from "./requirements-panel";
@@ -322,6 +323,9 @@ function CreateEventForm({
   const [date, setDate] = useState("");
   const [platform, setPlatform] = useState("");
   const [venue, setVenue] = useState("");
+  const [layout, setLayout] = useState<{ id: string; label: string } | null>(
+    null,
+  );
   const [entryCapacity, setEntryCapacity] = useState("");
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
@@ -363,15 +367,6 @@ function CreateEventForm({
             />
           </label>
           <label className="block text-sm font-medium">
-            Venue
-            <input
-              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-              value={venue}
-              onChange={(e) => setVenue(e.target.value)}
-              placeholder="Spa-Francorchamps"
-            />
-          </label>
-          <label className="block text-sm font-medium">
             Entry capacity
             <input
               type="number"
@@ -401,6 +396,44 @@ function CreateEventForm({
             />
           </label>
         </div>
+        <div className="space-y-2 border-t border-brand-black/10 pt-4">
+          <div>
+            <p className="text-sm font-medium">Track</p>
+            <p className="text-xs text-brand-black/60">
+              Choosing from the directory is what gives the event a map, lets
+              incidents name a corner, and puts this meeting&rsquo;s laps into
+              the venue&rsquo;s records.
+            </p>
+          </div>
+          <TrackPicker
+            value={
+              layout
+                ? {
+                    id: layout.id,
+                    name: layout.label.split(" — ")[1] ?? layout.label,
+                    track: { name: layout.label.split(" — ")[0], slug: "" },
+                  }
+                : null
+            }
+            onSelect={(id, label) => setLayout({ id, label })}
+            onClear={() => setLayout(null)}
+            disabled={create.isPending}
+          />
+          <label className="block text-sm font-medium">
+            Or type a venue
+            <input
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              value={venue}
+              onChange={(e) => setVenue(e.target.value)}
+              placeholder="A hillclimb, a private test, anywhere with no track record"
+            />
+            <span className="mt-1 block text-xs text-brand-black/55">
+              Free text for a venue the directory does not have. It shows on the
+              event page but carries none of the track data.
+            </span>
+          </label>
+        </div>
+
         {create.error && (
           <p className="text-sm text-brand-red">{create.error.message}</p>
         )}
@@ -418,7 +451,11 @@ function CreateEventForm({
               name: name.trim(),
               date: new Date(date),
               platform: platform.trim(),
-              venue: venue.trim() || undefined,
+              // The picked layout carries the venue name, so the free-text
+              // field is only sent when nothing was picked. Sending both would
+              // put a stale string under a linked track's name.
+              venue: layout ? undefined : venue.trim() || undefined,
+              trackLayoutId: layout?.id,
               entryCapacity: entryCapacity ? Number(entryCapacity) : undefined,
               registrationOpensAt: opensAt ? new Date(opensAt) : undefined,
               registrationClosesAt: closesAt ? new Date(closesAt) : undefined,

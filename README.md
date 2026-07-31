@@ -314,6 +314,18 @@ meeting actually runs on.
   ships populated — see [Reference tracks](#reference-tracks) — and filters by
   country and state, because somebody looking for a venue near them thinks in
   states, not in spellings.
+
+  **Events pick their venue from that directory.** The track picker appears
+  where the event is created, not only on a separate page afterwards, because
+  a venue typed as free text links to nothing: no map, no corner references, no
+  lap records. Free text is still accepted and always will be — a hillclimb on
+  someone's estate has no `Track` row and does not need one — it just is not
+  the default any more. The event page then shows the layout being run with its
+  map and figures, and lists the circuit's *other* configurations beside it, so
+  "Full Course" reads as one of four rather than as an unexplained label and
+  nobody arrives having practised the wrong one. A track that has hosted an
+  event cannot be deleted, and a layout that has cannot either — mark it
+  inactive, which hides it from the picker without detaching the results.
 - **Session conditions** — track state and weather logged as a time series, not
   a pair of fields: a two-hour race that starts dry and ends in standing water
   is the normal case. Track state is separate from weather because they diverge
