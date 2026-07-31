@@ -2154,6 +2154,46 @@ model PaddockAllocation {
  * Free-form rather than an enum: what a club meeting calls a "working pass"
  * and what a pro round calls "paddock/pit lane/grid" have nothing in common.
  */
+/**
+ * An area a pass opens.
+ *
+ * Zones rather than a single numeric "level" because access is not a ladder:
+ * a photographer belongs trackside and in the media centre but not in race
+ * control, and a team owner is the other way round. A number would force one
+ * of those to be "higher" than the other, and a marshal on a gate would have
+ * to remember which.
+ */
+enum AccessZone {
+  PADDOCK
+  GARAGE
+  PIT_LANE
+  GRID
+  /// Trackside during running — marshal posts, photographer holes.
+  TRACKSIDE
+  RACE_CONTROL
+  MEDIA_CENTRE
+  SCRUTINEERING
+  HOSPITALITY
+}
+
+/**
+ * Who a pass type is generated for when credentials are swept for an event.
+ *
+ * Set on the type rather than chosen at generation time, so "generate the
+ * credentials" is one button that does the same thing every time rather than a
+ * form somebody fills in differently each round.
+ */
+enum CredentialAudience {
+  /// Everyone named in a confirmed entry's driver line-up.
+  DRIVER
+  /// The person or team that entered, where they are not already a driver.
+  ENTRANT
+  /// Anyone signed up to a volunteer shift at this event.
+  VOLUNTEER
+  /// Series organizers and anyone holding a staff role.
+  ORGANIZER
+}
+
 model CredentialType {
   id                String  @id @default(cuid())
   eventId           String
@@ -2165,6 +2205,10 @@ model CredentialType {
   totalAvailable    Int?
   /// Display order on the collection sheet.
   sortOrder         Int     @default(0)
+  /// Areas this pass opens. Empty means the pass says nothing about access.
+  zones             AccessZone[]
+  /// Whose passes are created by the generator. Null excludes it entirely.
+  autoIssueTo       CredentialAudience?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2206,6 +2250,15 @@ model Credential {
   holderRole       String?
   /// Serial or barcode printed on the pass.
   serial           String?
+  /**
+   * What the QR code on the pass encodes.
+   *
+   * Unguessable and separate from the row id: the id turns up in URLs and in
+   * organizer tooling, and a pass whose code could be derived from it would be
+   * forgeable by anyone who had seen one. Rotating this invalidates a lost
+   * pass without disturbing its history.
+   */
+  qrToken          String?          @unique
   status           CredentialStatus @default(REQUESTED)
   issuedAt         DateTime?
   collectedAt      DateTime?

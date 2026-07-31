@@ -12,6 +12,7 @@ import {
   type GeneratedDocument,
 } from "@/lib/race-documents";
 import { PrintButton } from "@/components/print-button";
+import { zoneSummary } from "@/lib/credentials";
 
 /**
  * Printable documents, built from data the platform already holds.
@@ -228,6 +229,88 @@ export default async function PrintDocumentPage({
             </table>
             {data.rows.length === 0 && (
               <p className="text-sm">Nothing to grid yet.</p>
+            )}
+          </Sheet>
+        );
+      }
+
+      case "credentials": {
+        const data = await api.document.credentialSheet({ eventId });
+        return (
+          <Sheet
+            eventId={eventId}
+            title="Passes"
+            header={data.header}
+            subtitle={`${data.badges.length} pass${data.badges.length === 1 ? "" : "es"}`}
+          >
+            {data.badges.length === 0 ? (
+              <p className="text-sm text-brand-black/60">
+                No passes have been issued yet. Generate them from the
+                accreditation panel on the manage page.
+              </p>
+            ) : (
+              <>
+                {data.withoutCode > 0 && (
+                  <p className="mb-4 rounded border border-brand-black/20 p-3 text-sm print:hidden">
+                    {data.withoutCode} pass
+                    {data.withoutCode === 1 ? " has" : "es have"} no QR code
+                    yet. Re-issue them, or refresh the code from the
+                    accreditation panel.
+                  </p>
+                )}
+                {/*
+                  * Two per row at roughly credit-card proportions, and
+                  * `break-inside-avoid` so a badge is never cut in half by a
+                  * page break — the one formatting rule that actually matters
+                  * on a sheet that gets scissored up.
+                  */}
+                <div className="grid grid-cols-2 gap-3">
+                  {data.badges.map((badge) => (
+                    <div
+                      key={badge.credentialId}
+                      className="flex gap-3 break-inside-avoid rounded-lg border-2 border-brand-black/70 p-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-red">
+                          {badge.typeName}
+                        </p>
+                        <p className="truncate text-lg font-bold leading-tight">
+                          {badge.holderName}
+                        </p>
+                        <p className="text-xs text-brand-black/70">
+                          {badge.holderRole ?? "\u00A0"}
+                        </p>
+                        {(badge.teamName || badge.carNumber) && (
+                          <p className="mt-0.5 truncate text-xs text-brand-black/70">
+                            {[
+                              badge.carNumber ? `#${badge.carNumber}` : null,
+                              badge.teamName,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        )}
+                        <p className="mt-2 text-[10px] font-semibold uppercase leading-snug tracking-wide">
+                          {zoneSummary(badge.zones) ?? "Access not specified"}
+                        </p>
+                        <p className="mt-1 text-[9px] text-brand-black/50">
+                          {[badge.serial, data.header.eventName]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      {badge.qr && (
+                        <div
+                          className="h-[92px] w-[92px] shrink-0 [&>svg]:h-full [&>svg]:w-full"
+                          // Server-rendered by the qrcode library from a URL
+                          // we construct; no user content reaches this markup.
+                          dangerouslySetInnerHTML={{ __html: badge.qr }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </Sheet>
         );

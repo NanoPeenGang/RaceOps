@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CredentialStatus } from "@prisma/client";
+import { AccessZone, CredentialAudience, CredentialStatus } from "@prisma/client";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/trpc/root";
 import { api } from "@/lib/trpc/client";
@@ -10,6 +10,14 @@ import {
   CREDENTIAL_STATUS_LABELS,
 } from "@/lib/paddock";
 import { Button } from "@/components/ui/button";
+import { CredentialGenerator } from "@/components/credential-generator";
+import {
+  ACCESS_ZONE_LABELS,
+  ACCESS_ZONE_ORDER,
+  AUDIENCE_DESCRIPTIONS,
+  AUDIENCE_LABELS,
+  zoneSummary,
+} from "@/lib/credentials";
 import { Card, CardContent } from "@/components/ui/card";
 
 /**
@@ -230,6 +238,8 @@ function AccreditationTab({
         />
       )}
 
+      <CredentialGenerator eventId={eventId} onChanged={onChanged} />
+
       {data.credentials.length === 0 ? (
         <p className="text-sm text-brand-black/60">
           Nobody named yet. Teams request passes for their own crew from their
@@ -248,6 +258,9 @@ function AccreditationTab({
                   {" "}
                   · {credential.credentialType.name}
                   {credential.holderRole ? ` · ${credential.holderRole}` : ""}
+                  {zoneSummary(credential.credentialType.zones)
+                    ? ` · ${zoneSummary(credential.credentialType.zones)}`
+                    : ""}
                   {credential.registration
                     ? ` · ${credential.registration.carNumber ? `#${credential.registration.carNumber} ` : ""}${
                         credential.registration.team?.name ??
@@ -306,6 +319,8 @@ function AddTypeForm({
   const [name, setName] = useState("");
   const [allowancePerEntry, setAllowance] = useState("4");
   const [totalAvailable, setTotal] = useState("");
+  const [zones, setZones] = useState<AccessZone[]>([]);
+  const [audience, setAudience] = useState<CredentialAudience | "">("");
 
   const add = api.paddock.addCredentialType.useMutation({ onSuccess: onSaved });
 
@@ -347,6 +362,58 @@ function AddTypeForm({
             />
           </label>
         </div>
+        <div className="space-y-1.5">
+          <p className="text-sm font-medium">What it opens</p>
+          <p className="text-xs text-brand-black/60">
+            Printed on the badge and shown when the QR code is scanned. Leaving
+            this empty makes the pass say nothing about access, which a gate
+            marshal has to read as &ldquo;ask somebody&rdquo;.
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {ACCESS_ZONE_ORDER.map((zone) => (
+              <label key={zone} className="flex items-center gap-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={zones.includes(zone)}
+                  onChange={() =>
+                    setZones((current) =>
+                      current.includes(zone)
+                        ? current.filter((held) => held !== zone)
+                        : [...current, zone],
+                    )
+                  }
+                />
+                {ACCESS_ZONE_LABELS[zone]}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <label className="block text-sm font-medium">
+          Generate these for
+          <select
+            className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1.5 text-sm sm:max-w-xs"
+            value={audience}
+            onChange={(e) =>
+              setAudience(e.target.value as CredentialAudience | "")
+            }
+          >
+            <option value="">Nobody — issue these by hand</option>
+            {(Object.keys(AUDIENCE_LABELS) as CredentialAudience[]).map(
+              (value) => (
+                <option key={value} value={value}>
+                  {AUDIENCE_LABELS[value]}
+                </option>
+              ),
+            )}
+          </select>
+          <span className="mt-1 block text-xs text-brand-black/55">
+            {audience
+              ? AUDIENCE_DESCRIPTIONS[audience]
+              : "Set this and the generator will issue one of these to everyone in that group."}
+          </span>
+        </label>
+
         {add.error && <p className="text-sm text-brand-red">{add.error.message}</p>}
         <Button
           size="sm"
@@ -360,6 +427,8 @@ function AddTypeForm({
               totalAvailable: totalAvailable.trim()
                 ? Number(totalAvailable)
                 : undefined,
+              zones,
+              autoIssueTo: audience || undefined,
             })
           }
         >

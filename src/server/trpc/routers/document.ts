@@ -20,6 +20,7 @@ import {
 } from "@/server/services/series-auth";
 import { notify } from "@/server/services/notifications";
 import {
+  credentialSheetDocument,
   entryListDocument,
   gridDocument,
   timetableDocument,
@@ -347,6 +348,27 @@ export const documentRouter = createTRPCRouter({
    * generated list cannot drift: an uploaded PDF is wrong the moment somebody
    * withdraws, and nobody re-uploads it.
    */
+  /**
+   * The badge sheet. Organizers only, unlike the other generated documents.
+   *
+   * A sheet of scannable passes is a sheet of working credentials: anybody who
+   * can load it can print themselves paddock access. The entry list is public
+   * because it is already on the event page; this never can be.
+   */
+  credentialSheet: protectedProcedure
+    .input(z.object({ eventId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      await assertEventOrganizer(
+        ctx.db,
+        input.eventId,
+        ctx.user.id,
+        SERIES_EVENT_ROLES,
+      );
+      const document = await credentialSheetDocument(ctx.db, input.eventId);
+      if (!document) throw new TRPCError({ code: "NOT_FOUND" });
+      return document;
+    }),
+
   entryList: publicProcedure
     .input(z.object({ eventId: z.string().cuid() }))
     .query(async ({ ctx, input }) => {

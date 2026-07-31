@@ -1,8 +1,18 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { CredentialStatus, Prisma, RegistrationStatus } from "@prisma/client";
+import {
+  AccessZone,
+  CredentialAudience,
+  CredentialStatus,
+  Prisma,
+  RegistrationStatus,
+} from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
-import { createTRPCRouter, protectedProcedure } from "@/server/trpc/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "@/server/trpc/trpc";
 import {
   assertEventOrganizer,
   SERIES_EVENT_ROLES,
@@ -14,6 +24,11 @@ import {
   eventIssuance,
   pitBoxOverflow,
 } from "@/lib/paddock";
+import { planCredentials } from "@/lib/credentials";
+import {
+  credentialToken,
+  gatherCandidates,
+} from "@/server/services/credential-sweep";
 
 /**
  * Paddock allocation and credentials.
@@ -198,6 +213,8 @@ export const paddockRouter = createTRPCRouter({
       }),
     ),
 
+  // Zones and the audience are what turn a pass type from a name into
+  // something the generator and a gate marshal can both act on.
   addCredentialType: protectedProcedure
     .input(
       z.object({
@@ -207,6 +224,8 @@ export const paddockRouter = createTRPCRouter({
         allowancePerEntry: z.number().int().min(0).max(200).default(0),
         totalAvailable: z.number().int().min(0).max(100_000).optional(),
         sortOrder: z.number().int().min(0).max(100).default(0),
+        zones: z.array(z.nativeEnum(AccessZone)).default([]),
+        autoIssueTo: z.nativeEnum(CredentialAudience).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -236,6 +255,8 @@ export const paddockRouter = createTRPCRouter({
     .input(
       z.object({
         credentialTypeId: z.string().cuid(),
+        zones: z.array(z.nativeEnum(AccessZone)).optional(),
+        autoIssueTo: z.nativeEnum(CredentialAudience).nullish(),
         name: z.string().min(1).max(60).optional(),
         description: z.string().max(300).nullish(),
         allowancePerEntry: z.number().int().min(0).max(200).optional(),
@@ -309,11 +330,14 @@ export const paddockRouter = createTRPCRouter({
           where: { eventId: input.eventId },
           orderBy: [{ holderName: "asc" }],
           include: {
-            credentialType: { select: { id: true, name: true } },
+            credentialType: {
+              select: { id: true, name: true, zones: true, autoIssueTo: true },
+            },
             registration: {
               select: {
                 id: true,
                 carNumber: true,
+                carClass: true,
                 team: { select: { name: true } },
                 entrantUser: {
                   select: { profile: { select: { displayName: true } } },
@@ -434,14 +458,14 @@ export const paddockRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const credential = await ctx.db.credential.findUnique({
+      const existing = await ctx.db.credential.findUnique({
         where: { id: input.credentialId },
-        select: { eventId: true },
+        select: { eventId: true, qrToken: true },
       });
-      if (!credential) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
       await assertEventOrganizer(
         ctx.db,
-        credential.eventId,
+        existing.eventId,
         ctx.user.id,
         SERIES_EVENT_ROLES,
       );
@@ -454,7 +478,11 @@ export const paddockRouter = createTRPCRouter({
           data: {
             ...rest,
             status,
-            ...(status === CredentialStatus.ISSUED ? { issuedAt: now } : {}),
+            // A pass only needs a code once it is real. Minting it on issue
+            // means a request that is never approved never becomes scannable.
+            ...(status === CredentialStatus.ISSUED
+              ? { issuedAt: now, qrToken: existing.qrToken ?? credentialToken() }
+              : {}),
             ...(status === CredentialStatus.COLLECTED
               ? { collectedAt: now }
               : {}),
@@ -472,6 +500,185 @@ export const paddockRouter = createTRPCRouter({
         }
         throw error;
       }
+    }),
+
+  // -- Generating and scanning ---------------------------------------------
+
+  /**
+   * What a sweep would do, without doing it.
+   *
+   * Shown before the button is pressed, because a generator that silently
+   * creates two hundred passes is one people run once and then never trust
+   * again. It also surfaces who matches no configured type — the drivers who
+   * would otherwise turn up on Saturday with nothing, and never appear in any
+   * error message.
+   */
+  previewCredentialSweep: protectedProcedure
+    .input(z.object({ eventId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      await assertEventOrganizer(
+        ctx.db,
+        input.eventId,
+        ctx.user.id,
+        SERIES_EVENT_ROLES,
+      );
+      const [candidates, types, existing] = await Promise.all([
+        gatherCandidates(ctx.db, input.eventId),
+        ctx.db.credentialType.findMany({
+          where: { eventId: input.eventId },
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        }),
+        ctx.db.credential.findMany({
+          where: { eventId: input.eventId },
+          select: {
+            credentialTypeId: true,
+            holderUserId: true,
+            holderName: true,
+            status: true,
+          },
+        }),
+      ]);
+      return { plan: planCredentials(candidates, types, existing), types };
+    }),
+
+  /**
+   * Issues every pass the sweep found missing.
+   *
+   * Passes come out ISSUED rather than REQUESTED: an organizer pressing this
+   * has decided, and leaving two hundred rows for them to approve one at a
+   * time would make the feature slower than doing it by hand.
+   */
+  generateCredentials: protectedProcedure
+    .input(z.object({ eventId: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertEventOrganizer(
+        ctx.db,
+        input.eventId,
+        ctx.user.id,
+        SERIES_EVENT_ROLES,
+      );
+      const [candidates, types, existing] = await Promise.all([
+        gatherCandidates(ctx.db, input.eventId),
+        ctx.db.credentialType.findMany({ where: { eventId: input.eventId } }),
+        ctx.db.credential.findMany({
+          where: { eventId: input.eventId },
+          select: {
+            credentialTypeId: true,
+            holderUserId: true,
+            holderName: true,
+            status: true,
+          },
+        }),
+      ]);
+
+      const plan = planCredentials(candidates, types, existing);
+      if (plan.toIssue.length === 0) {
+        return { created: 0, unmatched: plan.unmatched.length };
+      }
+
+      const now = new Date();
+      await ctx.db.credential.createMany({
+        data: plan.toIssue.map((entry) => ({
+          eventId: input.eventId,
+          credentialTypeId: entry.credentialTypeId,
+          registrationId: entry.candidate.registrationId,
+          holderName: entry.candidate.name,
+          holderUserId: entry.candidate.userId,
+          holderRole: entry.candidate.role,
+          qrToken: credentialToken(),
+          status: CredentialStatus.ISSUED,
+          issuedAt: now,
+        })),
+      });
+
+      return { created: plan.toIssue.length, unmatched: plan.unmatched.length };
+    }),
+
+  /**
+   * Gives an existing pass a QR code, or a fresh one.
+   *
+   * Rotating is what happens when a badge is lost: the old code stops
+   * resolving immediately and the pass keeps its history, which a delete-and-
+   * reissue would throw away along with the audit trail.
+   */
+  refreshCredentialToken: protectedProcedure
+    .input(z.object({ credentialId: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const credential = await ctx.db.credential.findUnique({
+        where: { id: input.credentialId },
+        select: { eventId: true },
+      });
+      if (!credential) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertEventOrganizer(
+        ctx.db,
+        credential.eventId,
+        ctx.user.id,
+        SERIES_EVENT_ROLES,
+      );
+      return ctx.db.credential.update({
+        where: { id: input.credentialId },
+        data: { qrToken: credentialToken() },
+      });
+    }),
+
+  /**
+   * Resolves a scanned QR code.
+   *
+   * Public on purpose. The person scanning is a marshal on a gate at 07:00
+   * with a phone and no reason to have a RaceOps account, and a check that
+   * only works for signed-in staff is a check nobody performs. What it returns
+   * is what the badge already prints — name, team, role, zones — so holding
+   * the token grants no more than holding the pass does.
+   *
+   * The token is 24 random bytes precisely so that this being public is safe:
+   * it cannot be enumerated, and it can be rotated the moment a pass is lost.
+   */
+  scanCredential: publicProcedure
+    .input(z.object({ token: z.string().min(8).max(120) }))
+    .query(async ({ ctx, input }) => {
+      const credential = await ctx.db.credential.findUnique({
+        where: { qrToken: input.token },
+        select: {
+          id: true,
+          holderName: true,
+          holderRole: true,
+          status: true,
+          serial: true,
+          issuedAt: true,
+          collectedAt: true,
+          credentialType: {
+            select: { name: true, description: true, zones: true },
+          },
+          registration: {
+            select: {
+              carNumber: true,
+              carClass: true,
+              team: { select: { name: true, slug: true } },
+              entrantUser: {
+                select: { profile: { select: { displayName: true } } },
+              },
+            },
+          },
+          event: {
+            select: {
+              id: true,
+              name: true,
+              date: true,
+              series: { select: { name: true } },
+            },
+          },
+        },
+      });
+      if (!credential) {
+        // Deliberately the same shape as a real answer rather than a 404: a
+        // marshal needs to be told "this is not one of ours", not shown an
+        // error page they have to interpret.
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No pass matches that code. It is not one issued here.",
+        });
+      }
+      return credential;
     }),
 
   /**
@@ -510,6 +717,7 @@ export const paddockRouter = createTRPCRouter({
       return ctx.db.credential.create({
         data: {
           ...input,
+          qrToken: credentialToken(),
           status: CredentialStatus.ISSUED,
           issuedAt: new Date(),
         },

@@ -1,4 +1,9 @@
-import { RegistrationStatus, SessionType } from "@prisma/client";
+import {
+  AccessZone,
+  CredentialStatus,
+  RegistrationStatus,
+  SessionType,
+} from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import {
   buildEntryList,
@@ -12,6 +17,7 @@ import {
   type TimingSheetRow,
 } from "@/lib/race-documents";
 import { eventVenueLabel } from "@/lib/tracks";
+import { credentialUrl, qrSvg } from "@/server/services/qr";
 
 /**
  * Assembling the generated documents.
@@ -312,4 +318,105 @@ export async function timingSheetDocument(
   );
 
   return { header, session, rows };
+}
+
+// ---------------------------------------------------------------------------
+// Passes
+// ---------------------------------------------------------------------------
+
+/**
+ * One badge, with its QR code already rendered.
+ *
+ * The SVG is built here rather than in the page so the sheet is a single
+ * server render: two hundred badges each fetching their own code would make
+ * the print preview unusable on paddock wifi, which is exactly where it gets
+ * printed.
+ */
+export interface CredentialBadge {
+  credentialId: string;
+  holderName: string;
+  holderRole: string | null;
+  typeName: string;
+  zones: AccessZone[];
+  teamName: string | null;
+  carNumber: string | null;
+  serial: string | null;
+  /** Inline `<svg>`, or null when the pass has no code yet. */
+  qr: string | null;
+  url: string | null;
+}
+
+export interface CredentialSheetDocument {
+  header: DocumentHeader;
+  badges: CredentialBadge[];
+  /** Passes with no QR code, so the organizer knows why they are missing. */
+  withoutCode: number;
+}
+
+export async function credentialSheetDocument(
+  db: PrismaClient,
+  eventId: string,
+): Promise<CredentialSheetDocument | null> {
+  const header = await headerFor(db, eventId);
+  if (!header) return null;
+
+  /*
+   * Only passes that are actually valid get printed. A requested-but-not-issued
+   * pass on a lanyard is worse than none: it scans as "do not admit" while
+   * looking exactly like a working badge, and the holder has no way to know.
+   */
+  const credentials = await db.credential.findMany({
+    where: {
+      eventId,
+      status: { in: [CredentialStatus.ISSUED, CredentialStatus.COLLECTED] },
+    },
+    orderBy: [
+      { credentialType: { sortOrder: "asc" } },
+      { holderName: "asc" },
+    ],
+    select: {
+      id: true,
+      holderName: true,
+      holderRole: true,
+      serial: true,
+      qrToken: true,
+      credentialType: { select: { name: true, zones: true } },
+      registration: {
+        select: {
+          carNumber: true,
+          team: { select: { name: true } },
+          entrantUser: { select: { profile: { select: { displayName: true } } } },
+        },
+      },
+    },
+  });
+
+  const badges = await Promise.all(
+    credentials.map(async (credential) => {
+      const url = credential.qrToken
+        ? credentialUrl(credential.qrToken)
+        : null;
+      return {
+        credentialId: credential.id,
+        holderName: credential.holderName,
+        holderRole: credential.holderRole,
+        typeName: credential.credentialType.name,
+        zones: credential.credentialType.zones,
+        teamName:
+          credential.registration?.team?.name ??
+          credential.registration?.entrantUser?.profile?.displayName ??
+          null,
+        carNumber: credential.registration?.carNumber ?? null,
+        serial: credential.serial,
+        qr: url ? await qrSvg(url, { size: 132 }) : null,
+        url,
+      };
+    }),
+  );
+
+  return {
+    header,
+    badges,
+    withoutCode: badges.filter((badge) => !badge.qr).length,
+  };
 }

@@ -226,7 +226,7 @@ export default function ManageEventPage({
             label: "Documents & notices",
             content: (
               <div className="space-y-8">
-                <GeneratedDocuments eventId={eventId} />
+                <GeneratedDocuments eventId={eventId} canManage />
                 <AnnouncementsPanel
                   scope={{ eventId }}
                   canManage

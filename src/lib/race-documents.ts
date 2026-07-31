@@ -16,15 +16,32 @@ export const GENERATED_DOCUMENTS = [
   "timetable",
   "grid-sheet",
   "timing-sheet",
+  "credentials",
 ] as const;
 
 export type GeneratedDocument = (typeof GENERATED_DOCUMENTS)[number];
+
+/**
+ * Documents only an organizer may see.
+ *
+ * The rest are views of what the event already publishes — the entry list is
+ * on the public page anyway. Passes are not: a sheet of scannable badges is a
+ * sheet of working credentials, so it is listed and served to organizers only.
+ */
+export const ORGANIZER_ONLY_DOCUMENTS: readonly GeneratedDocument[] = [
+  "credentials",
+];
+
+export function isOrganizerOnly(document: GeneratedDocument): boolean {
+  return ORGANIZER_ONLY_DOCUMENTS.includes(document);
+}
 
 export const DOCUMENT_TITLES: Record<GeneratedDocument, string> = {
   "entry-list": "Entry list",
   timetable: "Timetable",
   "grid-sheet": "Grid sheet",
   "timing-sheet": "Timing sheet",
+  credentials: "Passes",
 };
 
 export const DOCUMENT_DESCRIPTIONS: Record<GeneratedDocument, string> = {
@@ -32,6 +49,8 @@ export const DOCUMENT_DESCRIPTIONS: Record<GeneratedDocument, string> = {
   timetable: "The running order, grouped by day.",
   "grid-sheet": "Starting order, ready to hand to the grid marshals.",
   "timing-sheet": "Blank sheet for hand timing, or the session's results.",
+  credentials:
+    "Badges with a QR code, cut out and put in a lanyard. Organizers only.",
 };
 
 // ---------------------------------------------------------------------------

@@ -488,6 +488,26 @@ results feed the championship standings immediately.
 - **Race reports** — long-form post-race writeups with tags, an optional link
   to the event, and their own media gallery. Drafts stay private to the author
   until published.
+- **Accreditation** — pass types carry the **areas they open** (paddock, pit
+  lane, grid, race control, media centre…) rather than a numeric "level":
+  access is not a ladder, and a photographer belongs trackside but not in race
+  control while a team owner is the other way round. Set a type's audience —
+  drivers, entrants, volunteers, organizers — and **one button names everyone
+  and issues their pass**, sweeping the confirmed entries' line-ups, the
+  volunteer signups and the series' officials. The sweep previews first and,
+  more importantly, lists anyone who matches *no* configured type: that is the
+  driver who would otherwise turn up on Saturday with nothing and appear in no
+  error message. Re-running it issues nobody a second pass, and a voided pass
+  is re-issued rather than skipped.
+
+  Every issued pass gets an unguessable QR code and prints onto a badge sheet.
+  Scanning it opens `/pass/<token>` — public, because the person scanning is a
+  marshal on a gate at 07:00 with a phone and no reason to hold an account —
+  which shows the verdict first, then the holder's name, team and car number,
+  role, and the areas they may enter. A lost badge's code is rotated in place,
+  which kills it instantly without discarding the pass's history. Only issued
+  passes print: a requested one on a lanyard scans as "do not admit" while
+  looking exactly like a working badge.
 - **Paddock chat** — a per-event room for entrants, volunteers and organizers.
   Authors delete their own messages; organizers moderate the room.
 
