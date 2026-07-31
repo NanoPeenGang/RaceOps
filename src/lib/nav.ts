@@ -1,6 +1,7 @@
 /** Shared nav definitions for the desktop header and the mobile menu. */
 
 export const NAV_LINKS = [
+  { href: "/home", label: "Home" },
   { href: "/search", label: "Discover" },
   { href: "/events", label: "Events" },
   { href: "/series", label: "Series" },
@@ -13,6 +14,7 @@ export const NAV_LINKS = [
 
 /** Signed-in-only destinations. */
 export const ACCOUNT_LINKS = [
+  { href: "/organizations", label: "My organizations" },
   { href: "/applications", label: "My applications" },
   { href: "/opportunities/mine", label: "My postings" },
   { href: "/notifications", label: "Notifications" },

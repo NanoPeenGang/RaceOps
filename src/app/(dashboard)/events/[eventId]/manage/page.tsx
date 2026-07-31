@@ -36,6 +36,8 @@ import { DangerZone } from "@/components/danger-zone";
 import { VenuePanel } from "@/components/venue-panel";
 import { BrandingEditor } from "@/components/branding-editor";
 import { useRouter } from "next/navigation";
+import { Tabs } from "@/components/ui/tabs";
+import { PageHeader } from "@/components/ui/page";
 
 export default function ManageEventPage({
   params,
@@ -85,40 +87,43 @@ export default function ManageEventPage({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link
-            href={`/events/${eventId}`}
-            className="text-sm text-brand-red hover:underline"
-          >
-            ← {data.name}
-          </Link>
-          <h1 className="mt-1 text-3xl font-bold">Event control</h1>
-          <p className="mt-1 text-sm text-brand-black/60">
-            {data.series?.name} · {new Date(data.date).toLocaleString()}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge
-            variant={data.status === "PUBLISHED" ? "verified" : "default"}
-          >
+      <PageHeader
+        title="Event control"
+        breadcrumbs={[
+          { label: "Home", href: "/home" },
+          ...(data.series
+            ? [{ label: data.series.name, href: `/series/${data.series.slug}` }]
+            : []),
+          { label: data.name, href: `/events/${eventId}` },
+          { label: "Manage" },
+        ]}
+        description={`${data.series?.name ?? "Standalone event"} · ${new Date(data.date).toLocaleString()}`}
+        status={
+          <Badge variant={data.status === "PUBLISHED" ? "verified" : "default"}>
             {EVENT_STATUS_LABELS[data.status]}
           </Badge>
-          {transitions.map((status) => (
-            <Button
-              key={status}
-              size="sm"
-              variant={status === EventStatus.PUBLISHED ? "primary" : "outline"}
-              disabled={setStatus.isPending}
-              onClick={() => setStatus.mutate({ eventId, status })}
-            >
-              {status === EventStatus.PUBLISHED
-                ? "Publish"
-                : EVENT_STATUS_LABELS[status]}
-            </Button>
-          ))}
-        </div>
-      </div>
+        }
+        actions={
+          <>
+            {transitions.map((status) => (
+              <Button
+                key={status}
+                size="sm"
+                variant={
+                  status === EventStatus.PUBLISHED ? "primary" : "outline"
+                }
+                disabled={setStatus.isPending}
+                onClick={() => setStatus.mutate({ eventId, status })}
+              >
+                {status === EventStatus.PUBLISHED
+                  ? "Publish"
+                  : EVENT_STATUS_LABELS[status]}
+              </Button>
+            ))}
+          </>
+        }
+      />
+
       {setStatus.error && (
         <p className="text-sm text-brand-red">{setStatus.error.message}</p>
       )}
@@ -151,38 +156,103 @@ export default function ManageEventPage({
         </Link>
       </div>
 
-      {canDelete && (
-        <BrandingEditor
-          scope={{ eventId }}
-          name={data.name}
-          description="Anything left blank is inherited from the series. Most rounds need nothing here."
-        />
-      )}
-      <VenuePanel eventId={eventId} />
-      <SchedulePanel eventId={eventId} />
-      <TimingConsole eventId={eventId} />
-      <RegistrationsPanel
-        eventId={eventId}
-        capacity={data.entryCapacity}
-        seriesId={data.seriesId}
-      />
-      <LineupsPanel eventId={eventId} />
-      <EligibilityPanel eventId={eventId} />
-      <WaiversPanel eventId={eventId} />
-      <ScrutineeringPanel eventId={eventId} seriesId={data.seriesId} />
-      <TiresPanel eventId={eventId} />
-      <PaddockPanel eventId={eventId} />
-      <ResultsPanel eventId={eventId} />
-      <ResultsImportPanel eventId={eventId} />
-      <PenaltiesPanel eventId={eventId} />
-      <OfficialsLogPanel eventId={eventId} />
-      <ShiftsPanel eventId={eventId} />
-      <AnnouncementsPanel scope={{ eventId }} canManage title="Event notices" />
-      <GeneratedDocuments eventId={eventId} />
-      <DocumentsPanel
-        scope={{ eventId }}
-        canManage
-        title="Event documents"
+      <Tabs
+        tabs={[
+          {
+            id: "weekend",
+            label: "Race weekend",
+            content: (
+              <div className="space-y-8">
+                <SchedulePanel eventId={eventId} />
+                <VenuePanel eventId={eventId} />
+              </div>
+            ),
+          },
+          {
+            id: "entries",
+            label: "Entries",
+            content: (
+              <div className="space-y-8">
+                <RegistrationsPanel
+                  eventId={eventId}
+                  capacity={data.entryCapacity}
+                  seriesId={data.seriesId}
+                />
+                <LineupsPanel eventId={eventId} />
+                <EligibilityPanel eventId={eventId} />
+                <WaiversPanel eventId={eventId} />
+              </div>
+            ),
+          },
+          {
+            id: "paddock",
+            label: "Paddock & tech",
+            content: (
+              <div className="space-y-8">
+                <ScrutineeringPanel eventId={eventId} seriesId={data.seriesId} />
+                <TiresPanel eventId={eventId} />
+                <PaddockPanel eventId={eventId} />
+              </div>
+            ),
+          },
+          {
+            id: "control",
+            label: "Race control",
+            content: (
+              <div className="space-y-8">
+                <TimingConsole eventId={eventId} />
+                <OfficialsLogPanel eventId={eventId} />
+                <PenaltiesPanel eventId={eventId} />
+              </div>
+            ),
+          },
+          {
+            id: "results",
+            label: "Results",
+            content: (
+              <div className="space-y-8">
+                <ResultsPanel eventId={eventId} />
+                <ResultsImportPanel eventId={eventId} />
+              </div>
+            ),
+          },
+          {
+            id: "volunteers",
+            label: "Volunteers",
+            content: <ShiftsPanel eventId={eventId} />,
+          },
+          {
+            id: "comms",
+            label: "Documents & notices",
+            content: (
+              <div className="space-y-8">
+                <GeneratedDocuments eventId={eventId} />
+                <AnnouncementsPanel
+                  scope={{ eventId }}
+                  canManage
+                  title="Event notices"
+                />
+                <DocumentsPanel
+                  scope={{ eventId }}
+                  canManage
+                  title="Event documents"
+                />
+              </div>
+            ),
+          },
+          {
+            id: "settings",
+            label: "Settings",
+            visible: canDelete,
+            content: (
+              <BrandingEditor
+                scope={{ eventId }}
+                name={data.name}
+                description="Anything left blank is inherited from the series. Most rounds need nothing here."
+              />
+            ),
+          },
+        ]}
       />
 
       {canDelete && (

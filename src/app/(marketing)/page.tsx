@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { auth } from "@clerk/nextjs/server";
 import {
   AUDIENCE_PATHS,
   CAPABILITY_GROUPS,
@@ -18,6 +20,12 @@ export const metadata: Metadata = {
 };
 
 export default async function LandingPage() {
+  // Signed-in people get their own dashboard. The marketing page is for
+  // people deciding whether to sign up; sending a member there every time
+  // makes them hunt for the thing they came to do.
+  const { userId } = await auth();
+  if (userId) redirect("/home");
+
   const pulse = await platformPulse();
 
   return (
