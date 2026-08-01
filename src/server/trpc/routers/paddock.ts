@@ -6,6 +6,7 @@ import {
   CredentialStatus,
   Prisma,
   RegistrationStatus,
+  ScanResult,
 } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import {
@@ -25,6 +26,7 @@ import {
   pitBoxOverflow,
 } from "@/lib/paddock";
 import { planCredentials } from "@/lib/credentials";
+import { decideScan, extractToken } from "@/lib/gate";
 import {
   credentialToken,
   gatherCandidates,
@@ -791,6 +793,191 @@ export const paddockRouter = createTRPCRouter({
         });
       }
       return credential;
+    }),
+
+  // -- The gate ------------------------------------------------------------
+
+  /**
+   * Resolves a scan at a gate and records it.
+   *
+   * A mutation rather than a query because the record is the point. Every
+   * scan is logged, including the refusals — those are the ones anybody asks
+   * about afterwards, and the log is also the only account of who was inside
+   * the fence when something happened.
+   *
+   * Organizers only. This is the internal side: it says what to *do*, checks
+   * the pass against the gate's own zone, and writes to the event's record.
+   * The public `/pass/<token>` page stays as it is, for anybody who scans a
+   * badge with a plain camera app.
+   */
+  checkIn: protectedProcedure
+    .input(
+      z.object({
+        eventId: z.string().cuid(),
+        /// Whatever the camera read: a URL or a bare token.
+        scanned: z.string().min(1).max(600),
+        /// The area this gate controls. Omit for a general identity check.
+        zone: z.nativeEnum(AccessZone).nullish(),
+        /// What the gate is called on the ground.
+        gate: z.string().max(80).nullish(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertEventOrganizer(
+        ctx.db,
+        input.eventId,
+        ctx.user.id,
+        SERIES_EVENT_ROLES,
+      );
+
+      const token = extractToken(input.scanned);
+      const credential = token
+        ? await ctx.db.credential.findUnique({
+            where: { qrToken: token },
+            select: {
+              id: true,
+              eventId: true,
+              holderName: true,
+              holderRole: true,
+              serial: true,
+              status: true,
+              credentialType: {
+                select: { name: true, description: true, zones: true },
+              },
+              registration: {
+                select: {
+                  carNumber: true,
+                  carClass: true,
+                  team: { select: { name: true } },
+                },
+              },
+            },
+          })
+        : null;
+
+      /*
+       * A pass for a different event is not a pass here. Treated as unknown
+       * rather than as valid-but-wrong-zone: last month's badge opening this
+       * month's paddock is the most obvious way a gate gets walked through,
+       * and it is exactly the mistake a human eye makes.
+       */
+      const forThisEvent =
+        credential && credential.eventId === input.eventId ? credential : null;
+
+      const verdict = decideScan(
+        forThisEvent
+          ? {
+              status: forThisEvent.status,
+              zones: forThisEvent.credentialType.zones,
+            }
+          : null,
+        input.zone ?? null,
+      );
+
+      const scan = await ctx.db.credentialScan.create({
+        data: {
+          eventId: input.eventId,
+          credentialId: forThisEvent?.id ?? null,
+          result: verdict.result,
+          zone: input.zone ?? null,
+          gate: input.gate?.trim() || null,
+          token,
+          scannedById: ctx.user.id,
+        },
+        select: { id: true, scannedAt: true },
+      });
+
+      return {
+        scanId: scan.id,
+        scannedAt: scan.scannedAt,
+        result: verdict.result,
+        instruction: verdict.instruction,
+        // Null for an unknown code — there is nothing to show but the verdict.
+        credential: forThisEvent,
+        /// True when the code resolved to a pass issued for a different event.
+        wrongEvent: Boolean(credential && !forThisEvent),
+      };
+    }),
+
+  /** The gate's own record: recent scans, newest first. */
+  scanLog: protectedProcedure
+    .input(
+      z.object({
+        eventId: z.string().cuid(),
+        result: z.nativeEnum(ScanResult).optional(),
+        limit: z.number().int().min(1).max(200).default(50),
+        cursor: z.string().cuid().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      await assertEventOrganizer(
+        ctx.db,
+        input.eventId,
+        ctx.user.id,
+        SERIES_EVENT_ROLES,
+      );
+      const items = await ctx.db.credentialScan.findMany({
+        where: {
+          eventId: input.eventId,
+          ...(input.result ? { result: input.result } : {}),
+        },
+        orderBy: { scannedAt: "desc" },
+        take: input.limit + 1,
+        ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+        select: {
+          id: true,
+          result: true,
+          zone: true,
+          gate: true,
+          scannedAt: true,
+          scannedBy: { select: { profile: { select: { displayName: true } } } },
+          credential: {
+            select: {
+              holderName: true,
+              holderRole: true,
+              credentialType: { select: { name: true } },
+              registration: {
+                select: {
+                  carNumber: true,
+                  team: { select: { name: true } },
+                },
+              },
+            },
+          },
+        },
+      });
+      let nextCursor: string | undefined;
+      if (items.length > input.limit) nextCursor = items.pop()!.id;
+      return { items, nextCursor };
+    }),
+
+  /** Tally for the event, so a duty officer can see the shape of the day. */
+  scanCounts: protectedProcedure
+    .input(z.object({ eventId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      await assertEventOrganizer(
+        ctx.db,
+        input.eventId,
+        ctx.user.id,
+        SERIES_EVENT_ROLES,
+      );
+      const grouped = await ctx.db.credentialScan.groupBy({
+        by: ["result"],
+        where: { eventId: input.eventId },
+        _count: { _all: true },
+      });
+      // Counted in the database, then shaped by the same function the client
+      // uses on a local list, so the two can never disagree about naming.
+      const byResult = new Map(
+        grouped.map((row) => [row.result, row._count._all]),
+      );
+      return {
+        admitted: byResult.get(ScanResult.ADMITTED) ?? 0,
+        wrongZone: byResult.get(ScanResult.WRONG_ZONE) ?? 0,
+        notValid: byResult.get(ScanResult.NOT_VALID) ?? 0,
+        unknown: byResult.get(ScanResult.UNKNOWN) ?? 0,
+        total: [...byResult.values()].reduce((sum, n) => sum + n, 0),
+      };
     }),
 
   /**

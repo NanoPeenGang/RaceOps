@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { AccessZone, CredentialAudience, CredentialStatus } from "@prisma/client";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/trpc/root";
@@ -219,13 +220,20 @@ function AccreditationTab({
             ))
           )}
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setAdding((open) => !open)}
-        >
-          {adding ? "Cancel" : "Add pass type"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/events/${eventId}/gate`}>
+            <Button size="sm" variant="outline">
+              Gate control
+            </Button>
+          </Link>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setAdding((open) => !open)}
+          >
+            {adding ? "Cancel" : "Add pass type"}
+          </Button>
+        </div>
       </div>
 
       {adding && (

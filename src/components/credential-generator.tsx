@@ -189,6 +189,12 @@ export function CredentialGenerator({
                 >
                   Print the badges →
                 </Link>
+                <Link
+                  href={`/events/${eventId}/gate`}
+                  className="text-xs text-brand-red hover:underline"
+                >
+                  Open gate control →
+                </Link>
               </div>
 
               {generate.data && (

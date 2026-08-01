@@ -5,6 +5,7 @@ import {
   CredentialStatus,
   PrismaClient,
   RegistrationStatus,
+  ScanResult,
   SeriesDiscipline,
 } from "@prisma/client";
 import { createCaller } from "@/server/trpc/root";
@@ -421,6 +422,204 @@ describe.skipIf(!ENABLED)("credential generation (integration)", () => {
     const mine = await coDriver.caller.paddock.myCredentials();
     expect(typeof mine.walletAvailable).toBe("boolean");
     expect(mine.walletAvailable).toBe(false);
+  });
+
+  it("admits a valid pass at a gate that it opens, and records it", async () => {
+    const pass = await db.credential.findFirstOrThrow({
+      where: { eventId, credentialTypeId: driverTypeId },
+    });
+    const result = await organizer.caller.paddock.checkIn({
+      eventId,
+      scanned: credentialUrl(pass.qrToken!),
+      zone: AccessZone.PIT_LANE,
+      gate: "Pit lane in",
+    });
+
+    expect(result.result).toBe(ScanResult.ADMITTED);
+    expect(result.credential?.holderName).toBe(pass.holderName);
+    // The record is the point: every scan is logged, refusals included.
+    const scan = await db.credentialScan.findUniqueOrThrow({
+      where: { id: result.scanId },
+    });
+    expect(scan.gate).toBe("Pit lane in");
+    expect(scan.zone).toBe(AccessZone.PIT_LANE);
+    expect(scan.credentialId).toBe(pass.id);
+    expect(scan.scannedById).toBe(organizer.user.id);
+  });
+
+  it("turns a valid pass away from a gate it does not open", async () => {
+    // A competitor pass is real and must not open race control.
+    const pass = await db.credential.findFirstOrThrow({
+      where: { eventId, credentialTypeId: driverTypeId },
+    });
+    const result = await organizer.caller.paddock.checkIn({
+      eventId,
+      scanned: pass.qrToken!,
+      zone: AccessZone.RACE_CONTROL,
+    });
+    expect(result.result).toBe(ScanResult.WRONG_ZONE);
+    expect(result.instruction).toContain("Race control");
+    // Still a real person, so the marshal can redirect them by name.
+    expect(result.credential?.holderName).toBeTruthy();
+  });
+
+  it("logs an unknown code instead of discarding it", async () => {
+    /*
+     * The refusals are the ones anybody asks about afterwards — including
+     * whether the same unknown code was tried at four gates in a row.
+     */
+    const result = await organizer.caller.paddock.checkIn({
+      eventId,
+      scanned: "https://raceops.test/pass/totallyMadeUpTokenValue1",
+      zone: AccessZone.PADDOCK,
+    });
+    expect(result.result).toBe(ScanResult.UNKNOWN);
+    expect(result.credential).toBeNull();
+
+    const scan = await db.credentialScan.findUniqueOrThrow({
+      where: { id: result.scanId },
+    });
+    expect(scan.credentialId).toBeNull();
+    expect(scan.token).toBe("totallyMadeUpTokenValue1");
+  });
+
+  it("refuses last month's badge at this month's gate", async () => {
+    /*
+     * A pass issued for a different event is the most obvious way a gate gets
+     * walked through, and exactly the mistake a human eye makes. It reads as
+     * unknown rather than as a valid pass in the wrong place.
+     */
+    const otherEvent = await organizer.caller.event.create({
+      seriesId,
+      name: "Round 2",
+      date: new Date(Date.UTC(2026, 9, 1, 9, 0)),
+      platform: "Circuit",
+    });
+    const otherType = await organizer.caller.paddock.addCredentialType({
+      eventId: otherEvent.id,
+      name: "Competitor",
+      zones: [AccessZone.PADDOCK],
+    });
+    const otherPass = await organizer.caller.paddock.issueStandaloneCredential({
+      eventId: otherEvent.id,
+      credentialTypeId: otherType.id,
+      holderName: "Somebody Else",
+    });
+
+    const result = await organizer.caller.paddock.checkIn({
+      eventId,
+      scanned: otherPass.qrToken!,
+      zone: AccessZone.PADDOCK,
+    });
+    expect(result.result).toBe(ScanResult.UNKNOWN);
+    expect(result.wrongEvent).toBe(true);
+    expect(result.credential).toBeNull();
+  });
+
+  it("refuses a pass the moment it is voided", async () => {
+    const pass = await organizer.caller.paddock.issueStandaloneCredential({
+      eventId,
+      credentialTypeId: officialTypeId,
+      holderName: `Revoked ${run}`,
+    });
+    expect(
+      (
+        await organizer.caller.paddock.checkIn({
+          eventId,
+          scanned: pass.qrToken!,
+          zone: AccessZone.PADDOCK,
+        })
+      ).result,
+    ).toBe(ScanResult.ADMITTED);
+
+    await organizer.caller.paddock.setCredentialStatus({
+      credentialId: pass.id,
+      status: CredentialStatus.VOID,
+    });
+
+    const after = await organizer.caller.paddock.checkIn({
+      eventId,
+      scanned: pass.qrToken!,
+      zone: AccessZone.PADDOCK,
+    });
+    expect(after.result).toBe(ScanResult.NOT_VALID);
+    expect(after.instruction).toMatch(/cancelled/i);
+  });
+
+  it("keeps a tally and a log the duty officer can read", async () => {
+    const counts = await organizer.caller.paddock.scanCounts({ eventId });
+    expect(counts.admitted).toBeGreaterThan(0);
+    expect(counts.unknown).toBeGreaterThan(0);
+    expect(counts.total).toBe(
+      counts.admitted + counts.wrongZone + counts.notValid + counts.unknown,
+    );
+
+    const log = await organizer.caller.paddock.scanLog({ eventId, limit: 5 });
+    expect(log.items.length).toBeGreaterThan(0);
+    // Newest first: a gate wants the last person, not the first.
+    const times = log.items.map((item) => item.scannedAt.getTime());
+    expect([...times].sort((a, b) => b - a)).toEqual(times);
+    expect(log.items[0].scannedBy.profile?.displayName).toContain("credorg");
+  });
+
+  it("filters the log to the refusals, which is what gets reviewed", async () => {
+    const refused = await organizer.caller.paddock.scanLog({
+      eventId,
+      result: ScanResult.UNKNOWN,
+      limit: 20,
+    });
+    expect(refused.items.length).toBeGreaterThan(0);
+    expect(refused.items.every((item) => item.result === ScanResult.UNKNOWN)).toBe(
+      true,
+    );
+  });
+
+  it("keeps the gate to this event's organizers", async () => {
+    // A working gate in a stranger's tab is a way into the paddock.
+    await expect(
+      stranger.caller.paddock.checkIn({ eventId, scanned: "anything-at-all-x" }),
+    ).rejects.toThrow();
+    await expect(
+      stranger.caller.paddock.scanLog({ eventId }),
+    ).rejects.toThrow();
+    await expect(
+      stranger.caller.paddock.scanCounts({ eventId }),
+    ).rejects.toThrow();
+  });
+
+  it("keeps the scan history even if the pass row goes", async () => {
+    /*
+     * Two guarantees, and the router turned out to hold the stronger one
+     * already: an issued pass cannot be deleted at all, only voided, because a
+     * pass that vanishes cannot be reconciled against the gate log. The
+     * schema's `onDelete: SetNull` is the backstop for the cases that bypass
+     * the router — a data migration, an admin fixing something in SQL — where
+     * losing the record of who came through the fence would be far worse than
+     * losing the pass.
+     */
+    const pass = await organizer.caller.paddock.issueStandaloneCredential({
+      eventId,
+      credentialTypeId: officialTypeId,
+      holderName: `Temporary ${run}`,
+    });
+    const scan = await organizer.caller.paddock.checkIn({
+      eventId,
+      scanned: pass.qrToken!,
+      zone: AccessZone.PADDOCK,
+    });
+
+    await expect(
+      organizer.caller.paddock.removeCredential({ credentialId: pass.id }),
+    ).rejects.toThrow(/Void it instead/i);
+
+    await db.credential.delete({ where: { id: pass.id } });
+    const kept = await db.credentialScan.findUniqueOrThrow({
+      where: { id: scan.scanId },
+    });
+    expect(kept.credentialId).toBeNull();
+    expect(kept.result).toBe(ScanResult.ADMITTED);
+    // The gate name and time survive, which is what makes the log an account.
+    expect(kept.zone).toBe(AccessZone.PADDOCK);
   });
 
   it("will not let an outsider sweep or scan-manage an event", async () => {

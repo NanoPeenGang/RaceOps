@@ -147,6 +147,7 @@ model User {
   sponsorshipsCreated    Sponsorship[]            @relation("SponsorshipCreator")
   tracksCreated          Track[]                  @relation("TrackCreator")
   trackImages            TrackImage[]             @relation("TrackImageUploader")
+  credentialScans        CredentialScan[]         @relation("CredentialScanner")
   conditionsRecorded     SessionCondition[]       @relation("ConditionRecorder")
   carsOwned              Car[]                    @relation("CarOwner")
   carsCreated            Car[]                    @relation("CarCreator")
@@ -696,6 +697,7 @@ model RaceEvent {
   paddock          PaddockAllocation[]
   credentialTypes  CredentialType[]
   credentials      Credential[]
+  credentialScans  CredentialScan[]
   officialLog      OfficialLogEntry[]
   waivers          Waiver[]
   branding         Branding?
@@ -2268,6 +2270,7 @@ model Credential {
   updatedAt DateTime @updatedAt
 
   event          RaceEvent          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  scans          CredentialScan[]
   credentialType CredentialType     @relation(fields: [credentialTypeId], references: [id], onDelete: Cascade)
   registration   EventRegistration? @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   holderUser     User?              @relation("CredentialHolder", fields: [holderUserId], references: [id], onDelete: SetNull)
@@ -2276,6 +2279,60 @@ model Credential {
   @@index([eventId, status])
   @@index([registrationId])
   @@index([holderUserId])
+}
+
+/**
+ * What a gate decided about one scan.
+ *
+ * Four outcomes, not two, because "no" has three different causes and a
+ * marshal has to do something different about each: send them to the right
+ * gate, send them to accreditation, or call race control.
+ */
+enum ScanResult {
+  /// Valid, and it opens the zone this gate is checking.
+  ADMITTED
+  /// A real, valid pass — for somewhere else. Point them at the right gate.
+  WRONG_ZONE
+  /// Cancelled, or issued but never approved. Accreditation problem.
+  NOT_VALID
+  /// The code matched no pass at all. Not one of ours.
+  UNKNOWN
+}
+
+/**
+ * One scan at a gate.
+ *
+ * Recorded for every scan including the refusals, because the refusals are the
+ * ones anybody asks about afterwards: who was turned away, from where, and
+ * whether the same unknown code was tried at four gates in a row. It is also
+ * the only record of who was inside the fence when something happened, which
+ * is the first thing an insurer asks for.
+ *
+ * `credentialId` is nullable — an unknown code has no pass to point at, and
+ * dropping those scans would erase exactly the ones worth investigating. The
+ * raw `token` is kept for the same reason.
+ */
+model CredentialScan {
+  id           String      @id @default(cuid())
+  eventId      String
+  credentialId String?
+  result       ScanResult
+  /// The zone the gate was set to check. Null for a general identity check.
+  zone         AccessZone?
+  /// What the gate is called on the ground: "Paddock gate 2", "Pit lane in".
+  gate         String?
+  /// The scanned code. Kept even when it matched nothing.
+  token        String?
+  scannedById  String
+  scannedAt    DateTime    @default(now())
+
+  event      RaceEvent   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  credential Credential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  scannedBy  User        @relation("CredentialScanner", fields: [scannedById], references: [id], onDelete: Cascade)
+
+  @@index([eventId, scannedAt])
+  @@index([credentialId])
+  @@index([eventId, result])
 }
 
 // ---------------------------------------------------------------------------

@@ -501,6 +501,26 @@ results feed the championship standings immediately.
   error message. Re-running it issues nobody a second pass, and a voided pass
   is re-issued rather than skipped.
 
+  **Gate control.** `/events/:id/gate` is the internal side: a marshal picks
+  the area their gate controls, names it, and scans. The camera runs
+  continuously through `BarcodeDetector` where it exists and jsQR everywhere
+  else — Safari has no `BarcodeDetector` and the people standing on gates are
+  overwhelmingly holding iPhones — with a manual box for a wet lens or a
+  scratched lanyard sleeve.
+
+  The verdict is the whole screen and answers *this gate's* question rather
+  than "is this real": a competitor pass at race control reads **wrong gate**
+  in amber, not "valid", because telling a marshal "valid" while they stand on
+  the pit wall is how the wrong people get in. A pass issued for a different
+  event reads as unknown rather than as a valid pass in the wrong place — last
+  month's badge is the most obvious way a gate gets walked through.
+
+  Every scan is recorded, refusals included: those are the ones anybody asks
+  about afterwards, and the log is the only account of who was inside the
+  fence when something happened. Repeat reads of the same badge within a few
+  seconds are suppressed so a camera reading eight times a second does not
+  turn the head count into noise.
+
   **The holder gets their pass, not just the organizer.** Issued passes appear
   on the dashboard and under *My passes*, each with a full-screen QR for a gate,
   a print view that produces a card for a lanyard, and — where the deployment
