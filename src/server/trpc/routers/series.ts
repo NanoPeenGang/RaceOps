@@ -87,6 +87,7 @@ export const seriesRouter = createTRPCRouter({
               _count: { select: { registrations: true, volunteerShifts: true } },
             },
           },
+          rules: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }] },
         },
       });
       if (!series) throw new TRPCError({ code: "NOT_FOUND" });

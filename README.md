@@ -36,7 +36,7 @@ Who it is for, and what they do here:
 cp .env.example .env    # fill in DATABASE_URL + Clerk keys at minimum
 npm install             # also runs `prisma generate`
 npm run db:migrate      # apply prisma/migrations to your Postgres
-npm run db:seed         # load the reference track directory (idempotent)
+npm run db:seed         # load the reference tracks and series (idempotent)
 npm run dev
 ```
 
@@ -70,7 +70,7 @@ Create Database → Neon (Postgres)** — linking it injects `DATABASE_URL`
 (and `DATABASE_URL_UNPOOLED`) into the project automatically. Migrations
 run during every Vercel build via the `vercel-build` script
 (`scripts/migrate-deploy.mjs`, idempotent `prisma migrate deploy` over the
-direct connection), which then seeds the reference tracks, so no manual
+direct connection), which then seeds the reference data, so no manual
 migration or seeding step is needed. If you bring your
 own Postgres instead, set `DATABASE_URL` (runtime, pooled is fine) and
 optionally `DIRECT_URL` (migrations).
@@ -88,7 +88,7 @@ message naming the missing variables instead. Set them and redeploy
 | `npm run lint` / `npm run typecheck` / `npm test` | CI quality gates |
 | `npm run build` | Production build |
 | `npm run db:migrate` | Apply migrations (`prisma migrate deploy`) |
-| `npm run db:seed` | Load the reference tracks (safe to re-run; see below) |
+| `npm run db:seed` | Load the reference tracks and series (safe to re-run; see below) |
 | `npm run db:studio` | Prisma Studio |
 | `npm run brand:generate` | Regenerate brand assets into `public/` |
 
@@ -210,6 +210,61 @@ Only three sets of rules ship seeded (Laguna Seca, Lime Rock, Sonoma), because
 those are the ones that were actually researched and cited. The rest is for the
 people who run there; guessing a sound limit would send somebody home from the
 gate with a trailer they did not need to load.
+
+### Reference series
+
+The same idea one level up: a shipped championship, so a driver can look up
+when and where a series runs — and what it will demand of a car and a crew —
+before they have any account relationship with it. The **ChampCar Endurance
+Series** ships seeded (`prisma/seed-data/champcar.mts`): the published 2026
+calendar, each round linked to a circuit in the track directory, and a cited
+summary of the rule book.
+
+It follows the same add / fill / never-overwrite contract as the tracks, with
+one deliberate difference in the curation rule. A reference *track* is editable
+by anyone signed in, because a circuit's length is a fact and whoever spots a
+typo should be able to fix it. A reference *series* is not: a championship's
+calendar and regulations are its organizer's to state, and a wiki-editable rule
+book would be worse than no rule book. These change by re-seeding.
+
+A seeded series has **no organizers**, which is not an oversight — it is the
+mechanism. Every organizer-only mutation already refuses a series the caller
+has no role in, so a reference copy is read-only everywhere without a single
+special case, and the page says so rather than leaving people hunting for an
+entry button. A slug held by a series somebody is actually running is skipped
+outright: overwriting a live season's calendar with a copy of a published
+schedule is the worst thing this script could do.
+
+Rounds are matched on **name and date**, not name alone — the 2026 season
+visits both Sebring and Harris Hill twice, and matching on name would silently
+drop the second visit.
+
+#### Which configuration a round runs on
+
+A circuit's *primary* layout is not the one a given series races. Autobahn's
+primary is the full course and ChampCar runs the south; Daytona's is the
+tri-oval, which no 14-hour road race uses. So the calendar names the
+configuration, and the loader has three states rather than a guess:
+
+- **Named** — the schedule or the series' own entry pages say which course it
+  is. Link it. If that name is not in the directory the round is left
+  *unlinked*, because a typo should surface as a missing map rather than hide
+  behind a plausible-looking one.
+- **Omitted** — the configuration is not published. Link the circuit's primary
+  layout so the round still carries a map and a length, and write a line on the
+  event saying the configuration is unconfirmed. Unmarked, a fallback is
+  indistinguishable from a sourced fact.
+- **Null** — the series races a configuration the directory does not carry
+  (Pocono runs one of half a dozen infield courses, and the directory has only
+  the tri-oval). Link nothing; the free-text venue is the honest answer.
+
+`SeriesRule` is the sporting counterpart to `TrackRule` and carries the same
+citation and last-checked date, for the same reason. What is seeded is a
+summary and says so **first**, above the regulations it qualifies — a "read the
+actual rule book" note printed under seven rules somebody has already acted on
+is not a caveat. No fee, deadline or scrutineering figure is seeded: those
+change between events and between revisions, and a stale one costs somebody a
+build.
 
 ## Build phases
 

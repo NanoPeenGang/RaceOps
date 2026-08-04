@@ -84,11 +84,18 @@ export default function SeriesPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle>{series.name}</CardTitle>
-                    <Badge>
-                      {series.discipline === SeriesDiscipline.SIM
-                        ? "Sim"
-                        : "Real world"}
-                    </Badge>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {/* Says up front that nobody runs this copy, so the
+                          absence of an "enter" path is not a bug. */}
+                      {series.isReference && (
+                        <Badge variant="outline">Reference</Badge>
+                      )}
+                      <Badge>
+                        {series.discipline === SeriesDiscipline.SIM
+                          ? "Sim"
+                          : "Real world"}
+                      </Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-1">

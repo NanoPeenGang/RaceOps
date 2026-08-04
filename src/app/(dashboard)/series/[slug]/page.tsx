@@ -5,6 +5,12 @@ import { TRPCError } from "@trpc/server";
 import { EventStatus } from "@prisma/client";
 import { serverApi } from "@/server/trpc/server-caller";
 import { EVENT_STATUS_LABELS } from "@/lib/events";
+import {
+  SERIES_RULE_DESCRIPTIONS,
+  SERIES_RULE_LABELS,
+  groupSeriesRules,
+} from "@/lib/series-rules";
+import { isStale, verifiedLabel } from "@/lib/track-rules";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,6 +94,7 @@ export default async function SeriesLandingPage({
     (event) => event.status === EventStatus.COMPLETED,
   );
 
+  const ruleGroups = groupSeriesRules(series.rules);
   const branding = await brandingForSeries(db, series.id);
 
   return (
@@ -118,6 +125,36 @@ export default async function SeriesLandingPage({
       />
 
       <div className="space-y-4">
+        {series.isReference && (
+          <Card className="max-w-3xl border-brand-black/20 bg-brand-black/[0.03]">
+            <CardContent className="space-y-1 p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">Reference</Badge>
+                <p className="text-sm font-medium">
+                  Shipped with RaceOps, not run on it.
+                </p>
+              </div>
+              <p className="text-sm leading-relaxed text-brand-black/70">
+                Nobody organizes this copy — the calendar and regulations below
+                are a summary of what the series publishes, kept so you can plan
+                a season before you enter one. Entries, timing and results
+                happen wherever the series actually runs them.
+                {series.sourceUrl ? " Check the source before you commit." : ""}
+              </p>
+              {series.sourceUrl && (
+                <a
+                  href={series.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-block text-sm text-brand-red hover:underline"
+                >
+                  {series.sourceUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")} ↗
+                </a>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {series.description && (
           <p className="max-w-3xl whitespace-pre-wrap text-sm leading-relaxed text-brand-black/80">
             {series.description}
@@ -216,6 +253,62 @@ export default async function SeriesLandingPage({
         )}
       </section>
 
+      {ruleGroups.length > 0 && (
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-xl font-semibold">Sporting regulations</h2>
+            <p className="text-sm text-brand-black/60">
+              What the series requires of a car and a crew. Facility rules are
+              separate, and live on each circuit&rsquo;s track page.
+            </p>
+          </div>
+
+          {ruleGroups.map((group) => (
+            <div key={group.kind} className="space-y-2">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-brand-black/50">
+                  {SERIES_RULE_LABELS[group.kind]}
+                </h3>
+                <p className="text-xs text-brand-black/50">
+                  {SERIES_RULE_DESCRIPTIONS[group.kind]}
+                </p>
+              </div>
+              {group.rules.map((rule) => (
+                <Card key={rule.id}>
+                  <CardContent className="space-y-2 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="font-medium">{rule.title}</p>
+                      {isStale(rule.verifiedOn) && (
+                        <Badge variant="outline">May be out of date</Badge>
+                      )}
+                    </div>
+                    {rule.detail && (
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-brand-black/75">
+                        {rule.detail}
+                      </p>
+                    )}
+                    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-brand-black/50">
+                      {rule.citation && <span>{rule.citation}</span>}
+                      {rule.sourceUrl && (
+                        <a
+                          href={rule.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="text-brand-red hover:underline"
+                        >
+                          Source ↗
+                        </a>
+                      )}
+                      <span>{verifiedLabel(rule.verifiedOn)}</span>
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ))}
+        </section>
+      )}
+
       <AnnouncementsPanel
         scope={{ seriesId: series.id }}
         canManage={canPublish}
@@ -234,17 +327,21 @@ export default async function SeriesLandingPage({
         allowOrganizerOnly={canPublish}
       />
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Organizers</h2>
-        <div className="flex flex-wrap gap-2">
-          {series.organizers.map((organizer) => (
-            <Badge key={organizer.id}>
-              {organizer.user.profile?.displayName ?? "Unnamed"} ·{" "}
-              {organizer.role.replace(/_/g, " ").toLowerCase()}
-            </Badge>
-          ))}
-        </div>
-      </section>
+      {/* A reference series has none by design; an empty heading reads as a
+          missing list rather than an intentionally absent one. */}
+      {series.organizers.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold">Organizers</h2>
+          <div className="flex flex-wrap gap-2">
+            {series.organizers.map((organizer) => (
+              <Badge key={organizer.id}>
+                {organizer.user.profile?.displayName ?? "Unnamed"} ·{" "}
+                {organizer.role.replace(/_/g, " ").toLowerCase()}
+              </Badge>
+            ))}
+          </div>
+        </section>
+      )}
     </BrandTheme>
   );
 }

@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { seedReferenceTracks } from "./seed-data/seed-tracks.mts";
+import { seedReferenceSeries } from "./seed-data/seed-series.mts";
 import {
   STATES_WITHOUT_TRACKS,
   US_REFERENCE_TRACKS,
@@ -64,6 +65,19 @@ try {
   if (STATES_WITHOUT_TRACKS.length > 0) {
     console.log(
       `No permanent circuit or oval on file for: ${STATES_WITHOUT_TRACKS.join(", ")}.`,
+    );
+  }
+
+  const series = await seedReferenceSeries(db);
+  console.log(
+    `\n${series.seriesCreated} reference series added, ` +
+      `${series.seriesPresent} already present, ${series.seriesSkipped} skipped; ` +
+      `${series.eventsCreated} rounds and ${series.rulesCreated} regulations added.`,
+  );
+  if (series.eventsUnlinked > 0) {
+    console.log(
+      `${series.eventsUnlinked} round${series.eventsUnlinked === 1 ? "" : "s"} ` +
+        "could not be linked to a track in the directory and carry a free-text venue.",
     );
   }
 } finally {

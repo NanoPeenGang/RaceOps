@@ -545,6 +545,21 @@ model Series {
   countBestRounds   Int?
   /// Rounds a competitor must start to be eligible for the title.
   minStartsForTitle Int?
+  /**
+   * A championship shipped with the platform rather than created by a user:
+   * a published calendar and rule set, seeded so somebody can look up when
+   * and where a series runs and what it requires before they have any account
+   * relationship with it.
+   *
+   * Unlike a reference *track*, this is not open to correction by anyone. A
+   * circuit's length is a fact; a championship's regulations are that
+   * organizer's to state, and a wiki-editable rule book would be worse than
+   * none. Reference series are updated by re-seeding, or by the organizer
+   * taking ownership of the row.
+   */
+  isReference       Boolean          @default(false)
+  /// Where the seeded copy came from, so a reader can check it themselves.
+  sourceUrl         String?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
@@ -563,6 +578,68 @@ model Series {
   inspectionTemplates InspectionTemplate[]
   transponders        Transponder[]
   waivers             Waiver[]
+  rules               SeriesRule[]
+}
+
+/**
+ * What part of a rule book a regulation belongs to.
+ *
+ * Grouped the way a competitor reads them rather than the way a rule book is
+ * numbered: the first question is always "can my car run", and the last is
+ * always "what happens if I get it wrong".
+ */
+enum SeriesRuleKind {
+  /// What may be entered: classes, performance caps, homologation.
+  ELIGIBILITY
+  /// Cage, seat, harness, fire system, personal equipment.
+  SAFETY
+  /// Licence, minimum drivers, stint limits, driver change procedure.
+  DRIVERS
+  /// Race length, pit stops, fuelling, service restrictions.
+  FORMAT
+  /// How the championship is scored.
+  SCORING
+  /// Flags, conduct, contact, penalties and appeals.
+  CONDUCT
+  /// Entry fees, deadlines, transponders, paperwork.
+  ENTRY
+  OTHER
+}
+
+/**
+ * One regulation a championship imposes.
+ *
+ * Structured rather than a PDF because the questions people actually ask —
+ * "how many drivers do I need for a 14-hour race", "what is the points cap" —
+ * are answerable from a field, and are not answerable from a link to a
+ * 90-page document somebody has to search.
+ *
+ * The PDF still matters, which is what `sourceUrl` and `citation` are for: a
+ * summary that cannot be checked against the rule book is a summary nobody
+ * should build a car to. `verifiedOn` exists because rule books are revised
+ * every winter and a stale points cap is worse than a missing one.
+ */
+model SeriesRule {
+  id         String         @id @default(cuid())
+  seriesId   String
+  kind       SeriesRuleKind
+  /// The rule in one line: "Vehicle points cap: 500".
+  title      String
+  /// What a competitor needs to know, in prose.
+  detail     String?        @db.Text
+  /// Where it lives in the rule book: "BCCR v1.4 §4.2".
+  citation   String?
+  sourceUrl  String?
+  /// Display order within a kind; lower first.
+  sortOrder  Int            @default(0)
+  /// When somebody last checked this against the rule book. Null = never.
+  verifiedOn DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@index([seriesId, kind, sortOrder])
 }
 
 /**
