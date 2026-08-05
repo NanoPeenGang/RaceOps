@@ -18,6 +18,8 @@ import { InventoryPanel } from "./inventory-panel";
 import { FilesPanel } from "./files-panel";
 import { ServicePanel } from "./service-panel";
 import { SeatTimePanel } from "./seat-time-panel";
+import { HiringPanel } from "./hiring-panel";
+import { PayrollPanel } from "./payroll-panel";
 import { DepartmentChannels } from "@/components/department-channels";
 import { BrandingEditor } from "@/components/branding-editor";
 
@@ -96,6 +98,8 @@ export default function TeamManagePage({
       )}
 
       <RosterPanel team={data} onChanged={refresh} />
+      {isTeamManager(data.myRole) && <HiringPanel teamId={data.id} />}
+      {isTeamManager(data.myRole) && <PayrollPanel teamId={data.id} />}
       <GaragePanel team={data} />
       <ServicePanel teamId={data.id} />
       <InventoryPanel teamId={data.id} />

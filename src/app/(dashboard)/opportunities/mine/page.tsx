@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ApplicationStatus } from "@prisma/client";
 import { api } from "@/lib/trpc/client";
-import { STATUS_LABELS } from "@/lib/applications";
+import { APPLICATION_STATUS_LABELS } from "@/lib/hiring";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -104,7 +104,7 @@ function ApplicationList({ opportunityId }: { opportunityId: string }) {
                 {application.applicant.profile?.location}
               </p>
             </div>
-            <Badge>{STATUS_LABELS[application.status]}</Badge>
+            <Badge>{APPLICATION_STATUS_LABELS[application.status]}</Badge>
           </div>
           {application.coverNote && (
             <p className="mt-2 whitespace-pre-wrap text-sm text-brand-black/80">

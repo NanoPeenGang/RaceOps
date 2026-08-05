@@ -11,7 +11,10 @@ import {
 } from "@prisma/client";
 import { hasActiveTier } from "@/server/services/billing";
 import { notify } from "@/server/services/notifications";
-import { canPosterTransition, POSTER_SETTABLE_STATUSES } from "@/lib/applications";
+import {
+  canTeamTransition,
+  TEAM_SETTABLE_STATUSES,
+} from "@/lib/hiring";
 import type { TRPCContext } from "@/server/trpc/trpc";
 
 const POSTING_ROLES: TeamRole[] = [TeamRole.OWNER, TeamRole.MANAGER];
@@ -296,7 +299,7 @@ export const opportunityRouter = createTRPCRouter({
       z.object({
         applicationId: z.string().cuid(),
         status: z.enum(
-          POSTER_SETTABLE_STATUSES.map((s) => s.toString()) as [
+          TEAM_SETTABLE_STATUSES.map((s) => s.toString()) as [
             string,
             ...string[],
           ],
@@ -321,7 +324,7 @@ export const opportunityRouter = createTRPCRouter({
         throw new TRPCError({ code: "FORBIDDEN" });
       }
       const nextStatus = input.status as ApplicationStatus;
-      if (!canPosterTransition(application.status, nextStatus)) {
+      if (!canTeamTransition(application.status, nextStatus)) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message: `Cannot move an application from ${application.status} to ${nextStatus}.`,

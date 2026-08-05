@@ -321,6 +321,94 @@ team from one page.
   are visible to the team only.
 - **Team chat** — the team's own room, separate from event paddock chat.
 
+**Hiring (done):** posting to hired, without leaving the console.
+
+Applications land in a team-scoped **inbox** rather than sitting under whichever
+advert they came through — a team does not think in postings, it thinks in
+people waiting on an answer. The inbox is a pipeline (new → in review →
+interviewing → offer out) with the person who has been waiting longest at the
+top of each column, because they are the one the team owes a reply and a
+newest-first list buries them under every arrival since. Applications are
+flagged stale after a week, measured from when they applied and *not* from the
+last time somebody nudged the status — moving a row from "new" to "in review"
+without answering anybody is not progress, and resetting the clock for it would
+hide exactly what the number exists to surface.
+
+**Interviews** are proposed at several times at once, and the applicant picks
+one. That is the whole feature: one suggested slot becomes an email thread, and
+four days later the seat is gone. Times are stored in UTC and rendered in
+whoever is looking at them's own zone — a team in Charlotte interviewing a
+driver in Munich is the ordinary case, and a naive local time puts somebody on
+a call at 3am. A `TRACK_TEST` and a `WORK_TRIAL` are first-class kinds, because
+for a seat and for crew respectively that *is* the interview. The team's
+private notes are a separate field from the agenda the applicant sees.
+
+**Offers** carry the role, the terms and the money, and the applicant answers
+them. Accepting is what puts somebody on the roster at the offered role **and**
+sets their standing pay rate — hiring somebody and then separately typing them
+into the roster and again into the pay rates is where the details drift apart,
+and that single step is the reason an offer is a record rather than a message.
+A team that just wants to say yes can still do that: `ACCEPTED` is reachable
+directly, because most club hiring is a conversation and a handshake, and
+forcing everyone through the paperwork makes it something people work around.
+
+Two rules the money side follows everywhere:
+
+- **Unpaid is a basis, not a zero.** Most club crew are volunteers and a great
+  many seats are paid by the driver, so a form that insists on a number gets 0
+  typed into a field the payroll then treats as a wage — and a payroll built on
+  that pays people nothing while looking entirely correct. `UNPAID` with a null
+  amount, `PER_EVENT` with a null amount ("rate to be agreed") and
+  `PER_EVENT` with 0 are three different statements, and the UI says all three
+  differently.
+- **Only the applicant declines an offer.** A team can reject an application,
+  but `OFFER_DECLINED` is not theirs to set — that would be writing somebody
+  else's answer down. It is kept apart from `WITHDRAWN` because a refused offer
+  is a different fact, and worth knowing when the next one is written.
+
+Closing the posting after a hire is offered, never automatic: a team hiring two
+mechanics off one advert would be furious to find it closed after the first,
+and nothing can know how many seats a posting is for.
+
+**Payroll (done):** what the team owes, and what it has paid.
+
+> **This is not a payroll processor.** Nothing in it withholds tax, files a
+> return, or moves money. It works out what is owed, records what was paid, and
+> exports the figures for whoever actually runs the payroll — an accountant, a
+> bureau, or a bank transfer. That limit is on the panel itself, not in a
+> tooltip: a team believing otherwise on the platform's word would be making a
+> genuinely costly mistake, and burying the caveat would make that the
+> platform's fault rather than theirs.
+
+- **Standing rates** per person, superseded rather than overwritten. A run
+  built for March has to keep making sense in December, and it cannot if the
+  rate behind it was quietly rewritten — so setting a new rate closes the old
+  one out and `rateOn(date)` answers with whichever was in force.
+- **Pay runs** start pre-filled from those rates at quantity 1, so a monthly
+  run is a few counts confirmed rather than the roster retyped. People with no
+  rate, and volunteers, are left off entirely: a zero-value row per volunteer
+  buries the people actually owed money.
+- **Approval freezes the figures.** After it, only payment marks change. That
+  is the whole point of the step — money should not go out against a number
+  that can still be edited behind it. A paid line cannot be deleted and a paid
+  run cannot be cancelled.
+- **Currencies are never added together.** A team paying a driver in euros and
+  a mechanic in dollars has two numbers; one combined figure would be a
+  made-up amount in a made-up currency on a document somebody pays people from.
+- **Everything is integer minor units.** Money as a float is a rounding bug
+  that pays somebody a penny less every month and is found in an audit two
+  years later. The one deliberate exception is the CSV export, which writes
+  major units because that is what a bank file and an accountant read — one
+  conversion, on the way out.
+- **Payees without accounts** are first-class. The mechanic who does two
+  weekends a year has no login, and excluding them pushes a chunk of a real
+  team's costs back onto the spreadsheet this replaces. A line has exactly one
+  payee — an account or a name, never both.
+- **CSV export** quotes any cell containing a comma or a quote, and prefixes
+  anything starting `=`, `+`, `-` or `@` with an apostrophe. A payee name is
+  attacker-controlled text on a file an accountant opens in Excel, where such a
+  cell is executed.
+
 **The garage (done):** the records a team keeps between events, on the same
 console.
 

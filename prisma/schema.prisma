@@ -171,6 +171,13 @@ model User {
   channelsCreated        ChatChannel[]            @relation("ChannelCreator")
   threadsCreated         DirectThread[]           @relation("ThreadCreator")
   threadParticipations   DirectParticipant[]      @relation("ThreadParticipant")
+  interviewsCreated      Interview[]              @relation("InterviewCreator")
+  offersCreated          Offer[]                  @relation("OfferCreator")
+  payRates               PayRate[]                @relation("PayRateSubject")
+  payRatesCreated        PayRate[]                @relation("PayRateCreator")
+  payRunsCreated         PayRun[]                 @relation("PayRunCreator")
+  payRunsApproved        PayRun[]                 @relation("PayRunApprover")
+  payrollLines           PayrollLine[]            @relation("PayrollPayee")
 
   @@index([verificationStatus])
 }
@@ -308,6 +315,9 @@ model Team {
   cars           Car[]
   inventory      InventoryItem[]
   garageFiles    GarageFile[]
+  offers         Offer[]
+  payRates       PayRate[]
+  payRuns        PayRun[]
   transponders   Transponder[]
   organizationId String?
   organization   Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
@@ -429,12 +439,32 @@ model Opportunity {
   @@index([postedByUserId])
 }
 
+/**
+ * Where an application has got to.
+ *
+ * Two routes reach ACCEPTED and both are legitimate. A team can simply say
+ * yes — most club hiring is a conversation and a handshake — or it can run the
+ * pipeline: review, interview, offer, and let the applicant answer. Forcing
+ * every team through the paperwork would make the feature something people
+ * work around.
+ */
 enum ApplicationStatus {
   SUBMITTED
   REVIEWING
+  /// An interview is proposed or booked.
+  INTERVIEWING
+  /// A formal offer is out and unanswered.
+  OFFERED
+  /// Hired. Either the team said yes outright, or the applicant accepted an
+  /// offer.
   ACCEPTED
   REJECTED
+  /// The applicant pulled out before any offer.
   WITHDRAWN
+  /// The applicant turned down an offer. Kept apart from WITHDRAWN because it
+  /// is a different fact about the team: an offer that was refused is worth
+  /// knowing when the next one is written.
+  OFFER_DECLINED
 }
 
 model Application {
@@ -448,9 +478,12 @@ model Application {
 
   opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   applicant   User        @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  interviews  Interview[]
+  offers      Offer[]
 
   @@unique([opportunityId, applicantId])
   @@index([applicantId])
+  @@index([status])
 }
 
 model SponsorshipProfile {
@@ -791,6 +824,8 @@ model RaceEvent {
   garageFiles      GarageFile[]
   carServices      CarService[]
   stockMovements   InventoryMovement[]
+  payRuns          PayRun[]
+  payrollLines     PayrollLine[]
   tireSets         TireSet[]
   paddock          PaddockAllocation[]
   credentialTypes  CredentialType[]
@@ -3318,4 +3353,339 @@ model DirectParticipant {
 
   @@unique([threadId, userId])
   @@index([userId, leftAt])
+}
+
+// ---------------------------------------------------------------------------
+// Hiring: interviews, offers
+// ---------------------------------------------------------------------------
+
+enum InterviewKind {
+  VIDEO_CALL
+  PHONE
+  IN_PERSON
+  /// A seat evaluation in the car. Distinct from a conversation because it
+  /// needs a circuit, a date and usually a licence — the logistics are the
+  /// interview.
+  TRACK_TEST
+  /// A trial working a real meeting, which is how most crew are actually
+  /// hired.
+  WORK_TRIAL
+}
+
+enum InterviewStatus {
+  /// Times offered, waiting on the applicant.
+  PROPOSED
+  /// A time is agreed.
+  CONFIRMED
+  /// The applicant could not make any of the proposed times.
+  DECLINED
+  COMPLETED
+  CANCELED
+}
+
+/**
+ * An interview against one application.
+ *
+ * Times are *proposed* rather than dictated. The friction this feature exists
+ * to remove is the email thread where a team suggests one slot, the applicant
+ * is at work, and four days go by — so a team offers several and the applicant
+ * picks, which is one round trip instead of five.
+ *
+ * `scheduledAt` is null until a slot is chosen, and is then a copy of that
+ * slot's time so everything downstream can read one field.
+ */
+model Interview {
+  id            String          @id @default(cuid())
+  applicationId String
+  kind          InterviewKind   @default(VIDEO_CALL)
+  status        InterviewStatus @default(PROPOSED)
+
+  /// Set when a proposed slot is confirmed.
+  scheduledAt     DateTime?
+  durationMinutes Int       @default(30)
+  /// Meeting link, phone number, or the address of the shop or circuit.
+  location        String?
+  /// Shown to the applicant: what to expect, what to bring.
+  agenda          String?   @db.Text
+  /// The team's own notes. Never shown to the applicant.
+  privateNotes    String?   @db.Text
+  /// Written after the fact. Also team-only.
+  outcome         String?   @db.Text
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  application Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  createdBy   User?           @relation("InterviewCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  slots       InterviewSlot[]
+
+  @@index([applicationId, status])
+  @@index([scheduledAt])
+  @@index([createdById])
+}
+
+/**
+ * One time on offer for an interview.
+ *
+ * Stored in UTC and rendered in whoever is looking at it's own zone. A team in
+ * Charlotte interviewing a driver in Munich is the ordinary case here, and a
+ * naive local time would put somebody on a call at 3am.
+ */
+model InterviewSlot {
+  id          String   @id @default(cuid())
+  interviewId String
+  startsAt    DateTime
+  /// The one the applicant picked. At most one per interview; enforced by a
+  /// partial unique index.
+  chosen      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, startsAt])
+  @@index([interviewId, startsAt])
+}
+
+/**
+ * What somebody is being paid, and on what footing.
+ *
+ * `UNPAID` is a first-class option rather than a zero rate. Most club crew are
+ * volunteers and a great many seats are paid by the driver, so a form that
+ * insists on a number would have people typing 0 into a field the platform
+ * then treats as a wage — and a payroll built on that is wrong in a way nobody
+ * notices until somebody is owed money.
+ */
+enum PayBasis {
+  HOURLY
+  DAILY
+  PER_EVENT
+  MONTHLY
+  /// One figure for the whole season.
+  SEASON
+  UNPAID
+}
+
+enum OfferStatus {
+  /// Being written. The applicant cannot see it.
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  /// Pulled by the team before it was answered.
+  WITHDRAWN
+  /// Ran past its own expiry without an answer.
+  EXPIRED
+}
+
+/**
+ * A formal offer against an application.
+ *
+ * Separate from simply marking an application accepted, because the two are
+ * genuinely different acts: "you're in" is a decision the team makes alone,
+ * and an offer is a proposition the applicant answers. Both routes end with
+ * somebody on the roster, and a team that does not want paperwork never has to
+ * make one.
+ *
+ * Accepting an offer is what puts the person on the roster, at the role and
+ * rate the offer named — which is the whole point of the record. Hiring
+ * somebody and then separately typing them into the roster and again into the
+ * pay rates is where the details drift apart.
+ */
+model Offer {
+  id            String      @id @default(cuid())
+  applicationId String
+  teamId        String
+  status        OfferStatus @default(DRAFT)
+
+  /// The seat on the roster this offer is for.
+  role  TeamRole @default(MEMBER)
+  /// What it would be called: "Data Engineer", "Bronze-rated driver".
+  title String?
+
+  basis       PayBasis @default(UNPAID)
+  /// Minor units. Null on an UNPAID offer, and on one where pay is still to
+  /// be agreed — those are different from zero and are stored differently.
+  amountMinor Int?
+  currency    String   @default("USD")
+  /// Anything the amount does not cover: travel, kit, a share of prize money.
+  extras      String?  @db.Text
+
+  startDate DateTime?
+  endDate   DateTime?
+  /// Which rounds it covers, in the team's own words.
+  scope     String?
+  terms     String?   @db.Text
+
+  /// After this, an unanswered offer expires rather than hanging forever.
+  expiresAt     DateTime?
+  sentAt        DateTime?
+  respondedAt   DateTime?
+  /// The applicant's reply in their own words.
+  responseNote  String?   @db.Text
+  withdrawnAt   DateTime?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  team        Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy   User?       @relation("OfferCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([applicationId, status])
+  @@index([teamId, status])
+  @@index([createdById])
+}
+
+// ---------------------------------------------------------------------------
+// Payroll
+// ---------------------------------------------------------------------------
+
+/**
+ * What a team pays one person, standing.
+ *
+ * Kept apart from the offer that set it because a rate outlives the offer:
+ * people get raises, move from per-event to a season deal, and stay on the
+ * team for years. The offer records what was agreed once; this records what is
+ * true now, and a pay run is built from it.
+ */
+model PayRate {
+  id     String @id @default(cuid())
+  teamId String
+  userId String
+
+  basis       PayBasis @default(PER_EVENT)
+  amountMinor Int?
+  currency    String   @default("USD")
+  /// What this rate is for, where somebody does two jobs.
+  label       String?
+  effectiveFrom DateTime  @default(now())
+  /// Set when a rate is superseded. History is kept rather than overwritten —
+  /// a pay run from March has to stay explicable in December.
+  effectiveTo   DateTime?
+  notes         String?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  team      Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User          @relation("PayRateSubject", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User?         @relation("PayRateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  lines     PayrollLine[]
+
+  @@index([teamId, userId, effectiveTo])
+  @@index([userId])
+  @@index([createdById])
+}
+
+enum PayRunStatus {
+  /// Being assembled. Lines can be added, changed and removed.
+  DRAFT
+  /// Signed off. Amounts are frozen; only payment marks may still change.
+  APPROVED
+  /// Everything on it has been paid.
+  PAID
+  CANCELED
+}
+
+/**
+ * One period's pay for a team.
+ *
+ * **This is not a payroll processor.** It does not withhold tax, file
+ * anything, or move money. It works out what is owed, records what was paid,
+ * and exports the figures for whoever actually runs the payroll — an
+ * accountant, a bureau, or a bank transfer. That boundary is stated on the
+ * page as well as here, because a team believing otherwise would be a
+ * genuinely costly mistake.
+ */
+model PayRun {
+  id     String       @id @default(cuid())
+  teamId String
+  /// What the team calls it: "March 2026", "Sebring 12h".
+  label  String
+  status PayRunStatus @default(DRAFT)
+
+  periodStart DateTime
+  periodEnd   DateTime
+  /// Covers one meeting, where a team pays per event rather than per month.
+  eventId     String?
+  notes       String?  @db.Text
+
+  approvedById String?
+  approvedAt   DateTime?
+  paidAt       DateTime?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  team       Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  event      RaceEvent?    @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  approvedBy User?         @relation("PayRunApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdBy  User?         @relation("PayRunCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  lines      PayrollLine[]
+
+  @@index([teamId, status, periodStart])
+  @@index([eventId])
+  @@index([approvedById])
+  @@index([createdById])
+}
+
+/**
+ * One person's pay on one run.
+ *
+ * `amountMinor` is stored rather than derived on read, and that is deliberate:
+ * a run approved in March must still show the same figure in December, even
+ * after the person's standing rate has changed twice. The rate is a starting
+ * point, not a formula the line keeps referring back to.
+ *
+ * `payeeName` exists for the mechanic who does two weekends a year and has no
+ * account. Excluding them would push a chunk of a real team's costs back onto
+ * the spreadsheet this is meant to replace.
+ */
+model PayrollLine {
+  id       String  @id @default(cuid())
+  payRunId String
+  userId   String?
+  /// Used when there is no account behind the person.
+  payeeName String?
+
+  /// What the work was: "Race engineer, Sebring 12h".
+  description String
+  basis       PayBasis @default(PER_EVENT)
+  /// Hours, days or events — whatever the basis counts.
+  quantity    Float    @default(1)
+  rateMinor   Int      @default(0)
+  /// The figure actually owed, frozen at the time it was worked out.
+  amountMinor Int      @default(0)
+  currency    String   @default("USD")
+
+  /// Anything not covered by rate × quantity: a bonus, a travel reimbursement,
+  /// a deduction. Signed, and added to the amount above.
+  adjustmentMinor Int     @default(0)
+  adjustmentNote  String?
+
+  /// The standing rate this line was built from, where it was.
+  payRateId String?
+  eventId   String?
+
+  paidAt           DateTime?
+  /// Bank reference, cheque number, "cash". Free text on purpose: the platform
+  /// does not move the money and should not pretend to know how it moved.
+  paymentReference String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payRun  PayRun     @relation(fields: [payRunId], references: [id], onDelete: Cascade)
+  user    User?      @relation("PayrollPayee", fields: [userId], references: [id], onDelete: SetNull)
+  payRate PayRate?   @relation(fields: [payRateId], references: [id], onDelete: SetNull)
+  event   RaceEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([payRunId])
+  @@index([userId, paidAt])
+  @@index([payRateId])
+  @@index([eventId])
 }
