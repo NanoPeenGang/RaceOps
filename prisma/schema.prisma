@@ -161,6 +161,16 @@ model User {
   auditEvents            AuditEvent[]             @relation("AuditActor")
   waiversAuthored        Waiver[]                 @relation("WaiverAuthor")
   waiverSignatures       WaiverSignature[]        @relation("WaiverSigner")
+  inventoryCreated       InventoryItem[]          @relation("InventoryCreator")
+  stockMovements         InventoryMovement[]      @relation("StockMover")
+  garageFilesUploaded    GarageFile[]             @relation("GarageFileUploader")
+  garageFilesDriven      GarageFile[]             @relation("GarageFileDriver")
+  servicesPerformed      CarService[]             @relation("ServicePerformer")
+  servicesCreated        CarService[]             @relation("ServiceCreator")
+  pitStopsCreated        PitStopPlan[]            @relation("PitStopCreator")
+  channelsCreated        ChatChannel[]            @relation("ChannelCreator")
+  threadsCreated         DirectThread[]           @relation("ThreadCreator")
+  threadParticipations   DirectParticipant[]      @relation("ThreadParticipant")
 
   @@index([verificationStatus])
 }
@@ -294,7 +304,10 @@ model Team {
   media          Media[]
   sponsorships   Sponsorship[]
   chatMessages   ChatMessage[]
+  channels       ChatChannel[]
   cars           Car[]
+  inventory      InventoryItem[]
+  garageFiles    GarageFile[]
   transponders   Transponder[]
   organizationId String?
   organization   Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
@@ -488,6 +501,9 @@ enum NotificationType {
   APPLICATION_RECEIVED
   APPLICATION_STATUS_CHANGED
   OPPORTUNITY_CLOSED
+  /// Somebody messaged you directly. Raised only for a thread you are not
+  /// currently reading; see src/server/services/notifications.ts.
+  DIRECT_MESSAGE
   SYSTEM
 }
 
@@ -579,6 +595,7 @@ model Series {
   transponders        Transponder[]
   waivers             Waiver[]
   rules               SeriesRule[]
+  channels            ChatChannel[]
 }
 
 /**
@@ -768,8 +785,12 @@ model RaceEvent {
   documents        RaceDocument[]
   announcements    Announcement[]
   chatMessages     ChatMessage[]
+  channels         ChatChannel[]
   raceReports      RaceReport[]
   incidents        Incident[]
+  garageFiles      GarageFile[]
+  carServices      CarService[]
+  stockMovements   InventoryMovement[]
   tireSets         TireSet[]
   paddock          PaddockAllocation[]
   credentialTypes  CredentialType[]
@@ -836,6 +857,7 @@ model EventRegistration {
   credentials      Credential[]
   waiverSignatures WaiverSignature[]
   seriesClass      SeriesClass?            @relation(fields: [seriesClassId], references: [id], onDelete: SetNull)
+  pitStops         PitStopPlan[]
 
   @@unique([eventId, teamId])
   @@unique([eventId, entrantUserId])
@@ -872,9 +894,11 @@ model RegistrationDriver {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  stints       Stint[]
+  registration  EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stints        Stint[]
+  pitStopsIn    PitStopPlan[]     @relation("PitStopDriverIn")
+  pitStopsOut   PitStopPlan[]     @relation("PitStopDriverOut")
 
   @@unique([registrationId, userId])
   @@index([userId])
@@ -966,6 +990,8 @@ model EventSession {
   incidents     Incident[]
   conditions    SessionCondition[]
   logEntries    OfficialLogEntry[]
+  garageFiles   GarageFile[]
+  pitStops      PitStopPlan[]
 
   @@index([eventId, startsAt])
 }
@@ -1087,20 +1113,36 @@ model Announcement {
  * or a team's own private channel. The "exactly one of" rule is enforced in
  * the router, the same way media and document scopes are.
  */
+/**
+ * One message, in exactly one room. A CHECK enforces the "exactly one".
+ *
+ * Four scopes rather than one polymorphic room id, because the access rule is
+ * genuinely different in each and a single nullable `roomId` would make the
+ * authorization code guess which. `eventId` and `teamId` are the original
+ * whole-paddock and whole-roster rooms; `channelId` is a department room
+ * inside one of those scopes; `threadId` is a private conversation between
+ * people and belongs to no team or event at all.
+ */
 model ChatMessage {
   id        String   @id @default(cuid())
   eventId   String?
   teamId    String?
+  channelId String?
+  threadId  String?
   userId    String
   body      String   @db.Text
   createdAt DateTime @default(now())
 
-  event RaceEvent? @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  team  Team?      @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event   RaceEvent?    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team    Team?         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  channel ChatChannel?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  thread  DirectThread? @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([eventId, createdAt])
   @@index([teamId, createdAt])
+  @@index([channelId, createdAt])
+  @@index([threadId, createdAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -1883,11 +1925,12 @@ model TrackLayout {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  track   Track         @relation(fields: [trackId], references: [id], onDelete: Cascade)
-  turns   TrackTurn[]
-  sectors TrackSector[]
-  events  RaceEvent[]
-  images  TrackImage[]
+  track       Track         @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  turns       TrackTurn[]
+  sectors     TrackSector[]
+  events      RaceEvent[]
+  images      TrackImage[]
+  garageFiles GarageFile[]
 
   @@unique([trackId, name])
   @@index([trackId, isPrimary])
@@ -2080,6 +2123,13 @@ model Car {
   /// Free-form class the car is built to, independent of any series' classes.
   classLabel    String?
   liveryUrl     String?
+  /**
+   * Running hours on the car. Optional and team-maintained — most club cars
+   * have no hour meter — but it is what a service interval quoted in hours has
+   * to be measured against, so a team that tracks it can be told a rebuild is
+   * due before the rebuild tells them.
+   */
+  runningHours  Float?
   notes         String? @db.Text
   /// Retired cars stay for the history but drop out of the entry picker.
   active        Boolean @default(true)
@@ -2092,6 +2142,9 @@ model Car {
   ownerUser     User?               @relation("CarOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   createdBy     User?               @relation("CarCreator", fields: [createdById], references: [id], onDelete: SetNull)
   registrations EventRegistration[]
+  inventory     InventoryItem[]
+  garageFiles   GarageFile[]
+  services      CarService[]
 
   @@index([teamId, active])
   @@index([ownerUserId, active])
@@ -2185,6 +2238,7 @@ model TireSet {
   event        RaceEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
   registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   allocatedBy  User?             @relation("TireAllocator", fields: [allocatedById], references: [id], onDelete: SetNull)
+  pitStops     PitStopPlan[]
 
   @@unique([eventId, identifier])
   @@index([registrationId, status])
@@ -2676,6 +2730,7 @@ model Organization {
   staffRoles StaffRole[]
   series     Series[]
   teams      Team[]
+  channels   ChatChannel[]
   branding   Branding?
 }
 
@@ -2732,6 +2787,7 @@ model StaffRole {
   organization Organization?     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   series       Series?           @relation(fields: [seriesId], references: [id], onDelete: Cascade)
   assignments  StaffAssignment[]
+  channels     ChatChannel[]
 
   @@index([organizationId])
   @@index([seriesId])
@@ -2810,4 +2866,456 @@ model Branding {
   series       Series?       @relation(fields: [seriesId], references: [id], onDelete: Cascade)
   event        RaceEvent?    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   team         Team?         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Garage: parts inventory, telemetry & setup files, servicing
+// ---------------------------------------------------------------------------
+
+/**
+ * Broad part categories.
+ * Deliberately coarse. A team that wants "left front upright bearing" writes
+ * that in the name; the category exists so a trailer inventory can be filtered
+ * down to brakes on a Sunday morning, not to classify a catalogue.
+ */
+enum PartCategory {
+  ENGINE
+  DRIVETRAIN
+  SUSPENSION
+  BRAKES
+  TIRES_WHEELS
+  BODYWORK
+  ELECTRICAL
+  FLUIDS
+  SAFETY
+  CONSUMABLES
+  TOOLS
+  OTHER
+}
+
+/**
+ * One line of a team's parts stock.
+ *
+ * `quantity` is a cached balance, not the source of truth: every change goes
+ * through an `InventoryMovement` and the balance is recomputed from the
+ * movement. A count that can be typed over directly loses the answer to "who
+ * took the last set of pads and when", which is the question a Sunday morning
+ * actually asks.
+ */
+model InventoryItem {
+  id         String       @id @default(cuid())
+  teamId     String
+  name       String
+  partNumber String?
+  category   PartCategory @default(OTHER)
+  /// Where it lives: "Trailer shelf 3", "Shop rack B".
+  location   String?
+  /// Current stock. Maintained through movements; see src/lib/inventory.ts.
+  quantity   Int          @default(0)
+  /// Warn below this. Null means this item is never worth a reorder warning.
+  minQuantity Int?
+  /// "each", "set", "litre", "metre" — teams stock all four.
+  unit       String       @default("each")
+  unitCostMinor Int?
+  currency   String       @default("USD")
+  supplier   String?
+  notes      String?      @db.Text
+  /// Fits only this car. Null means it fits anything the team runs.
+  carId      String?
+  /// Retired lines stay for the history but drop out of the pick lists.
+  active     Boolean      @default(true)
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  team      Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  car       Car?                @relation(fields: [carId], references: [id], onDelete: SetNull)
+  createdBy User?               @relation("InventoryCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  movements InventoryMovement[]
+
+  @@index([teamId, active, category])
+  @@index([carId])
+  @@index([createdById])
+}
+
+enum StockMoveKind {
+  /// Stock arrived: a delivery, or an opening count.
+  RECEIVED
+  /// Fitted to a car, used up, or otherwise gone.
+  CONSUMED
+  /// A stocktake correction. Carries a reason for the same purpose an
+  /// accounting adjustment does.
+  ADJUSTED
+  /// Came back on the shelf — took it to the track, did not need it.
+  RETURNED
+}
+
+/**
+ * One change to a stock line, and the balance it produced.
+ *
+ * The balance is stored rather than derived on read so the ledger stays
+ * readable after somebody corrects an old row: "we were at 4 when this was
+ * written" is a fact about that moment, and recomputing it from the current
+ * item would rewrite history every time the stock changed.
+ */
+model InventoryMovement {
+  id      String        @id @default(cuid())
+  itemId  String
+  kind    StockMoveKind
+  /// Signed change applied to the item. Negative for CONSUMED.
+  delta   Int
+  /// The item's quantity immediately after this movement.
+  balance Int
+  reason  String?
+  /// Where it went, when it went somewhere.
+  eventId   String?
+  serviceId String?
+  userId    String?
+  createdAt DateTime @default(now())
+
+  item    InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  event   RaceEvent?    @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  service CarService?   @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  user    User?         @relation("StockMover", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([itemId, createdAt])
+  @@index([eventId])
+  @@index([serviceId])
+  @@index([userId])
+}
+
+/**
+ * What a stored file is, which decides where it is offered and how it is read.
+ * Telemetry and setups share a model because they share every question worth
+ * asking of them — which car, which track, which session, whose lap, how quick
+ * — and differ only in what opens them.
+ */
+enum GarageFileKind {
+  /// A logger export: MoTeC ld, AiM drk, CSV, a sim's telemetry file.
+  TELEMETRY
+  /// A setup sheet: a sim's setup export, or a scanned corner-weight sheet.
+  SETUP
+  /// Anything else the crew keeps against a car: a wiring diagram, a manual.
+  DOCUMENT
+}
+
+/**
+ * A file a team keeps against a car.
+ *
+ * Held as a record with metadata rather than a folder of blobs, because the
+ * useful query is never "list the files" — it is "the setup we ran at Sebring
+ * in the damp, and the lap that came out of it".
+ */
+model GarageFile {
+  id     String         @id @default(cuid())
+  teamId String
+  kind   GarageFileKind
+  name   String
+  /// Where the bytes are. Object storage when configured, else a link.
+  url         String
+  fileName    String?
+  contentType String?
+  sizeBytes   Int?
+
+  carId         String?
+  eventId       String?
+  sessionId     String?
+  trackLayoutId String?
+  /// Whose run this is.
+  driverUserId  String?
+  /// Conditions the run or setup belongs to: "damp, 12°C, green".
+  conditions    String?
+  /// Best lap in this file, in milliseconds. What makes a setup findable
+  /// later: "the quickest we have been here" is the reason to reopen one.
+  bestLapMs     Int?
+  notes         String? @db.Text
+  tags          String[]
+
+  uploadedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  team        Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  car         Car?          @relation(fields: [carId], references: [id], onDelete: SetNull)
+  event       RaceEvent?    @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  session     EventSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  trackLayout TrackLayout?  @relation(fields: [trackLayoutId], references: [id], onDelete: SetNull)
+  driver      User?         @relation("GarageFileDriver", fields: [driverUserId], references: [id], onDelete: SetNull)
+  uploadedBy  User?         @relation("GarageFileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([teamId, kind, createdAt])
+  @@index([carId, kind])
+  @@index([trackLayoutId, kind])
+  @@index([eventId])
+  @@index([sessionId])
+  @@index([driverUserId])
+  @@index([uploadedById])
+}
+
+enum ServiceKind {
+  /// Routine work on an interval: fluids, belts, a gearbox refresh.
+  SCHEDULED
+  /// Something broke.
+  REPAIR
+  /// Full component rebuild.
+  REBUILD
+  /// A check with no work implied.
+  INSPECTION
+  /// Deliberate change to the car, not a restoration of it.
+  UPGRADE
+}
+
+enum ServiceStatus {
+  PLANNED
+  IN_PROGRESS
+  DONE
+  /// Known about, decided against for now. Distinct from done and from
+  /// planned: a deferred job should stop nagging without being forgotten.
+  DEFERRED
+}
+
+/**
+ * A job on a car: what was done, when, by whom, and when it comes round again.
+ *
+ * `nextDueOn` and `nextDueHours` are both optional and both meaningful. Some
+ * jobs come round on the calendar (an annual logbook inspection) and some on
+ * running hours (an engine rebuild), and a team that tracks hours wants the
+ * second without inventing a date for it.
+ */
+model CarService {
+  id        String        @id @default(cuid())
+  carId     String
+  kind      ServiceKind   @default(SCHEDULED)
+  status    ServiceStatus @default(PLANNED)
+  /// What was worked on: "Left front upright", "Gearbox", "Fire system".
+  component String
+  description String? @db.Text
+
+  /// Running hours on the car when the work was done.
+  hoursAtService Float?
+  /// Recorded against an event when the work happened at a race.
+  eventId        String?
+  performedById  String?
+  performedOn    DateTime?
+  costMinor      Int?
+  currency       String    @default("USD")
+
+  nextDueOn    DateTime?
+  nextDueHours Float?
+
+  notes       String? @db.Text
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  car         Car                 @relation(fields: [carId], references: [id], onDelete: Cascade)
+  event       RaceEvent?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  performedBy User?               @relation("ServicePerformer", fields: [performedById], references: [id], onDelete: SetNull)
+  createdBy   User?               @relation("ServiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  partsUsed   InventoryMovement[]
+
+  @@index([carId, status])
+  @@index([eventId])
+  @@index([performedById])
+  @@index([createdById])
+}
+
+enum PitStopKind {
+  FUEL
+  TIRES
+  DRIVER_CHANGE
+  REPAIR
+  /// Serving a stop-go or drive-through handed down by the stewards.
+  PENALTY_SERVE
+  OTHER
+}
+
+enum PitStopStatus {
+  PLANNED
+  COMPLETED
+  /// The plan changed and this stop never happened. Kept rather than deleted:
+  /// a stop that was skipped is why the fuel numbers stopped adding up.
+  SKIPPED
+}
+
+/**
+ * A pit stop a team intends to make, and what actually happened.
+ *
+ * Planned against an entry rather than a car, because the plan belongs to the
+ * weekend: the same car in two events has two independent stop sequences.
+ * Both `targetLap` and `targetAt` are optional — a sprint plans by lap, an
+ * enduro by the clock, and a wet race by neither until the radio says so.
+ */
+model PitStopPlan {
+  id             String        @id @default(cuid())
+  registrationId String
+  sessionId      String?
+  /// Stop number within the plan, 1-based. What the pit board counts down to.
+  sequence       Int
+  kind           PitStopKind   @default(FUEL)
+  status         PitStopStatus @default(PLANNED)
+
+  targetLap Int?
+  targetAt  DateTime?
+
+  /// Driver getting in and getting out. Null on a stop with no change.
+  driverInId  String?
+  driverOutId String?
+  /// Planned fuel, in litres.
+  fuelLitres  Float?
+  tireSetId   String?
+
+  /// Stationary time the crew is aiming for, and what it took.
+  plannedSeconds Int?
+  actualAt       DateTime?
+  actualSeconds  Int?
+
+  notes       String? @db.Text
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  registration EventRegistration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  session      EventSession?       @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  driverIn     RegistrationDriver? @relation("PitStopDriverIn", fields: [driverInId], references: [id], onDelete: SetNull)
+  driverOut    RegistrationDriver? @relation("PitStopDriverOut", fields: [driverOutId], references: [id], onDelete: SetNull)
+  tireSet      TireSet?            @relation(fields: [tireSetId], references: [id], onDelete: SetNull)
+  createdBy    User?               @relation("PitStopCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([registrationId, sequence])
+  @@index([registrationId, status])
+  @@index([sessionId])
+  @@index([tireSetId])
+  @@index([createdById])
+}
+
+// ---------------------------------------------------------------------------
+// Departmental channels & direct messages
+// ---------------------------------------------------------------------------
+
+enum ChannelKind {
+  /// Everyone in the scope. A team's whole roster, an event's whole paddock.
+  OPEN
+  /**
+   * Only people holding one of the listed roles in the scope. This is the
+   * engineers' channel, the crew channel, race control's channel — the one
+   * you can say "we are three laps short on fuel" in without it reaching the
+   * whole paddock.
+   */
+  DEPARTMENT
+}
+
+/**
+ * A chat room narrower than its scope.
+ *
+ * Membership is *derived*, never stored: you are in a department channel while
+ * you hold one of its roles, and you are out of it the moment you do not. A
+ * stored member list would leave a departed engineer reading the engineers'
+ * channel until somebody remembered to prune it, which is exactly the failure
+ * a private channel exists to prevent.
+ *
+ * Exactly one scope is set; a CHECK enforces it. The scope decides which role
+ * list applies — `teamRoles` for a team, `seriesRoles` for a series or event,
+ * `orgRoles` for an organization — and `staffRoleId` narrows an organization
+ * or series channel to one custom role.
+ */
+model ChatChannel {
+  id             String  @id @default(cuid())
+  teamId         String?
+  eventId        String?
+  seriesId       String?
+  organizationId String?
+
+  kind        ChannelKind @default(DEPARTMENT)
+  name        String
+  /// URL-safe name, unique within the scope.
+  slug        String
+  description String?
+
+  /// Who may read and post. All empty on an OPEN channel.
+  teamRoles   TeamRole[]
+  seriesRoles SeriesRole[]
+  orgRoles    OrgRole[]
+  staffRoleId String?
+
+  /**
+   * Whether entrants' team roles count on an event channel.
+   *
+   * An event channel scoped by `teamRoles` is the cross-paddock department
+   * room: every engineer entered in the meeting, from every team. Off, the
+   * roles are read against the series' own staff instead.
+   */
+  includesEntrantTeams Boolean @default(false)
+
+  /// Archived channels stay readable and stop accepting messages.
+  archived    Boolean  @default(false)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  team         Team?         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  event        RaceEvent?    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  series       Series?       @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  staffRole    StaffRole?    @relation(fields: [staffRoleId], references: [id], onDelete: SetNull)
+  createdBy    User?         @relation("ChannelCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  messages     ChatMessage[]
+
+  @@unique([teamId, slug])
+  @@unique([eventId, slug])
+  @@unique([seriesId, slug])
+  @@unique([organizationId, slug])
+  @@index([teamId, archived])
+  @@index([eventId, archived])
+  @@index([staffRoleId])
+  @@index([createdById])
+}
+
+/**
+ * A private conversation between people, independent of any team or event.
+ *
+ * `pairKey` is set only on two-person threads: the two user ids sorted and
+ * joined, so "message this person" finds the existing thread instead of
+ * opening a second one beside it. Group threads leave it null, because three
+ * people can reasonably want two different group conversations.
+ */
+model DirectThread {
+  id      String  @id @default(cuid())
+  pairKey String? @unique
+  /// Optional name, for group threads that want one.
+  subject String?
+  /// Bumped on every message so an inbox sorts without touching messages.
+  lastMessageAt DateTime?
+  createdById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  createdBy    User?               @relation("ThreadCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  participants DirectParticipant[]
+  messages     ChatMessage[]
+
+  @@index([lastMessageAt])
+  @@index([createdById])
+}
+
+model DirectParticipant {
+  id       String @id @default(cuid())
+  threadId String
+  userId   String
+  /// When this person last opened the thread. Drives the unread count.
+  readAt   DateTime?
+  /**
+   * Leaving hides the thread from this person without destroying anyone
+   * else's copy of the conversation. A message from the other side clears it,
+   * because a reply to a conversation you left is still addressed to you.
+   */
+  leftAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  thread DirectThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User         @relation("ThreadParticipant", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([userId, leftAt])
 }

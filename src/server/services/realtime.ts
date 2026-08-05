@@ -64,6 +64,8 @@ export async function broadcastTimingUpdate(sessionId: string): Promise<void> {
 export async function broadcastChatMessage(scope: {
   eventId?: string;
   teamId?: string;
+  channelId?: string;
+  threadId?: string;
 }): Promise<void> {
   if (scope.eventId) {
     await broadcast(`paddock-${scope.eventId}`, "message");
@@ -71,5 +73,20 @@ export async function broadcastChatMessage(scope: {
   }
   if (scope.teamId) {
     await broadcast(`team-${scope.teamId}`, "message");
+    return;
+  }
+  /*
+   * A department channel and a direct thread each get their own Pusher
+   * channel rather than riding the team's. Sharing one would wake every
+   * client on the team for a message half of them are not allowed to read —
+   * and while the refetch would correctly return nothing, the wake-up itself
+   * leaks that the private room is busy.
+   */
+  if (scope.channelId) {
+    await broadcast(`channel-${scope.channelId}`, "message");
+    return;
+  }
+  if (scope.threadId) {
+    await broadcast(`thread-${scope.threadId}`, "message");
   }
 }

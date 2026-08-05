@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LineupPanel } from "@/components/lineup-panel";
+import { PitStopPlanner } from "@/components/pit-stop-planner";
 import type { TeamDashboard } from "./types";
 
 /**
@@ -120,12 +121,13 @@ export function SchedulePanel({
                 </div>
 
                 {openLineup === entry.id && (
-                  <div className="w-full border-t border-brand-black/10 pt-3">
+                  <div className="w-full space-y-6 border-t border-brand-black/10 pt-3">
                     <LineupPanel
                       registrationId={entry.id}
                       canManage={canManage}
                       title="Driver line-up"
                     />
+                    <PitStopPlanner registrationId={entry.id} />
                   </div>
                 )}
               </CardContent>

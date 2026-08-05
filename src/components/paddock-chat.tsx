@@ -5,22 +5,38 @@ import { api } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-type ChatScope = { eventId?: string; teamId?: string };
+export type ChatScope = {
+  eventId?: string;
+  teamId?: string;
+  channelId?: string;
+};
 
 /**
  * A chat room. Access is enforced on the server — event paddock chat is for
- * entrants, volunteers and organizers; team chat is for the current roster —
- * so a FORBIDDEN response is the normal case for everyone else and renders as
- * a quiet notice rather than an error.
+ * entrants, volunteers and organizers; team chat is for the current roster;
+ * a department channel is for whoever holds its roles — so a FORBIDDEN
+ * response is the normal case for everyone else and renders as a quiet notice
+ * rather than an error.
+ *
+ * Direct threads are deliberately not a scope here: they carry read marks and
+ * an inbox, so they have their own view rather than being squeezed into this
+ * one with half its features inert.
  */
 export function PaddockChat({
   scope,
   title = "Paddock chat",
   placeholder = "Message the paddock",
+  heading = true,
+  readOnly = false,
+  readOnlyNotice,
 }: {
   scope: ChatScope;
   title?: string;
   placeholder?: string;
+  /** Off when the room already sits under a heading of its own. */
+  heading?: boolean;
+  readOnly?: boolean;
+  readOnlyNotice?: string;
 }) {
   const utils = api.useUtils();
   const chat = api.chat.forRoom.useQuery(
@@ -49,7 +65,7 @@ export function PaddockChat({
   if (chat.error) {
     return (
       <section className="space-y-2">
-        <h2 className="text-xl font-semibold">{title}</h2>
+        {heading && <h2 className="text-xl font-semibold">{title}</h2>}
         <p className="text-sm text-brand-black/60">{chat.error.message}</p>
       </section>
     );
@@ -57,7 +73,7 @@ export function PaddockChat({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-xl font-semibold">{title}</h2>
+      {heading && <h2 className="text-xl font-semibold">{title}</h2>}
       <Card>
         <CardContent className="space-y-3 p-4">
           <div
@@ -106,6 +122,12 @@ export function PaddockChat({
             })}
           </div>
 
+          {readOnly ? (
+            <p className="rounded-md bg-brand-black/[0.03] px-3 py-2 text-sm text-brand-black/60">
+              {readOnlyNotice ??
+                "This room is archived. It can be read but not posted to."}
+            </p>
+          ) : (
           <form
             className="flex gap-2"
             onSubmit={(e) => {
@@ -128,6 +150,7 @@ export function PaddockChat({
               Send
             </Button>
           </form>
+          )}
           {send.error && (
             <p className="text-sm text-brand-red">{send.error.message}</p>
           )}

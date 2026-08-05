@@ -18,7 +18,8 @@ export type UploadPurpose =
   | "banner"
   | "diagram"
   | "media"
-  | "document";
+  | "document"
+  | "garage";
 
 export interface PurposeRules {
   label: string;
@@ -82,6 +83,31 @@ export const UPLOAD_RULES: Record<UploadPurpose, PurposeRules> = {
     maxBytes: 25 * 1024 * 1024,
     maxEdge: null,
     accept: ["application/pdf"],
+  },
+  garage: {
+    label: "Telemetry or setup file",
+    // A session of high-rate logging is genuinely tens of megabytes.
+    maxBytes: 100 * 1024 * 1024,
+    maxEdge: null,
+    /*
+     * Every logger and every sim has its own format and browsers report most
+     * of them as octet-stream, so this list is about what is *not* allowed
+     * rather than an inventory of data formats. HTML and SVG are the reason
+     * it is a list at all: both execute script when opened from the bucket's
+     * origin, and neither is telemetry.
+     */
+    accept: [
+      "application/octet-stream",
+      "application/zip",
+      "application/x-zip-compressed",
+      "application/json",
+      "application/pdf",
+      "text/csv",
+      "text/plain",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ],
   },
 };
 

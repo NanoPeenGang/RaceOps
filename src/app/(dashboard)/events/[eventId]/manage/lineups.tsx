@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LineupPanel } from "@/components/lineup-panel";
+import { PitStopPlanner } from "@/components/pit-stop-planner";
 
 /**
  * Race control's view of endurance line-ups: the drive-time regulations for the
@@ -82,11 +83,18 @@ export function LineupsPanel({ eventId }: { eventId: string }) {
               </div>
 
               {openEntry === row.registrationId && (
-                <div className="border-t border-brand-black/10 pt-3">
+                <div className="space-y-6 border-t border-brand-black/10 pt-3">
                   <LineupPanel
                     registrationId={row.registrationId}
                     canManage
                     title="Crew"
+                  />
+                  {/* Organizers read the plan and cannot change it — a team's
+                      stop strategy is theirs. The server enforces that; this
+                      just shows it. */}
+                  <PitStopPlanner
+                    registrationId={row.registrationId}
+                    title="Pit stop plan"
                   />
                 </div>
               )}

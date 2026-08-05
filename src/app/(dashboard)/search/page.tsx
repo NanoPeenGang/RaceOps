@@ -12,6 +12,7 @@ import {
   roleTagsOf,
 } from "@/lib/roles";
 import { Badge } from "@/components/ui/badge";
+import { MessageButton } from "@/components/message-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RoleGroup } from "@/lib/roles";
@@ -23,6 +24,7 @@ export default function SearchPage() {
   const [realWorldRole, setRealWorldRole] = useState<RealWorldRole | "">("");
   const [location, setLocation] = useState("");
 
+  const me = api.user.me.useQuery();
   const results = api.search.profiles.useQuery({
     query: query || undefined,
     profileType: profileType || undefined,
@@ -130,6 +132,9 @@ export default function SearchPage() {
                     {user.profile.bio}
                   </p>
                 )}
+                <div className="pt-1">
+                  <MessageButton userId={user.id} myUserId={me.data?.id} />
+                </div>
               </CardContent>
             </Card>
           );

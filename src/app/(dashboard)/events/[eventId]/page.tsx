@@ -15,6 +15,7 @@ import { DocumentsPanel } from "@/components/documents-panel";
 import { GeneratedDocuments } from "@/components/generated-documents";
 import { MediaPanel } from "@/components/media-panel";
 import { PaddockChat } from "@/components/paddock-chat";
+import { DepartmentChannels } from "@/components/department-channels";
 import { BrandHeader, BrandTheme } from "@/components/brand-theme";
 import { EventVenue } from "@/components/event-venue";
 import { brandingForEvent } from "@/server/services/branding";
@@ -245,6 +246,11 @@ export default async function EventLandingPage({
         allowOrganizerOnly={isOrganizer}
       />
       <PaddockChat scope={{ eventId }} />
+
+      <DepartmentChannels
+        scope={{ eventId }}
+        description="Rooms narrower than the paddock. A channel can be the officials\u2019 room, or \u2014 with entrant roles switched on \u2014 every engineer at the meeting, from every team."
+      />
     </BrandTheme>
   );
 }

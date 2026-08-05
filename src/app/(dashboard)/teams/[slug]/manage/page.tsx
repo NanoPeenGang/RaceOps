@@ -14,6 +14,11 @@ import { SchedulePanel } from "./schedule-panel";
 import { ResultsPanel } from "./results-panel";
 import { SponsorsPanel } from "./sponsors-panel";
 import { GaragePanel } from "./garage-panel";
+import { InventoryPanel } from "./inventory-panel";
+import { FilesPanel } from "./files-panel";
+import { ServicePanel } from "./service-panel";
+import { SeatTimePanel } from "./seat-time-panel";
+import { DepartmentChannels } from "@/components/department-channels";
 import { BrandingEditor } from "@/components/branding-editor";
 
 /**
@@ -92,7 +97,11 @@ export default function TeamManagePage({
 
       <RosterPanel team={data} onChanged={refresh} />
       <GaragePanel team={data} />
+      <ServicePanel teamId={data.id} />
+      <InventoryPanel teamId={data.id} />
+      <FilesPanel teamId={data.id} />
       <SchedulePanel team={data} onChanged={refresh} />
+      <SeatTimePanel teamId={data.id} />
       <ResultsPanel teamId={data.id} />
       <SponsorsPanel team={data} />
 
@@ -107,6 +116,11 @@ export default function TeamManagePage({
         scope={{ teamId: data.id }}
         title="Team chat"
         placeholder={`Message ${data.name}`}
+      />
+
+      <DepartmentChannels
+        scope={{ teamId: data.id }}
+        description="Rooms narrower than the whole roster — the engineers, the crew, the drivers. Membership follows the role somebody holds on this team, so leaving the role leaves the room."
       />
     </div>
   );

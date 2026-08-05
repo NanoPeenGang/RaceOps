@@ -39,6 +39,7 @@ export const PURPOSES = [
   "diagram",
   "media",
   "document",
+  "garage",
 ] as const satisfies readonly UploadPurpose[];
 
 export const uploadRouter = createTRPCRouter({

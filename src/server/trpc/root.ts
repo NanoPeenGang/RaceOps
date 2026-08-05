@@ -30,6 +30,10 @@ import { organizationRouter } from "@/server/trpc/routers/organization";
 import { uploadRouter } from "@/server/trpc/routers/upload";
 import { brandingRouter } from "@/server/trpc/routers/branding";
 import { dashboardRouter } from "@/server/trpc/routers/dashboard";
+import { garageRouter } from "@/server/trpc/routers/garage";
+import { pitStopRouter } from "@/server/trpc/routers/pitstop";
+import { channelRouter } from "@/server/trpc/routers/channel";
+import { messageRouter } from "@/server/trpc/routers/message";
 
 export const appRouter = createTRPCRouter({
   user: userRouter,
@@ -63,6 +67,10 @@ export const appRouter = createTRPCRouter({
   upload: uploadRouter,
   branding: brandingRouter,
   dashboard: dashboardRouter,
+  garage: garageRouter,
+  pitStop: pitStopRouter,
+  channel: channelRouter,
+  message: messageRouter,
 });
 
 export type AppRouter = typeof appRouter;

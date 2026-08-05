@@ -321,6 +321,138 @@ team from one page.
   are visible to the team only.
 - **Team chat** — the team's own room, separate from event paddock chat.
 
+**The garage (done):** the records a team keeps between events, on the same
+console.
+
+Reading the garage is for the whole roster — a driver should be able to find
+the setup they ran last time without asking anyone. Writing is for the people
+who run the car: managers, engineers and crew. That is not a slight on
+drivers; it is that a part marked consumed from the paddock is how a count
+stops matching the shelf.
+
+- **Parts & stock** — a ledger, not a counter. Every change is a movement with
+  a signed delta and the balance it produced, and the item's quantity is a
+  cache of the latest balance. There is deliberately no path that edits a count
+  directly: that costs a row per change and buys the question a trailer
+  inventory is actually asked, which is never "how many pads do we have" but
+  "who took the last set, and was it at Sebring or at the shop". Stock cannot
+  go negative — a team that finds it "should" have has a missing receipt, not a
+  negative shelf. The reorder list leads the panel, because it is the part
+  somebody has to act on before Thursday.
+- **Telemetry & setups** — one model for both, because they share every
+  question worth asking (which car, which circuit, which session, whose lap,
+  how quick) and differ only in what opens them. Nothing here parses a file: a
+  MoTeC `.ld` and an iRacing `.sto` are opaque binaries, and claiming to read a
+  lap time out of one would put a guess next to a real number. The lap time is
+  typed, and it is what makes a setup findable in six months — "the quickest we
+  have been here" is the reason to reopen one.
+- **Car services** — what was done, and what is due. An interval can be a date
+  (an annual logbook inspection) or running hours (a gearbox rebuild), and both
+  are honoured; whichever arrives first is what the console warns about. An
+  hours-based interval on a car with no hours recorded reports as *unknown*,
+  never as fine — the interval exists, we just cannot say where the car is
+  against it, and pretending otherwise is how a rebuild gets missed. Deferring
+  a job stops it nagging without deleting it.
+- **Seat time** — time in the car per driver across every event the team has
+  entered. The event line-up panel answers "is this entry legal"; this answers
+  the question asked *between* events, which nothing else could: who is owed a
+  run. Drivers with no stints at all are listed by name, because they are
+  invisible in a table built from stints and they are the whole point. Minutes
+  from stints whose driver has since left a line-up are reported separately —
+  they happened and belong in the team's hours, but attributing them to
+  somebody would be a guess.
+
+**Pit stop planning (done):** a stop plan per entry, on the team console and on
+the event page.
+
+Planned against the entry rather than the car, because the plan belongs to the
+weekend — the same car in two events has two independent sequences. Both a
+target lap and a target time are optional: a sprint plans by lap, an enduro by
+the clock, and a wet race by neither until the radio says so.
+
+The plan and the log are the same rows, because the useful comparison is "we
+said 32 seconds and it took 51", and keeping intention and outcome in two
+tables means nobody ever lines them up.
+
+The whole active roster can write it, not just managers: a plan is edited in a
+pit box by whoever has a free hand, and a rule that only the manager may move a
+stop means the plan stops being updated exactly when it matters most. Race
+control can *read* it — that is how a driver-change regulation gets checked
+before it is breached rather than after — and cannot change it, because a
+team's strategy is theirs.
+
+The planner states the problems a plan has rather than blocking a save: a
+half-built plan is the normal state at 9am on a Saturday. The one it exists for
+is the handover chain — a stop that takes out a driver who was not in the car
+reads fine row by row and cannot be driven, and it is exactly the error a tired
+crew chief makes reshuffling a rotation at midnight. A completed stop cannot be
+deleted; it is why the fuel numbers add up.
+
+**Department channels & direct messages (done):** two more kinds of room, on
+the same `ChatMessage` table as event paddock chat and team chat. A message
+belongs to exactly one of the four; a CHECK constraint enforces it.
+
+**Department channels** are rooms narrower than their scope — the engineers,
+the crew, race control. The rule that makes them worth having is that
+**membership is derived, never stored**: you are in the engineers' channel
+while you hold that role, and you are out of it the moment you do not. A stored
+member list would leave a departed engineer reading the engineers' channel
+until somebody remembered to prune it, which is precisely the failure a private
+channel exists to prevent.
+
+A channel hangs off exactly one team, event, series or organization, and the
+scope decides which role list applies. On an *event* channel there are two
+genuinely different things to make, which is what the `includesEntrantTeams`
+switch is for:
+
+- off — the officials' room: the series' own staff, by series role.
+- on — the paddock-wide department room: every engineer entered in the meeting,
+  from every team. Nothing else on the platform can put those people in one
+  place.
+
+Only whoever runs the scope can create a channel, and they can always read and
+moderate one — somebody has to be able to clean up a room they are not a member
+of, and there is no other candidate. That person is *not* counted as one of the
+department: a manager reading the crew channel is not the crew, and a member
+list that says otherwise is lying about who is in the room.
+
+The channel list shows only what the viewer can actually enter. That is not
+politeness — a list of four channels you cannot open tells everyone what
+departments exist and roughly who is in them, which is information a private
+channel is supposed to be keeping.
+
+There is no delete, only archive. A department channel is where decisions get
+made — what fuel number was agreed, who called the driver in — and deleting it
+destroys that for everyone at once. An archived channel stays fully readable
+and stops accepting posts; the archived check lives on the write path only,
+because an archived room you cannot read is a delete with extra steps.
+
+**Direct messages** are the one room with no organizational scope, which is
+exactly why they are wanted: an engineer who needs a word with a driver on
+another team has nowhere else to have it, and routing that through a team
+channel makes it everyone's business.
+
+- A two-person thread carries a `pairKey` — the two user ids sorted and joined
+  — so "message this person" from three different pages lands in one thread
+  rather than three, each holding part of the conversation. Group threads leave
+  it null, because three colleagues can reasonably want two different group
+  conversations.
+- Asking for a thread you are not in returns **not found**, not forbidden.
+  Whether two other people are talking is itself private, and forbidden would
+  confirm it.
+- A thread has no moderator. There is no organization above a private
+  conversation, so nobody has standing to delete somebody else's words in one;
+  authors still delete their own.
+- Leaving hides a thread rather than destroying it — the other side's copy is
+  not the leaver's to delete — and a later message brings it back, because a
+  reply to a conversation you left is still addressed to you.
+- Direct messages post through `message.send`, never `chat.send`. A thread
+  message has bookkeeping a room message does not (bumping the inbox order,
+  clearing the sender's own unread mark, notifying the other side), and a
+  second write path that skipped it would produce threads that never surface in
+  anyone's inbox. `chat.send` refuses a thread scope loudly rather than
+  duplicating that bookkeeping somewhere it can drift.
+
 **Race weekend regulation (done):** the operational layer a real championship
 needs beyond a calendar.
 

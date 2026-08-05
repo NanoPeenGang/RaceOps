@@ -8,27 +8,36 @@ import {
 } from "@/server/services/series-auth";
 import { isTeamManager } from "@/lib/teams";
 import { broadcastChatMessage } from "@/server/services/realtime";
+import { assertChannelAccess } from "@/server/services/channel-access";
 
 /**
- * Chat rooms. Two kinds, one implementation:
+ * Chat rooms. Four kinds, one implementation:
  *
  * - **Event paddock chat** — organizers of the owning series, anyone with an
  *   entry, and signed-up volunteers.
  * - **Team chat** — the team's own current roster, nobody else.
+ * - **Department channel** — a room narrower than its scope, whose membership
+ *   is derived from the roles people hold rather than stored.
+ * - **Direct thread** — a private conversation, belonging to no team or event.
  *
- * Neither is a public comment section, so reads require a signed-in member of
- * the room. A message belongs to exactly one room; the database enforces that
- * with a check constraint as well.
+ * None is a public comment section, so reads require a signed-in member of the
+ * room. A message belongs to exactly one room; the database enforces that with
+ * a check constraint as well.
  */
 
 const scopeSchema = z
   .object({
     eventId: z.string().cuid().optional(),
     teamId: z.string().cuid().optional(),
+    channelId: z.string().cuid().optional(),
+    threadId: z.string().cuid().optional(),
   })
   .refine(
-    (scope) => Boolean(scope.eventId) !== Boolean(scope.teamId),
-    "Chat in exactly one of an event or a team.",
+    (scope) =>
+      [scope.eventId, scope.teamId, scope.channelId, scope.threadId].filter(
+        Boolean,
+      ).length === 1,
+    "Chat in exactly one room.",
   );
 
 type Scope = z.infer<typeof scopeSchema>;
@@ -45,7 +54,39 @@ async function assertChatAccess(
 ): Promise<ChatAccess> {
   if (scope.teamId) return assertTeamChatAccess(db, scope.teamId, userId);
   if (scope.eventId) return assertEventChatAccess(db, scope.eventId, userId);
+  if (scope.channelId) {
+    // Archiving is checked on the way *in* only — see `assertCanPost`. An
+    // archived channel that could not be read would be a delete with extra
+    // steps, and the point of archiving is that the decisions in it survive.
+    const { access } = await assertChannelAccess(db, scope.channelId, userId);
+    return { canModerate: access.canModerate };
+  }
+  if (scope.threadId) return assertThreadAccess(db, scope.threadId, userId);
   throw new TRPCError({ code: "BAD_REQUEST", message: "No room provided." });
+}
+
+/**
+ * A direct thread has no moderator.
+ *
+ * Deliberate: there is no organization above a private conversation, so
+ * nobody has standing to delete somebody else's words in it. Authors still
+ * delete their own, which is the only power anyone should have here.
+ */
+async function assertThreadAccess(
+  db: PrismaClient,
+  threadId: string,
+  userId: string,
+): Promise<ChatAccess> {
+  const participant = await db.directParticipant.findUnique({
+    where: { threadId_userId: { threadId, userId } },
+    select: { id: true },
+  });
+  if (!participant) {
+    // NOT_FOUND rather than FORBIDDEN — whether a conversation exists between
+    // two other people is itself private, and FORBIDDEN would confirm it.
+    throw new TRPCError({ code: "NOT_FOUND" });
+  }
+  return { canModerate: false };
 }
 
 /** Team chat is for the current roster. Managers moderate. */
@@ -112,6 +153,27 @@ async function assertEventChatAccess(
   });
 }
 
+/**
+ * Whether a room still accepts messages.
+ *
+ * Separate from `assertChatAccess` because reading and writing genuinely
+ * differ here: an archived channel stays fully readable — that is the whole
+ * difference between archiving and deleting — and only refuses new posts.
+ */
+async function assertCanPost(db: PrismaClient, scope: Scope): Promise<void> {
+  if (!scope.channelId) return;
+  const channel = await db.chatChannel.findUnique({
+    where: { id: scope.channelId },
+    select: { archived: true },
+  });
+  if (channel?.archived) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "That channel is archived. It can be read but not posted to.",
+    });
+  }
+}
+
 export const chatRouter = createTRPCRouter({
   /** Recent messages, oldest first so the transcript reads top-to-bottom. */
   forRoom: protectedProcedure
@@ -151,7 +213,24 @@ export const chatRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      /*
+       * Direct threads post through `message.send`, not here. A thread message
+       * has bookkeeping a room message does not — bumping `lastMessageAt` for
+       * the inbox, clearing the sender's own unread mark, notifying the other
+       * side — and a second write path that skipped it would produce threads
+       * that never surface in anyone's inbox. Refusing loudly beats
+       * duplicating the bookkeeping in two places that then drift.
+       */
+      if (input.scope.threadId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Send direct messages through message.send.",
+        });
+      }
+
       await assertChatAccess(ctx.db, input.scope, ctx.user.id);
+      await assertCanPost(ctx.db, input.scope);
+
       const message = await ctx.db.chatMessage.create({
         data: {
           ...input.scope,
@@ -169,13 +248,22 @@ export const chatRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const message = await ctx.db.chatMessage.findUnique({
         where: { id: input.messageId },
-        select: { id: true, eventId: true, teamId: true, userId: true },
+        select: {
+          id: true,
+          eventId: true,
+          teamId: true,
+          channelId: true,
+          threadId: true,
+          userId: true,
+        },
       });
       if (!message) throw new TRPCError({ code: "NOT_FOUND" });
 
       const scope: Scope = {
         eventId: message.eventId ?? undefined,
         teamId: message.teamId ?? undefined,
+        channelId: message.channelId ?? undefined,
+        threadId: message.threadId ?? undefined,
       };
 
       // Membership of the room is required either way — the author check alone

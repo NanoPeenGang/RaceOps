@@ -17,6 +17,7 @@ export const ACCOUNT_LINKS = [
   // Personal rather than a browse destination, and near the top because the
   // moment somebody needs it they are standing at a gate on a phone.
   { href: "/passes", label: "My passes" },
+  { href: "/messages", label: "Messages" },
   { href: "/organizations", label: "My organizations" },
   { href: "/applications", label: "My applications" },
   { href: "/opportunities/mine", label: "My postings" },
