@@ -208,6 +208,29 @@ export async function channelAccess(
   userId: string,
 ): Promise<ChannelAccess> {
   const standing = await standingInScope(db, channel, userId);
+  return accessFromStanding(channel, standing);
+}
+
+/**
+ * The same decision, against a standing that has already been resolved.
+ *
+ * Split out because standing depends only on the *scope* and the person, and
+ * every channel in one list shares a scope by construction. Listing a team's
+ * channels through `channelAccess` therefore re-asked the database the same
+ * question once per channel — resolve it once and this is pure.
+ */
+export function accessFromStanding(
+  channel: Pick<
+    ChatChannel,
+    | "kind"
+    | "teamRoles"
+    | "seriesRoles"
+    | "orgRoles"
+    | "staffRoleId"
+    | "includesEntrantTeams"
+  >,
+  standing: ScopeStanding,
+): ChannelAccess {
   const audience = {
     kind: channel.kind,
     teamRoles: channel.teamRoles,

@@ -22,7 +22,7 @@ import { DirectThread } from "@/components/direct-thread";
  */
 export default function MessagesPage() {
   return (
-    <Suspense fallback={<p className="text-brand-black/60">Loading\u2026</p>}>
+    <Suspense fallback={<p className="text-brand-black/60">Loading…</p>}>
       <Inbox />
     </Suspense>
   );

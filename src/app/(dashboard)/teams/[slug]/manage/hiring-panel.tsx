@@ -450,6 +450,14 @@ function InterviewRow({
       {interview.location && (
         <p className="text-xs text-brand-black/55">{interview.location}</p>
       )}
+      {/* Most useful on a decline: "I'm at Sebring that weekend" is the
+          difference between proposing three new times and writing somebody
+          off as unresponsive. */}
+      {interview.responseNote && (
+        <p className="mt-1 whitespace-pre-wrap text-xs text-brand-black/70">
+          &ldquo;{interview.responseNote}&rdquo;
+        </p>
+      )}
       {interview.outcome && (
         <p className="mt-1 whitespace-pre-wrap text-xs text-brand-black/70">
           {interview.outcome}

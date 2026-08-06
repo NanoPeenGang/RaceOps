@@ -328,7 +328,10 @@ export const hiringRouter = createTRPCRouter({
       if (input.slotId === null) {
         return ctx.db.interview.update({
           where: { id: interview.id },
-          data: { status: InterviewStatus.DECLINED },
+          data: {
+            status: InterviewStatus.DECLINED,
+            responseNote: input.note ?? null,
+          },
         });
       }
 
@@ -356,7 +359,7 @@ export const hiringRouter = createTRPCRouter({
           data: {
             status: InterviewStatus.CONFIRMED,
             scheduledAt: slot.startsAt,
-            ...(input.note ? { agenda: interview.agenda } : {}),
+            responseNote: input.note ?? null,
           },
           include: { slots: true },
         });

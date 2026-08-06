@@ -3411,6 +3411,14 @@ model Interview {
   privateNotes    String?   @db.Text
   /// Written after the fact. Also team-only.
   outcome         String?   @db.Text
+  /**
+   * What the applicant said when they answered.
+   *
+   * Matters most on a decline: "none of those work, I'm at Sebring that
+   * weekend" is the difference between a team proposing three new times and
+   * writing somebody off as unresponsive.
+   */
+  responseNote    String?   @db.Text
 
   createdById String?
   createdAt   DateTime @default(now())

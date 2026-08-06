@@ -196,6 +196,7 @@ function InterviewInvite({
   interview: Interview;
   onChanged: () => void;
 }) {
+  const [note, setNote] = useState("");
   const respond = api.hiring.respondToInterview.useMutation({
     onSuccess: onChanged,
   });
@@ -239,6 +240,7 @@ function InterviewInvite({
                   respond.mutate({
                     interviewId: interview.id,
                     slotId: slot.id,
+                    note: note.trim() || null,
                   })
                 }
               >
@@ -250,12 +252,25 @@ function InterviewInvite({
               variant="ghost"
               disabled={respond.isPending}
               onClick={() =>
-                respond.mutate({ interviewId: interview.id, slotId: null })
+                respond.mutate({
+                  interviewId: interview.id,
+                  slotId: null,
+                  note: note.trim() || null,
+                })
               }
             >
               None of these work
             </Button>
           </div>
+          {/* Worth most when declining: saying why turns a dead end into
+              three new times. */}
+          <input
+            className="w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="Anything to add? e.g. after 6pm is easier, or I'm racing that weekend"
+            maxLength={1000}
+          />
         </>
       )}
       {respond.error && (

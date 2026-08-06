@@ -19,6 +19,48 @@ import { broadcastChatMessage } from "@/server/services/realtime";
  * deleting and rendering all work the same way. This router owns the threads.
  */
 
+interface ReadMark {
+  threadId: string;
+  readAt: Date | null;
+}
+
+/**
+ * "Unread in this thread" as one clause per thread, to be OR'd together.
+ *
+ * Every thread has a *different* read mark, so a single grouped count cannot
+ * express it — which is why this used to be a count query per thread. An OR of
+ * per-thread conditions says the same thing in one round trip, and Postgres
+ * answers it from the `(threadId, createdAt)` index.
+ */
+function unreadClauses(marks: readonly ReadMark[]) {
+  return marks.map((mark) => ({
+    threadId: mark.threadId,
+    ...(mark.readAt ? { createdAt: { gt: mark.readAt } } : {}),
+  }));
+}
+
+/** Unread counts for several threads at once, keyed by thread. */
+async function unreadCounts(
+  db: PrismaClient,
+  userId: string,
+  marks: readonly ReadMark[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>(
+    marks.map((mark) => [mark.threadId, 0]),
+  );
+  if (marks.length === 0) return counts;
+
+  const rows = await db.chatMessage.groupBy({
+    by: ["threadId"],
+    where: { userId: { not: userId }, OR: unreadClauses(marks) },
+    _count: { _all: true },
+  });
+  for (const row of rows) {
+    if (row.threadId) counts.set(row.threadId, row._count._all);
+  }
+  return counts;
+}
+
 /** Throws unless the caller is in the thread. */
 async function assertParticipant(
   db: PrismaClient,
@@ -74,46 +116,7 @@ export const messageRouter = createTRPCRouter({
         isVisibleTo(participation, participation.thread.lastMessageAt),
       );
 
-      // One grouped count rather than a query per thread: an inbox of fifty
-      // threads should not be fifty round trips.
-      const counts = await ctx.db.chatMessage.groupBy({
-        by: ["threadId"],
-        where: {
-          threadId: { in: visible.map((p) => p.threadId) },
-          userId: { not: ctx.user.id },
-        },
-        _count: { _all: true },
-        _max: { createdAt: true },
-      });
-      const unreadByThread = new Map<string, number>();
-      for (const participation of visible) {
-        const row = counts.find((c) => c.threadId === participation.threadId);
-        if (!row) {
-          unreadByThread.set(participation.threadId, 0);
-          continue;
-        }
-        // The grouped query gives totals, not per-message times, so a thread
-        // whose newest message predates the read mark is fully read; anything
-        // else is counted precisely below.
-        if (
-          participation.readAt &&
-          row._max.createdAt &&
-          row._max.createdAt <= participation.readAt
-        ) {
-          unreadByThread.set(participation.threadId, 0);
-        } else if (!participation.readAt) {
-          unreadByThread.set(participation.threadId, row._count._all);
-        } else {
-          const since = await ctx.db.chatMessage.count({
-            where: {
-              threadId: participation.threadId,
-              userId: { not: ctx.user.id },
-              createdAt: { gt: participation.readAt },
-            },
-          });
-          unreadByThread.set(participation.threadId, since);
-        }
-      }
+      const unreadByThread = await unreadCounts(ctx.db, ctx.user.id, visible);
 
       return {
         threads: visible.map((participation) => ({
@@ -138,19 +141,15 @@ export const messageRouter = createTRPCRouter({
       where: { userId: ctx.user.id, leftAt: null },
       select: { threadId: true, readAt: true },
     });
-    let total = 0;
-    for (const participation of participations) {
-      total += await ctx.db.chatMessage.count({
-        where: {
-          threadId: participation.threadId,
-          userId: { not: ctx.user.id },
-          ...(participation.readAt
-            ? { createdAt: { gt: participation.readAt } }
-            : {}),
-        },
-      });
-    }
-    return { unread: total };
+    if (participations.length === 0) return { unread: 0 };
+
+    const unread = await ctx.db.chatMessage.count({
+      where: {
+        userId: { not: ctx.user.id },
+        OR: unreadClauses(participations),
+      },
+    });
+    return { unread };
   }),
 
   /**

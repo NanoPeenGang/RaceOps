@@ -249,7 +249,7 @@ export default async function EventLandingPage({
 
       <DepartmentChannels
         scope={{ eventId }}
-        description="Rooms narrower than the paddock. A channel can be the officials\u2019 room, or \u2014 with entrant roles switched on \u2014 every engineer at the meeting, from every team."
+        description="Rooms narrower than the paddock. A channel can be the officials’ room, or — with entrant roles switched on — every engineer at the meeting, from every team."
       />
     </BrandTheme>
   );

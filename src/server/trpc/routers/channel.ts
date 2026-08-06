@@ -10,8 +10,10 @@ import { createTRPCRouter, protectedProcedure } from "@/server/trpc/trpc";
 import { availableTemplates, describeAudienceProblem } from "@/lib/channels";
 import { slugify } from "@/lib/slug";
 import {
+  accessFromStanding,
   assertCanManageChannels,
   channelAccess,
+  standingInScope,
 } from "@/server/services/channel-access";
 
 /**
@@ -64,22 +66,30 @@ export const channelRouter = createTRPCRouter({
         },
       });
 
-      const visible: typeof channels = [];
-      let canManage = false;
-      for (const channel of channels) {
-        const access = await channelAccess(ctx.db, channel, ctx.user.id);
-        if (access.canModerate) canManage = true;
-        if (access.allowed) visible.push(channel);
-      }
-
       /*
-       * `canManage` is derived from the channels above when there are any, but
-       * a scope with no channels yet still needs to know whether to offer the
-       * "add one" button — which is the state every team starts in.
+       * Resolved once, not per channel. Standing depends only on the scope
+       * and the person, and every channel here shares a scope by
+       * construction — so this is one round trip regardless of how many
+       * channels a team has, and the per-channel decision is pure.
        */
-      if (channels.length === 0) {
-        canManage = await canManageScope(ctx.db, input.scope, ctx.user.id);
-      }
+      const standing = await standingInScope(
+        ctx.db,
+        {
+          teamId: input.scope.teamId ?? null,
+          eventId: input.scope.eventId ?? null,
+          seriesId: input.scope.seriesId ?? null,
+          organizationId: input.scope.organizationId ?? null,
+        },
+        ctx.user.id,
+      );
+
+      const visible = channels.filter(
+        (channel) => accessFromStanding(channel, standing).allowed,
+      );
+      // Straight from standing rather than inferred from the channels, so a
+      // scope with none yet still knows whether to offer "add one" — which is
+      // the state every team starts in.
+      const canManage = Boolean(standing.isScopeManager);
 
       return {
         channels: visible,
@@ -258,16 +268,3 @@ export const channelRouter = createTRPCRouter({
       };
     }),
 });
-
-async function canManageScope(
-  db: Parameters<typeof assertCanManageChannels>[0],
-  scope: z.infer<typeof scopeSchema>,
-  userId: string,
-): Promise<boolean> {
-  try {
-    await assertCanManageChannels(db, scope, userId);
-    return true;
-  } catch {
-    return false;
-  }
-}
