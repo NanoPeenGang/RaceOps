@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/lib/trpc/client";
+import { attentionItems } from "@/lib/attention";
 import type { AppRouter } from "@/server/trpc/root";
 import { greeting, relativeDay } from "@/lib/dashboard";
 import { REGISTRATION_STATUS_LABELS } from "@/lib/events";
@@ -105,7 +106,49 @@ export default function HomePage() {
             </Section>
           )}
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          {data.attention.length > 0 && (
+            <Section
+              title="Waiting on you"
+              description="Across the teams you run. Everything above is you as a competitor; this is you as a manager."
+            >
+              <div className="space-y-2">
+                {data.attention.map((team) => (
+                  <Card key={team.teamId}>
+                    <CardContent className="space-y-2 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium">{team.teamName}</p>
+                        <Link href={`/teams/${team.teamSlug}/manage`}>
+                          <Button size="sm" variant="outline">
+                            Open console
+                          </Button>
+                        </Link>
+                      </div>
+                      {/* Each chip links into the tab that fixes it, rather
+                          than dropping somebody at the top of a long console
+                          to find it themselves. */}
+                      <div className="flex flex-wrap gap-2">
+                        {attentionItems(team).map((item) => (
+                          <Link
+                            key={item.key}
+                            href={item.href}
+                            className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                              item.tone === "urgent"
+                                ? "border-brand-red/40 bg-brand-red/[0.06] text-brand-red hover:bg-brand-red/10"
+                                : "border-brand-black/15 hover:bg-brand-black/[0.04]"
+                            }`}
+                          >
+                            {item.label}
+                          </Link>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Stat
               label="Upcoming entries"
               value={data.counts.upcomingEntries}
@@ -120,6 +163,12 @@ export default function HomePage() {
               label="Needs you"
               value={data.counts.needsAction}
               tone={data.counts.needsAction > 0 ? "alert" : "default"}
+            />
+            <Stat
+              label="Unread messages"
+              value={data.unreadMessages}
+              href="/messages"
+              tone={data.unreadMessages > 0 ? "alert" : "default"}
             />
           </div>
 

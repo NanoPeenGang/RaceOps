@@ -93,8 +93,9 @@ describe.skipIf(!ENABLED)("query shape (integration)", () => {
     await base.directThread.deleteMany({
       where: { participants: { some: { userId: { in: userIds } } } },
     });
+    // Only the base client is closed: `$extends` shares its engine, so
+    // disconnecting the wrapper as well would be closing it twice.
     await base.$disconnect();
-    await meter.db.$disconnect();
   });
 
   async function addChannel(name: string) {

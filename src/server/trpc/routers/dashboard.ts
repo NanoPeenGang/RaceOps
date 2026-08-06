@@ -5,6 +5,9 @@ import {
   VolunteerSignupStatus,
 } from "@prisma/client";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc/trpc";
+import { TEAM_MANAGER_ROLES } from "@/lib/teams";
+import { sortByAttention, type TeamAttention } from "@/lib/attention";
+import { teamAttention } from "@/server/services/team-attention";
 import { entryActions, sortActions, type ActionItem } from "@/lib/dashboard";
 import { entryWaiverState } from "@/server/services/waivers";
 import { eligibilityForRegistration } from "@/server/services/eligibility";
@@ -178,6 +181,40 @@ export const dashboardRouter = createTRPCRouter({
         })
       : [];
 
+    /*
+     * What is waiting on this person as a *manager*, across every team they
+     * run. Everything above is about them as a competitor; without this, a
+     * team owner has to open each console in turn to find out that nobody has
+     * answered an application in three weeks.
+     *
+     * Batched across all their teams, and skipped entirely when they manage
+     * none — which is most people.
+     */
+    const managed = teams
+      .filter((membership) => TEAM_MANAGER_ROLES.includes(membership.role))
+      .map((membership) => membership.team);
+    const [attention, messages] = await Promise.all([
+      managed.length
+        ? teamAttention(ctx.db, managed, now)
+        : Promise.resolve(new Map<string, TeamAttention>()),
+      ctx.db.directParticipant.findMany({
+        where: { userId, leftAt: null },
+        select: { threadId: true, readAt: true },
+      }),
+    ]);
+
+    const unreadMessages = messages.length
+      ? await ctx.db.chatMessage.count({
+          where: {
+            userId: { not: userId },
+            OR: messages.map((mark) => ({
+              threadId: mark.threadId,
+              ...(mark.readAt ? { createdAt: { gt: mark.readAt } } : {}),
+            })),
+          },
+        })
+      : 0;
+
     const actions: ActionItem[] = entryActions(blockers, now);
     for (const session of liveSessions) {
       actions.unshift({
@@ -208,6 +245,11 @@ export const dashboardRouter = createTRPCRouter({
         ...membership.series,
         myRole: membership.role,
       })),
+      // Teams with something outstanding, busiest first. Teams with nothing
+      // are dropped rather than listed as fine — a strip of "all clear" rows
+      // teaches people to skip the strip.
+      attention: sortByAttention([...attention.values()]),
+      unreadMessages,
       counts: {
         upcomingEntries: upcoming.length,
         shifts: shifts.length,

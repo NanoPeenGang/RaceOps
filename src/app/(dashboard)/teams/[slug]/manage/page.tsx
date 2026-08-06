@@ -22,6 +22,8 @@ import { HiringPanel } from "./hiring-panel";
 import { PayrollPanel } from "./payroll-panel";
 import { DepartmentChannels } from "@/components/department-channels";
 import { BrandingEditor } from "@/components/branding-editor";
+import { Tabs, type TabDefinition } from "@/components/ui/tabs";
+import { attentionItems, tabBadge, type TeamAttention } from "@/lib/attention";
 
 /**
  * Team console — one page to run a race team: who is on the books, what races
@@ -66,8 +68,110 @@ export default function TeamManagePage({
     utils.team.bySlug.invalidate({ slug });
   };
 
+  const manager = isTeamManager(data.myRole);
+  const attention = data.attention;
+
+  /*
+   * Seven tabs rather than one long page. The console grew to a dozen panels
+   * and finding the pit stop planner meant scrolling past payroll — and
+   * because `Tabs` renders only the active panel, this also stops a page load
+   * firing every panel's queries at once.
+   *
+   * Grouped by the job somebody sat down to do, not by which model the data
+   * lives in: seat time is a roster question even though it is built from
+   * stints, and sponsors are money even though they are nothing like payroll.
+   */
+  const tabs: TabDefinition[] = [
+    {
+      id: "roster",
+      label: "Roster",
+      content: (
+        <div className="space-y-10">
+          <RosterPanel team={data} onChanged={refresh} />
+          <SeatTimePanel teamId={data.id} />
+        </div>
+      ),
+    },
+    {
+      id: "hiring",
+      label: "Hiring",
+      visible: manager,
+      badge: tabBadge(attention, "hiring"),
+      content: <HiringPanel teamId={data.id} />,
+    },
+    {
+      id: "money",
+      label: "Money",
+      visible: manager,
+      badge: tabBadge(attention, "money"),
+      content: (
+        <div className="space-y-10">
+          <PayrollPanel teamId={data.id} />
+          <SponsorsPanel team={data} />
+        </div>
+      ),
+    },
+    {
+      id: "garage",
+      label: "Garage",
+      badge: tabBadge(attention, "garage"),
+      content: (
+        <div className="space-y-10">
+          <GaragePanel team={data} />
+          <ServicePanel teamId={data.id} />
+          <InventoryPanel teamId={data.id} />
+          <FilesPanel teamId={data.id} />
+        </div>
+      ),
+    },
+    {
+      id: "racing",
+      label: "Racing",
+      content: (
+        <div className="space-y-10">
+          <SchedulePanel team={data} onChanged={refresh} />
+          <ResultsPanel teamId={data.id} />
+        </div>
+      ),
+    },
+    {
+      id: "comms",
+      label: "Comms",
+      content: (
+        <div className="space-y-10">
+          <PaddockChat
+            scope={{ teamId: data.id }}
+            title="Team chat"
+            placeholder={`Message ${data.name}`}
+          />
+          <DepartmentChannels
+            scope={{ teamId: data.id }}
+            description="Rooms narrower than the whole roster — the engineers, the crew, the drivers. Membership follows the role somebody holds on this team, so leaving the role leaves the room."
+          />
+          <MediaPanel
+            scope={{ teamId: data.id }}
+            title="Team media"
+            description="Liveries, team photos and race coverage."
+            canManage={manager}
+          />
+        </div>
+      ),
+    },
+    {
+      id: "settings",
+      label: "Settings",
+      visible: manager,
+      content: (
+        <div className="space-y-10">
+          <TeamSettings team={data} onSaved={refresh} defaultOpen />
+          <BrandingEditor scope={{ teamId: data.id }} name={data.name} />
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <div className="space-y-10">
+    <div className="space-y-6">
       <header className="space-y-3">
         <Link
           href={`/teams/${slug}`}
@@ -91,41 +195,35 @@ export default function TeamManagePage({
         </div>
       </header>
 
-      {isTeamManager(data.myRole) && <TeamSettings team={data} onSaved={refresh} />}
+      {/* Above the tabs on purpose: the whole point is that it is seen without
+          opening the tab it points at. */}
+      {attention && <AttentionStrip attention={attention} />}
 
-      {isTeamManager(data.myRole) && (
-        <BrandingEditor scope={{ teamId: data.id }} name={data.name} />
-      )}
+      <Tabs tabs={tabs} />
+    </div>
+  );
+}
 
-      <RosterPanel team={data} onChanged={refresh} />
-      {isTeamManager(data.myRole) && <HiringPanel teamId={data.id} />}
-      {isTeamManager(data.myRole) && <PayrollPanel teamId={data.id} />}
-      <GaragePanel team={data} />
-      <ServicePanel teamId={data.id} />
-      <InventoryPanel teamId={data.id} />
-      <FilesPanel teamId={data.id} />
-      <SchedulePanel team={data} onChanged={refresh} />
-      <SeatTimePanel teamId={data.id} />
-      <ResultsPanel teamId={data.id} />
-      <SponsorsPanel team={data} />
+/** What is waiting on a manager, linking straight into the tab that fixes it. */
+function AttentionStrip({ attention }: { attention: TeamAttention }) {
+  const items = attentionItems(attention);
+  if (items.length === 0) return null;
 
-      <MediaPanel
-        scope={{ teamId: data.id }}
-        title="Team media"
-        description="Liveries, team photos and race coverage."
-        canManage={isTeamManager(data.myRole)}
-      />
-
-      <PaddockChat
-        scope={{ teamId: data.id }}
-        title="Team chat"
-        placeholder={`Message ${data.name}`}
-      />
-
-      <DepartmentChannels
-        scope={{ teamId: data.id }}
-        description="Rooms narrower than the whole roster — the engineers, the crew, the drivers. Membership follows the role somebody holds on this team, so leaving the role leaves the room."
-      />
+  return (
+    <div className="flex flex-wrap gap-2">
+      {items.map((item) => (
+        <Link
+          key={item.key}
+          href={item.href}
+          className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+            item.tone === "urgent"
+              ? "border-brand-red/40 bg-brand-red/[0.06] text-brand-red hover:bg-brand-red/10"
+              : "border-brand-black/15 hover:bg-brand-black/[0.04]"
+          }`}
+        >
+          {item.label}
+        </Link>
+      ))}
     </div>
   );
 }
@@ -134,11 +232,14 @@ export default function TeamManagePage({
 function TeamSettings({
   team,
   onSaved,
+  defaultOpen = false,
 }: {
   team: { id: string; description: string | null; websiteUrl: string | null; homeBase: string | null };
   onSaved: () => void;
+  /** On a Settings tab the form is the point of the page, so it starts open. */
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [description, setDescription] = useState(team.description ?? "");
   const [websiteUrl, setWebsiteUrl] = useState(team.websiteUrl ?? "");
   const [homeBase, setHomeBase] = useState(team.homeBase ?? "");

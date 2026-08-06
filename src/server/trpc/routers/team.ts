@@ -13,6 +13,7 @@ import {
   computeSeriesStandings,
   selectTable,
 } from "@/server/services/standings";
+import { attentionForTeam } from "@/server/services/team-attention";
 import type { TRPCContext } from "@/server/trpc/trpc";
 
 const MANAGER_ROLES: TeamRole[] = TEAM_MANAGER_ROLES;
@@ -350,10 +351,21 @@ export const teamRouter = createTRPCRouter({
       });
       if (!team) throw new TRPCError({ code: "NOT_FOUND" });
 
+      /*
+       * Null for everyone but a manager, rather than a zeroed shape. "Nothing
+       * needs attention" and "you are not allowed to know" are different
+       * answers, and returning the second as the first would quietly tell a
+       * driver the team has no outstanding pay runs.
+       */
+      const attention = TEAM_MANAGER_ROLES.includes(membership.role)
+        ? await attentionForTeam(ctx.db, team)
+        : null;
+
       return {
         ...team,
         myRole: membership.role,
         myUserId: ctx.user.id,
+        attention,
       };
     }),
 

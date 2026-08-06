@@ -321,6 +321,41 @@ team from one page.
   are visible to the team only.
 - **Team chat** — the team's own room, separate from event paddock chat.
 
+**The team console (done):** seven tabs — Roster, Hiring, Money, Garage,
+Racing, Comms, Settings — rather than a dozen panels down one page. Tab state
+lives in the query string, so a reload lands you back where you were and "look
+at the payroll screen" is a link somebody can send. Only the active tab is
+mounted, so opening the console no longer fires every panel's queries at once.
+
+Grouping follows the job somebody sat down to do rather than which table the
+data lives in: seat time is a roster question even though it is built from
+stints, and sponsors are money even though they are nothing like payroll.
+
+**What needs you (done):** the platform now records a great deal, and the
+failure mode has stopped being "we cannot track this" and become "nobody
+noticed" — an application unanswered for three weeks, a rebuild that went
+overdue in February, a pay run approved and never paid. Each is visible on its
+own panel and nowhere else, which means it is invisible.
+
+`lib/attention.ts` is the one shape that answers it, and it drives both the
+badges on the console tabs and the strip on the home dashboard, so a badge can
+never disagree with the page it points at. Every chip links into the tab that
+fixes it rather than dropping somebody at the top of a long console.
+
+- **Urgent is reserved** for things already wrong: money owed and unpaid, a car
+  overdue, somebody waiting over a week. Everything else is a prompt. Marking
+  everything urgent is the same as marking nothing.
+- **Zeros are dropped**, not shown as "0 overdue". A list of things that are
+  fine is not a to-do list, and reading one teaches people to skip the strip.
+- **Counts are things to do, not row totals.** Twelve low-stock parts is one
+  trip to the shop; six unpaid lines on one run is one payment to make.
+- **Null, not zero, for people who cannot see it.** A driver opening the
+  console gets no badges — "nothing needs attention" and "you are not allowed
+  to know" are different answers, and returning the second as the first would
+  quietly tell them the team has no outstanding pay runs.
+- Computed for every team somebody manages in **six queries regardless of how
+  many teams that is**, with a test that fails if it ever becomes a loop.
+
 **Hiring (done):** posting to hired, without leaving the console.
 
 Applications land in a team-scoped **inbox** rather than sitting under whichever
