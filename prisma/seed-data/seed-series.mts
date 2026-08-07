@@ -1,6 +1,7 @@
 import { EventStatus } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import { CHAMPCAR, CHAMPCAR_TRACKS, type SeedSeries } from "./champcar.mts";
+import { LEMONS } from "./lemons.mts";
 import { seedReferenceTracks } from "./seed-tracks.mts";
 
 /**
@@ -21,6 +22,17 @@ import { seedReferenceTracks } from "./seed-tracks.mts";
  * rule book. These are updated by re-seeding, or by the organizer taking the
  * row over.
  */
+
+/**
+ * The championships that ship with the platform.
+ *
+ * ChampCar carries a calendar; Lemons carries only its rule book, because its
+ * schedule could not be verified — see the note in `lemons.mts`. A series with
+ * no rounds is a supported shape rather than a broken one: the rules are worth
+ * having on their own, and a round can be added the moment somebody can source
+ * one.
+ */
+export const REFERENCE_SERIES: readonly SeedSeries[] = [CHAMPCAR, LEMONS];
 
 export interface SeriesSeedSummary {
   seriesCreated: number;
@@ -45,7 +57,7 @@ const EMPTY: SeriesSeedSummary = {
 
 export async function seedReferenceSeries(
   db: PrismaClient,
-  series: readonly SeedSeries[] = [CHAMPCAR],
+  series: readonly SeedSeries[] = REFERENCE_SERIES,
   extraTracks = CHAMPCAR_TRACKS,
 ): Promise<SeriesSeedSummary> {
   // The calendar's venues first, so the events below have something to link

@@ -258,6 +258,17 @@ configuration, and the loader has three states rather than a guess:
   (Pocono runs one of half a dozen infield courses, and the directory has only
   the tri-oval). Link nothing; the free-text venue is the honest answer.
 
+Two ship today, and they are deliberately different shapes:
+
+- **ChampCar Endurance Series** — the published 2026 calendar plus a cited
+  summary of the BCCR.
+- **24 Hours of Lemons** — the rule book only. Its schedule could not be
+  verified when the entry was written, and Lemons runs over twenty rounds a
+  season; two corroborated rounds would be read as the season, which is worse
+  than none. A series with rules and no calendar is a supported shape, not a
+  broken one — the $500 rule is worth having on its own, and rounds can be
+  added the moment somebody can source them.
+
 `SeriesRule` is the sporting counterpart to `TrackRule` and carries the same
 citation and last-checked date, for the same reason. What is seeded is a
 summary and says so **first**, above the regulations it qualifies — a "read the

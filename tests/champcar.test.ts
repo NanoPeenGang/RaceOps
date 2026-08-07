@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { SeriesDiscipline, SeriesRuleKind, TrackKind } from "@prisma/client";
-import {
-  CHAMPCAR,
-  CHAMPCAR_SOURCE,
-  CHAMPCAR_TRACKS,
-} from "../prisma/seed-data/champcar.mts";
+import { SeriesRuleKind, TrackKind } from "@prisma/client";
+import { CHAMPCAR, CHAMPCAR_TRACKS } from "../prisma/seed-data/champcar.mts";
 import { US_REFERENCE_TRACKS } from "../prisma/seed-data/us-tracks.mts";
-import { groupSeriesRules } from "@/lib/series-rules";
 
 /**
  * The shipped ChampCar calendar is somebody else's published schedule, copied.
@@ -14,39 +9,22 @@ import { groupSeriesRules } from "@/lib/series-rules";
  * round pointing at a circuit we do not carry, or a rule stated as fact with no
  * source behind it. All three ship silently and all three cost a competitor a
  * wasted tow. These are the review pass the data file never gets.
+ *
+ * Invariants that hold for *every* shipped series — cited rules, a check date,
+ * unique titles — live in `reference-series.test.ts` and run over all of them.
+ * What is here is specific to this calendar.
  */
 
 const trackNames = new Set(
   [...US_REFERENCE_TRACKS, ...CHAMPCAR_TRACKS].map((track) => track.name),
 );
 
-describe("ChampCar reference series: shape", () => {
-  it("is a real-world championship with a season and a source", () => {
-    expect(CHAMPCAR.discipline).toBe(SeriesDiscipline.REAL_WORLD);
-    expect(CHAMPCAR.season).toMatch(/^\d{4}$/);
-    expect(CHAMPCAR.sourceUrl).toBe(CHAMPCAR_SOURCE);
-    expect(CHAMPCAR.slug).toMatch(/^[a-z0-9-]+$/);
-  });
-
-  it("records when it was last checked, as a real date", () => {
-    expect(CHAMPCAR.checkedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    const checked = new Date(`${CHAMPCAR.checkedOn}T00:00:00Z`);
-    expect(Number.isNaN(checked.getTime())).toBe(false);
-    // A future date would suppress the staleness warning indefinitely.
-    expect(checked.getTime()).toBeLessThanOrEqual(Date.now());
-  });
-
+describe("ChampCar reference series: calendar", () => {
   it("carries a full season of rounds", () => {
     // A partial calendar is worse than none: somebody plans around the gap.
+    // Lemons ships with none at all rather than a partial one, for the same
+    // reason — see `lemons.mts`.
     expect(CHAMPCAR.events.length).toBeGreaterThanOrEqual(12);
-  });
-});
-
-describe("ChampCar reference series: calendar", () => {
-  it("runs every round inside the stated season", () => {
-    for (const round of CHAMPCAR.events) {
-      expect(round.date.slice(0, 4), round.name).toBe(CHAMPCAR.season);
-    }
   });
 
   it("uses well-formed dates that end no earlier than they start", () => {
@@ -65,11 +43,6 @@ describe("ChampCar reference series: calendar", () => {
       const days = (end.getTime() - start.getTime()) / 86_400_000;
       expect(days, round.name).toBeLessThanOrEqual(6);
     }
-  });
-
-  it("is in calendar order", () => {
-    const dates = CHAMPCAR.events.map((round) => round.date);
-    expect(dates).toEqual([...dates].sort());
   });
 
   it("has no two rounds on the same day", () => {
@@ -132,24 +105,6 @@ describe("ChampCar reference series: calendar", () => {
 });
 
 describe("ChampCar reference series: regulations", () => {
-  it("cites a source for every rule", () => {
-    // The whole justification for restating another organization's rule book is
-    // that a reader can go check it. An uncited rule is just an assertion.
-    for (const rule of CHAMPCAR.rules) {
-      expect(rule.citation, rule.title).toBeTruthy();
-      expect(rule.sourceUrl, rule.title).toMatch(/^https:\/\//);
-      expect(rule.detail, rule.title).toBeTruthy();
-    }
-  });
-
-  it("leads with the caveat that it is a summary", () => {
-    // Ordering, not presence: a "read the actual rule book" note printed under
-    // seven regulations somebody has already acted on is not a caveat.
-    const first = groupSeriesRules(CHAMPCAR.rules)[0];
-    expect(first?.kind).toBe(SeriesRuleKind.OTHER);
-    expect(first?.rules[0]?.title.toLowerCase()).toContain("summary");
-  });
-
   it("covers what decides a build and a crew", () => {
     const kinds = new Set(CHAMPCAR.rules.map((rule) => rule.kind));
     for (const required of [
@@ -158,22 +113,6 @@ describe("ChampCar reference series: regulations", () => {
       SeriesRuleKind.DRIVERS,
     ]) {
       expect(kinds.has(required), required).toBe(true);
-    }
-  });
-
-  it("has no two rules sharing a title", () => {
-    // The loader matches on title, so a duplicate would be silently dropped.
-    const titles = CHAMPCAR.rules.map((rule) => rule.title);
-    expect(new Set(titles).size).toBe(titles.length);
-  });
-
-  it("orders rules distinctly within a kind", () => {
-    const byKind = new Map<SeriesRuleKind, number[]>();
-    for (const rule of CHAMPCAR.rules) {
-      byKind.set(rule.kind, [...(byKind.get(rule.kind) ?? []), rule.sortOrder ?? 0]);
-    }
-    for (const [kind, orders] of byKind) {
-      expect(new Set(orders).size, kind).toBe(orders.length);
     }
   });
 

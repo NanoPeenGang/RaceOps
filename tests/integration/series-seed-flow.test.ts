@@ -261,6 +261,46 @@ describe.skipIf(!ENABLED)("reference series seeding (integration)", () => {
     expect(after.description).toBe("Corrected by hand.");
   });
 
+  it("seeds a series that has rules but no calendar", async () => {
+    /*
+     * A supported shape, not a degenerate one: the Lemons entry ships its rule
+     * book with no rounds because its schedule could not be verified, and the
+     * loader has to treat that as a series rather than as nothing.
+     */
+    const rulesOnly: SeedSeries = {
+      ...definition,
+      name: `Rules Only ${run}`,
+      slug: `rules-only-${run}`,
+      events: [],
+      rules: [
+        {
+          kind: SeriesRuleKind.OTHER,
+          title: "This is a summary",
+          detail: "Read the rule book.",
+          citation: "Fixture rules",
+          sourceUrl: "https://example.test/rules",
+        },
+      ],
+    };
+
+    const summary = await seedReferenceSeries(db, [rulesOnly], []);
+    expect(summary.seriesCreated).toBe(1);
+    expect(summary.eventsCreated).toBe(0);
+    expect(summary.rulesCreated).toBe(1);
+    // Not counted as an unlinked round either — there is no round.
+    expect(summary.eventsUnlinked).toBe(0);
+
+    const created = await db.series.findUniqueOrThrow({
+      where: { slug: rulesOnly.slug },
+      include: { rules: true, events: true },
+    });
+    expect(created.isReference).toBe(true);
+    expect(created.events).toEqual([]);
+    expect(created.rules).toHaveLength(1);
+
+    await db.series.delete({ where: { id: created.id } });
+  });
+
   it("refuses to write into a live series holding the same slug", async () => {
     // The single most destructive thing this script could do is replace a real
     // season's calendar with a copy of a published schedule.
