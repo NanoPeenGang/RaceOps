@@ -19,8 +19,10 @@ import {
   assertCanGrantRoles,
   assertCanReview,
   canReview,
+  demotionProblem,
   effectivePlatformRole,
   hasBootstrapAdmin,
+  isPlatformOwner,
 } from "@/server/services/platform-admin";
 import { notify } from "@/server/services/notifications";
 
@@ -298,6 +300,11 @@ export const accessRouter = createTRPCRouter({
       return {
         staff,
         matches,
+        // So the panel can mark the owner's row and drop its control rather
+        // than offering a demotion the server will refuse.
+        ownerEmails: [...staff, ...matches]
+          .filter((person) => isPlatformOwner(person.email))
+          .map((person) => person.email),
         // Surfaced so a deployment with no configured admin and no admin rows
         // finds out before the queue silently stops being reviewed.
         hasBootstrapAdmin: hasBootstrapAdmin(),
@@ -315,24 +322,33 @@ export const accessRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       assertCanGrantRoles(ctx.user);
 
+      const target = await ctx.db.user.findUnique({
+        where: { id: input.userId },
+        select: { id: true, email: true },
+      });
+      if (!target) throw new TRPCError({ code: "NOT_FOUND" });
+
       /*
-       * Demoting yourself is allowed only while somebody else can still
-       * review. The environment list is a way back in, but a deployment that
-       * has not set one would be left with a queue nobody can open.
+       * Two ways a demotion leaves nobody able to review: demoting the owner,
+       * and the last admin demoting themselves on a deployment with no way
+       * back in. Both are refused rather than warned about — a queue nobody
+       * can open does not announce itself, it just stops being answered.
        */
-      if (input.userId === ctx.user.id && input.role !== PlatformRole.ADMIN) {
+      if (input.role !== PlatformRole.ADMIN) {
         const otherAdmins = await ctx.db.user.count({
           where: {
             platformRole: PlatformRole.ADMIN,
-            id: { not: ctx.user.id },
+            id: { not: target.id },
           },
         });
-        if (otherAdmins === 0 && !hasBootstrapAdmin()) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message:
-              "You are the only platform admin and PLATFORM_ADMIN_EMAILS is not set — promote somebody else first, or nobody can review applications.",
-          });
+        const problem = demotionProblem({
+          isOwner: isPlatformOwner(target.email),
+          isSelf: target.id === ctx.user.id,
+          otherAdmins,
+          hasBootstrap: hasBootstrapAdmin(),
+        });
+        if (problem) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: problem });
         }
       }
 

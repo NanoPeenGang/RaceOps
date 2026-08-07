@@ -2,37 +2,89 @@ import { TRPCError } from "@trpc/server";
 import { AccessRequestKind, AccessRequestStatus, PlatformRole } from "@prisma/client";
 import type { PrismaClient, User } from "@prisma/client";
 import { isSpendable } from "@/lib/access-requests";
+import {
+  isPlatformOwner,
+  ownerEmail,
+  PLATFORM_OWNER_EMAIL,
+} from "@/lib/platform-owner";
+
+// Re-exported so callers have one place to reach for platform standing; the
+// identity itself lives in a dependency-free module the seed script can load.
+export { isPlatformOwner, PLATFORM_OWNER_EMAIL };
 
 /**
  * Who can review access requests, and how the first one of them exists.
  *
  * The bootstrap problem is real: access requests are reviewed by platform
  * admins, and on a fresh deployment there are none, so the first request would
- * sit forever. `PLATFORM_ADMIN_EMAILS` solves it — a comma-separated list read
- * at request time, granting ADMIN regardless of the database column.
+ * sit forever. Two things solve it, and both are read at request time rather
+ * than synced into the database column:
  *
- * Reading it live rather than syncing it into the column is deliberate. It
- * means whoever controls the deployment's environment can always get in, even
- * if somebody demotes every admin row in the database; and removing an address
- * from the list revokes access on the next request rather than leaving a stale
- * grant behind. The column is for admins promoting other people day to day.
+ * - **The platform owner** — one address, below, that is always an admin. It
+ *   is not a configuration option to get wrong, which is the point: a
+ *   deployment that ships with no environment variables set still has somebody
+ *   who can open the queue on day one.
+ * - **`PLATFORM_ADMIN_EMAILS`** — a comma-separated list, for everybody else
+ *   the deployment wants to hand the keys to before there is a database to
+ *   promote them in.
+ *
+ * Reading both live is deliberate. It means whoever controls the deployment
+ * can always get in even if somebody demotes every admin row in the database,
+ * and removing an address revokes access on the next request rather than
+ * leaving a stale grant behind. The column is for admins promoting other
+ * people day to day.
  */
 
-/** Addresses granted ADMIN by deployment configuration. */
+/** Addresses granted ADMIN by deployment configuration, owner included. */
 function bootstrapAdmins(): string[] {
-  return (process.env.PLATFORM_ADMIN_EMAILS ?? "")
+  const configured = (process.env.PLATFORM_ADMIN_EMAILS ?? "")
     .split(",")
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
+  return [ownerEmail(), ...configured];
 }
 
-/** Whether this deployment has named anybody who can review. */
+/**
+ * Whether anybody can review without a database row saying so.
+ *
+ * Always true while an owner is set, which is the intended state. It stays a
+ * function rather than a constant because the lockout guard below is written
+ * against the general case: a fork that empties the owner constant should get
+ * the guard back, not a silently unreviewable queue.
+ */
 export function hasBootstrapAdmin(): boolean {
   return bootstrapAdmins().length > 0;
 }
 
 /**
- * The role to treat somebody as, once configuration is taken into account.
+ * Why a demotion is refused, or null if it is allowed.
+ *
+ * Pure, and separate from the router, because the interesting cases are the
+ * ones that are hard to arrange in an integration test: the last admin on a
+ * deployment with nothing in the environment, versus the same demotion on one
+ * that has a way back in.
+ */
+export function demotionProblem(input: {
+  /** The target is the platform owner. */
+  isOwner: boolean;
+  /** The caller is demoting themselves. */
+  isSelf: boolean;
+  /** Admins other than the target. */
+  otherAdmins: number;
+  /** Somebody can review without a database row. */
+  hasBootstrap: boolean;
+}): string | null {
+  if (input.isOwner) {
+    return "The platform owner is always an admin — that is what stops a deployment locking itself out of its own review queue.";
+  }
+  if (!input.isSelf) return null;
+  if (input.otherAdmins > 0 || input.hasBootstrap) return null;
+  return "You are the only platform admin and no owner or PLATFORM_ADMIN_EMAILS is configured — promote somebody else first, or nobody can review applications.";
+}
+
+/**
+ * The role to treat somebody as, once the owner and configuration are taken
+ * into account.
  *
  * Case-insensitive on the address, because an email that differs only in case
  * is the same mailbox and locking somebody out over a capital letter would be

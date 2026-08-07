@@ -315,6 +315,8 @@ function StaffPanel() {
 
   if (!staff.data) return <p className="pt-4 text-brand-black/60">Loading…</p>;
 
+  const owners = new Set(staff.data.ownerEmails);
+
   return (
     <div className="space-y-4 pt-4">
       {!staff.data.hasBootstrapAdmin && staff.data.staff.length === 0 && (
@@ -339,36 +341,13 @@ function StaffPanel() {
         ) : (
           <div className="space-y-2">
             {staff.data.staff.map((person) => (
-              <Card key={person.id}>
-                <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">
-                      {person.profile?.displayName ?? person.email}
-                    </p>
-                    <p className="text-xs text-brand-black/60">
-                      {ROLE_LABELS[person.platformRole]}
-                    </p>
-                  </div>
-                  {staff.data.canGrantRoles && (
-                    <select
-                      className="rounded-md border border-brand-black/20 px-2 py-1 text-sm"
-                      value={person.platformRole}
-                      onChange={(e) =>
-                        setRole.mutate({
-                          userId: person.id,
-                          role: e.target.value as PlatformRole,
-                        })
-                      }
-                    >
-                      {Object.values(PlatformRole).map((role) => (
-                        <option key={role} value={role}>
-                          {role}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </CardContent>
-              </Card>
+              <StaffRow
+                key={person.id}
+                person={person}
+                isOwner={owners.has(person.email)}
+                canGrantRoles={staff.data.canGrantRoles}
+                onChange={(role) => setRole.mutate({ userId: person.id, role })}
+              />
             ))}
           </div>
         )}
@@ -406,37 +385,73 @@ function StaffPanel() {
           )}
 
           {staff.data.matches.map((person) => (
-            <Card key={person.id}>
-              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">
-                    {person.profile?.displayName ?? person.email}
-                  </p>
-                  <p className="text-xs text-brand-black/60">
-                    {person.email} · {ROLE_LABELS[person.platformRole]}
-                  </p>
-                </div>
-                <select
-                  className="rounded-md border border-brand-black/20 px-2 py-1 text-sm"
-                  value={person.platformRole}
-                  onChange={(e) =>
-                    setRole.mutate({
-                      userId: person.id,
-                      role: e.target.value as PlatformRole,
-                    })
-                  }
-                >
-                  {Object.values(PlatformRole).map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
-              </CardContent>
-            </Card>
+            <StaffRow
+              key={person.id}
+              person={person}
+              isOwner={owners.has(person.email)}
+              canGrantRoles
+              showEmail
+              onChange={(role) => setRole.mutate({ userId: person.id, role })}
+            />
           ))}
         </Section>
       )}
     </div>
+  );
+}
+
+type StaffPerson = inferRouterOutputs<AppRouter>["access"]["staff"]["staff"][number];
+
+function StaffRow({
+  person,
+  isOwner,
+  canGrantRoles,
+  showEmail = false,
+  onChange,
+}: {
+  person: StaffPerson;
+  isOwner: boolean;
+  canGrantRoles: boolean;
+  showEmail?: boolean;
+  onChange: (role: PlatformRole) => void;
+}) {
+  return (
+    <Card>
+      <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate font-medium">
+              {person.profile?.displayName ?? person.email}
+            </p>
+            {isOwner && <Badge variant="verified">Platform owner</Badge>}
+          </div>
+          <p className="text-xs text-brand-black/60">
+            {showEmail ? `${person.email} · ` : ""}
+            {ROLE_LABELS[person.platformRole]}
+          </p>
+        </div>
+        {/* The owner's control is dropped rather than disabled: the server
+            refuses the demotion, and a select that reverts on submit reads as
+            a bug rather than as a rule. */}
+        {canGrantRoles && !isOwner && (
+          <select
+            className="rounded-md border border-brand-black/20 px-2 py-1 text-sm"
+            value={person.platformRole}
+            onChange={(e) => onChange(e.target.value as PlatformRole)}
+          >
+            {Object.values(PlatformRole).map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </select>
+        )}
+        {isOwner && (
+          <p className="text-xs text-brand-black/50">
+            Always an admin — it is what stops the queue locking itself out.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

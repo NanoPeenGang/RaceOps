@@ -382,19 +382,68 @@ describe.skipIf(!ENABLED)("access requests (integration)", () => {
     expect(team!.existingStatuses.length).toBeGreaterThan(0);
   });
 
-  it("will not let the last admin lock the queue", async () => {
-    // Demoting yourself with nobody left and no PLATFORM_ADMIN_EMAILS leaves a
-    // queue nobody can open, and applications that never get answered.
-    const otherAdmins = await db.user.count({
-      where: { platformRole: PlatformRole.ADMIN, id: { not: reviewer.user.id } },
-    });
-    if (otherAdmins > 0) return;
+  it("treats the platform owner as an admin with no database row saying so", async () => {
+    /*
+     * The address is pointed at a fixture rather than the real owner, but the
+     * mechanism under test is the shipped one: standing that comes from who
+     * you are and not from a column, so a deployment whose database has never
+     * been seeded still has somebody who can open the queue.
+     */
+    process.env.PLATFORM_OWNER_EMAIL = other.user.email;
+    try {
+      expect(other.user.platformRole).toBe(PlatformRole.MEMBER);
+
+      const queue = await other.caller.access.queue({});
+      expect(queue.platformRole).toBe(PlatformRole.ADMIN);
+
+      // And they never had to apply for anything to publish.
+      const team = await other.caller.team.create({ name: `Owner Team ${run}` });
+      expect(team.id).toBeTruthy();
+    } finally {
+      delete process.env.PLATFORM_OWNER_EMAIL;
+    }
+  });
+
+  it("refuses to demote the platform owner", async () => {
+    // Not a courtesy. An owner who can be demoted is a deployment that can be
+    // locked out of its own review queue, and nothing surfaces that — the
+    // applications simply stop being answered.
+    process.env.PLATFORM_OWNER_EMAIL = other.user.email;
+    try {
+      await expect(
+        reviewer.caller.access.setPlatformRole({
+          userId: other.user.id,
+          role: PlatformRole.MEMBER,
+        }),
+      ).rejects.toThrow(/owner/i);
+
+      // Promoting them is still allowed — it only writes down what is already
+      // true, which is what makes them show on the staff panel.
+      const promoted = await reviewer.caller.access.setPlatformRole({
+        userId: other.user.id,
+        role: PlatformRole.ADMIN,
+      });
+      expect(promoted.platformRole).toBe(PlatformRole.ADMIN);
+
+      const staff = await reviewer.caller.access.staff({});
+      expect(staff.ownerEmails).toContain(other.user.email);
+    } finally {
+      delete process.env.PLATFORM_OWNER_EMAIL;
+    }
+  });
+
+  it("refuses a moderator the appointment controls entirely", async () => {
+    const moderator = await makeUser(`acc_mod_${run}`, PlatformRole.MODERATOR);
+    created.push(moderator.user.authProviderId);
+
+    // Reading the queue is not appointing people to it.
+    await expect(moderator.caller.access.queue({})).resolves.toBeTruthy();
     await expect(
-      reviewer.caller.access.setPlatformRole({
-        userId: reviewer.user.id,
-        role: PlatformRole.MEMBER,
+      moderator.caller.access.setPlatformRole({
+        userId: applicant.user.id,
+        role: PlatformRole.ADMIN,
       }),
-    ).rejects.toThrow(/only platform admin/i);
+    ).rejects.toThrow(/admin/i);
   });
 
   it("finds a member by their exact address and not by a fragment", async () => {

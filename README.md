@@ -61,7 +61,8 @@ Environment Variables** (all environments):
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | for billing | Webhook endpoint `/api/webhooks/stripe` (subscribe: `checkout.session.completed`, `customer.subscription.*`) |
 | `STRIPE_PRICE_RECRUITER` / `STRIPE_PRICE_SPONSOR` | for billing | Recurring price ids from Stripe → Products |
 | `NEXT_PUBLIC_APP_URL` | for billing | Absolute site URL used in Stripe redirects |
-| `PLATFORM_ADMIN_EMAILS` | ✅ in practice | Comma-separated sign-in addresses granted platform admin regardless of the database. Without it a fresh deployment has nobody who can review access applications, and every application waits forever. |
+| `PLATFORM_OWNER_EMAIL` | optional | Overrides the owner address baked into `src/server/services/platform-admin.ts`. Only needed to hand the platform over or to run a staging copy under a different account. |
+| `PLATFORM_ADMIN_EMAILS` | optional | Further comma-separated sign-in addresses granted platform admin regardless of the database column, alongside the owner. |
 | `RESEND_API_KEY` / `RESEND_FROM` | for email | Notification emails; in-app notifications work without them |
 | `PUSHER_APP_ID` / `PUSHER_KEY` / `PUSHER_SECRET` / `PUSHER_CLUSTER` | for instant live timing | All four or none; without them boards poll instead |
 | `APPLE_WALLET_PASS_TYPE_ID` / `APPLE_WALLET_TEAM_ID` / `APPLE_WALLET_SIGNER_CERT` / `APPLE_WALLET_SIGNER_KEY` / `APPLE_WALLET_WWDR_CERT` | for Apple Wallet passes | All five or none; without them the Wallet button is hidden and passes are shown on screen and printed instead. Certificates are PEM; the signer key mints passes under your Apple identity, so treat it as a secret. |
@@ -912,11 +913,21 @@ enter a race.
   create, so the approval *is* the grant, and one application covers pitching
   every team.
 - **Platform staff bypass the queue.** Making an admin apply to themselves is
-  ceremony — they could approve their own request anyway. `PLATFORM_ADMIN_EMAILS`
-  is read live rather than synced into the column, so whoever controls the
-  deployment can always get in even if every admin row is demoted, and removing
-  an address revokes on the next request rather than leaving a stale grant.
-  A demotion that would leave nobody able to review is refused.
+  ceremony — they could approve their own request anyway.
+- **One address is the platform owner**, baked into
+  `src/server/services/platform-admin.ts` and always an admin. Not a
+  configuration option to get wrong, which is the point: the queue is reachable
+  on a database this code has never touched, before anybody has been promoted
+  in it. `PLATFORM_OWNER_EMAIL` overrides it for a fork or a staging copy, and
+  `PLATFORM_ADMIN_EMAILS` adds more addresses alongside it. Both are read live
+  rather than synced into the column, so whoever controls the deployment can
+  always get in even if every admin row is demoted, and removing an address
+  revokes on the next request rather than leaving a stale grant.
+- **Nobody can demote the owner**, and the last admin cannot demote themselves
+  on a deployment with no way back in. Neither is a courtesy: a review queue
+  nobody can open does not announce itself — the applications simply stop being
+  answered. The seed writes the owner's admin row when their account exists, so
+  they *appear* on the staff panel rather than only being one in effect.
 
 **Sponsor console (done):** `/sponsor` is the other end of the sponsorship
 rows the team console already holds. A sponsor's deals live across as many team

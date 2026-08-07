@@ -1,10 +1,11 @@
-import { PrismaClient } from "@prisma/client";
+import { PlatformRole, PrismaClient } from "@prisma/client";
 import { seedReferenceTracks } from "./seed-data/seed-tracks.mts";
 import { seedReferenceSeries } from "./seed-data/seed-series.mts";
 import {
   STATES_WITHOUT_TRACKS,
   US_REFERENCE_TRACKS,
 } from "./seed-data/us-tracks.mts";
+import { PLATFORM_OWNER_EMAIL } from "../src/lib/platform-owner.ts";
 
 /**
  * Loads RaceOps' shipped reference data.
@@ -40,6 +41,42 @@ const db = new PrismaClient({ datasources: { db: { url } } });
 const layouts = (count: number): string =>
   `${count} layout${count === 1 ? "" : "s"}`;
 
+/**
+ * Writes the owner's admin standing into the database.
+ *
+ * The owner is already an admin without this — `effectivePlatformRole` grants
+ * it from the address alone, so the queue is reachable on a database this has
+ * never touched. What this adds is that they *appear* as staff on the platform
+ * staff panel, which otherwise lists database rows only and would show an
+ * empty table on a working deployment.
+ *
+ * Only ever promotes, and only an account that already exists: the row is
+ * created by the auth provider when they first sign in, and inventing one here
+ * would put a user with no auth identity in the table.
+ */
+async function promoteOwner(): Promise<void> {
+  const owner = await db.user.findFirst({
+    where: { email: { equals: PLATFORM_OWNER_EMAIL, mode: "insensitive" } },
+    select: { id: true, platformRole: true },
+  });
+
+  if (!owner) {
+    console.log(
+      `\nPlatform owner ${PLATFORM_OWNER_EMAIL} has not signed in yet — ` +
+        "they are an admin from the address alone, and this will record it " +
+        "on the next seed after they do.",
+    );
+    return;
+  }
+  if (owner.platformRole === PlatformRole.ADMIN) return;
+
+  await db.user.update({
+    where: { id: owner.id },
+    data: { platformRole: PlatformRole.ADMIN },
+  });
+  console.log(`\nPlatform owner ${PLATFORM_OWNER_EMAIL} promoted to admin.`);
+}
+
 try {
   const states = new Set(US_REFERENCE_TRACKS.map((track) => track.state));
   console.log(
@@ -67,6 +104,8 @@ try {
       `No permanent circuit or oval on file for: ${STATES_WITHOUT_TRACKS.join(", ")}.`,
     );
   }
+
+  await promoteOwner();
 
   const series = await seedReferenceSeries(db);
   console.log(
