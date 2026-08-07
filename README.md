@@ -61,6 +61,7 @@ Environment Variables** (all environments):
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | for billing | Webhook endpoint `/api/webhooks/stripe` (subscribe: `checkout.session.completed`, `customer.subscription.*`) |
 | `STRIPE_PRICE_RECRUITER` / `STRIPE_PRICE_SPONSOR` | for billing | Recurring price ids from Stripe → Products |
 | `NEXT_PUBLIC_APP_URL` | for billing | Absolute site URL used in Stripe redirects |
+| `PLATFORM_ADMIN_EMAILS` | ✅ in practice | Comma-separated sign-in addresses granted platform admin regardless of the database. Without it a fresh deployment has nobody who can review access applications, and every application waits forever. |
 | `RESEND_API_KEY` / `RESEND_FROM` | for email | Notification emails; in-app notifications work without them |
 | `PUSHER_APP_ID` / `PUSHER_KEY` / `PUSHER_SECRET` / `PUSHER_CLUSTER` | for instant live timing | All four or none; without them boards poll instead |
 | `APPLE_WALLET_PASS_TYPE_ID` / `APPLE_WALLET_TEAM_ID` / `APPLE_WALLET_SIGNER_CERT` / `APPLE_WALLET_SIGNER_KEY` / `APPLE_WALLET_WWDR_CERT` | for Apple Wallet passes | All five or none; without them the Wallet button is hidden and passes are shown on screen and printed instead. Certificates are PEM; the signer key mints passes under your Apple identity, so treat it as a secret. |
@@ -258,16 +259,27 @@ configuration, and the loader has three states rather than a guess:
   (Pocono runs one of half a dozen infield courses, and the directory has only
   the tri-oval). Link nothing; the free-text venue is the honest answer.
 
-Two ship today, and they are deliberately different shapes:
+Three ship today, and they are deliberately different shapes:
 
 - **ChampCar Endurance Series** — the published 2026 calendar plus a cited
   summary of the BCCR.
+- **American Endurance Racing** — the rounds that could be corroborated, and a
+  note on the series saying the list may be short. AER's format is unusual
+  enough to be worth carrying: classes are set from Friday's lap times rather
+  than from a build rule book, the minimum stop count falls out of the race
+  length, and the eligibility rule is "bring the car you already race with
+  somebody else" rather than a spec of its own.
 - **24 Hours of Lemons** — the rule book only. Its schedule could not be
   verified when the entry was written, and Lemons runs over twenty rounds a
   season; two corroborated rounds would be read as the season, which is worse
   than none. A series with rules and no calendar is a supported shape, not a
   broken one — the $500 rule is worth having on its own, and rounds can be
   added the moment somebody can source them.
+
+Where a round's circuit configuration is not stated by the organizer, the event
+links the venue's primary layout and *says on the event* that it did. Unmarked,
+a fallback is indistinguishable from a sourced fact, and somebody tows to the
+wrong paddock.
 
 `SeriesRule` is the sporting counterpart to `TrackRule` and carries the same
 citation and last-checked date, for the same reason. What is seeded is a
@@ -873,6 +885,54 @@ results feed the championship standings immediately.
 
 > Realtime is optional. With Pusher credentials set, boards and chat update
 > instantly; without them everything polls and still works.
+
+**Publishing needs approving (done):** anyone can sign up, keep a profile,
+drive, crew, apply for seats and message people with no gate at all. Four
+things need a human first — a **team**, an **organization**, a **championship**
+and a **sponsor account** — because those are the four surfaces that put a name
+in front of everybody else, and therefore the four that spam uses.
+
+Drawing the line anywhere wider would be worse than the spam it stops. A
+platform where a driver cannot make a profile until somebody approves them is a
+platform nobody joins, and the queue would fill with people who only wanted to
+enter a race.
+
+- **`/apply`** carries the form, one application per kind at a time, and prints
+  what a reviewer is actually weighing next to each one. A queue with no stated
+  bar gets decided on vibes and then inconsistently.
+- **`/admin/access`** is the queue: pending first, longest wait at the top,
+  overdue past three days. Every card shows the applicant beside what they
+  wrote — how old the account is, whether they are verified, their profile —
+  because a decision made from a name alone is arbitrary. A decline must carry
+  a note; "no" with no reason is what makes people re-apply blind.
+- **An approval buys one thing, not a licence.** It is spent by the creation it
+  paid for, inside the same transaction, so a name clash or a failed write
+  never burns somebody's application and a second team is a second application.
+  Sponsor approvals are the exception and are never spent: there is nothing to
+  create, so the approval *is* the grant, and one application covers pitching
+  every team.
+- **Platform staff bypass the queue.** Making an admin apply to themselves is
+  ceremony — they could approve their own request anyway. `PLATFORM_ADMIN_EMAILS`
+  is read live rather than synced into the column, so whoever controls the
+  deployment can always get in even if every admin row is demoted, and removing
+  an address revokes on the next request rather than leaving a stale grant.
+  A demotion that would leave nobody able to review is refused.
+
+**Sponsor console (done):** `/sponsor` is the other end of the sponsorship
+rows the team console already holds. A sponsor's deals live across as many team
+pages as they back and none of those pages is theirs to open, so this is the
+one screen that is: live deals, what is waiting on a reply, committed spend
+**split by currency** (summing across currencies needs an exchange rate this
+platform has no business inventing), and team discovery with the teams already
+in their book marked rather than hidden — renewing with last season's team is
+the common case.
+
+Two nudges, both derived rather than stored so they cannot go stale: an offer
+nobody has answered in a fortnight, and a live deal inside sixty days of its
+end date. Neither is chased automatically — a club team's manager checks the
+platform between race weekends, not daily. A sponsor can pull an offer that is
+still unanswered; once the team has opened talks it is a conversation, and one
+side deleting it would lose the other side's context.
 
 **Phase 3 (in progress):** Pit Wall strategy plans now persist against an
 event and can be shared with a team (author-only edit, team read). Remaining:

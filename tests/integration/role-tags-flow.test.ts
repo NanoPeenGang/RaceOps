@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  PlatformRole,
   PrismaClient,
   ProfileType,
   RealWorldRole,
@@ -25,6 +26,10 @@ async function makeUser(
     data: {
       email: `${suffix}@example.test`,
       authProviderId: `clerk_${suffix}`,
+      // Platform staff, so these fixtures bypass the access-request queue —
+      // the queue itself is exercised in access-flow.test.ts, and making every
+      // suite apply for a team first would test one gate thirty times.
+      platformRole: PlatformRole.ADMIN,
       profileTypes,
       profile: { create: { displayName: suffix, location } },
     },

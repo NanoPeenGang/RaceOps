@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ACCOUNT_LINKS, NAV_LINKS } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_LINKS, NAV_LINKS } from "@/lib/nav";
 
 /**
  * Guards the regression where dashboard routes existed but were unreachable
@@ -23,6 +23,9 @@ describe("navigation coverage", () => {
   const reachable = new Set<string>([
     ...NAV_LINKS.map((l) => l.href),
     ...ACCOUNT_LINKS.map((l) => l.href),
+    // Staff-only, and rendered conditionally — but still has to be in the
+    // mobile menu, or the queue is desktop-only.
+    ...ADMIN_LINKS.map((l) => l.href),
   ]);
 
   it("exposes every top-level dashboard route in the shared nav", () => {
@@ -42,7 +45,9 @@ describe("navigation coverage", () => {
   });
 
   it("uses absolute, non-duplicated hrefs", () => {
-    const all = [...NAV_LINKS, ...ACCOUNT_LINKS].map((l) => l.href);
+    const all = [...NAV_LINKS, ...ACCOUNT_LINKS, ...ADMIN_LINKS].map(
+      (l) => l.href,
+    );
     for (const href of all) expect(href.startsWith("/")).toBe(true);
     expect(new Set(all).size).toBe(all.length);
   });

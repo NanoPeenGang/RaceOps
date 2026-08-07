@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { AuditAction, OrgRole, Permission } from "@prisma/client";
+import {
+  AccessRequestKind,
+  AuditAction,
+  OrgRole,
+  Permission,
+} from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import {
   createTRPCRouter,
@@ -10,6 +15,10 @@ import {
 import { slugify } from "@/lib/slug";
 import { ORG_ROLE_PERMISSIONS, STARTER_ROLES } from "@/lib/permissions";
 import { recordAudit } from "@/server/services/audit";
+import {
+  findSpendableApproval,
+  spendApproval,
+} from "@/server/services/platform-admin";
 
 /**
  * Organizations and their staff.
@@ -223,6 +232,15 @@ export const organizationRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Approved first. An organization is the biggest thing on the platform
+      // to stand up — staff, series, a public front — so it is the one most
+      // worth a human reading the application. Platform staff bypass.
+      const { requestId } = await findSpendableApproval(
+        ctx.db,
+        ctx.user,
+        AccessRequestKind.ORGANIZATION,
+      );
+
       const { withStarterRoles, ...rest } = input;
       const clash = await ctx.db.organization.findFirst({
         where: { name: input.name },
@@ -236,29 +254,35 @@ export const organizationRouter = createTRPCRouter({
       }
       const slug = await uniqueOrgSlug(ctx.db, input.name);
 
-      return ctx.db.organization.create({
-        data: {
-          ...rest,
-          slug,
-          members: {
-            create: { userId: ctx.user.id, role: OrgRole.OWNER },
+      // One transaction, so an approval is never spent on a creation that then
+      // failed, and no organization exists against an approval still open.
+      return ctx.db.$transaction(async (tx) => {
+        const organization = await tx.organization.create({
+          data: {
+            ...rest,
+            slug,
+            members: {
+              create: { userId: ctx.user.id, role: OrgRole.OWNER },
+            },
+            // A blank permission model is a page nobody fills in; presets give
+            // an organization something to edit rather than to invent.
+            ...(withStarterRoles
+              ? {
+                  staffRoles: {
+                    create: STARTER_ROLES.map((role) => ({
+                      name: role.name,
+                      description: role.description,
+                      permissions: role.permissions,
+                      color: role.color,
+                    })),
+                  },
+                }
+              : {}),
           },
-          // A blank permission model is a page nobody fills in; presets give
-          // an organization something to edit rather than something to invent.
-          ...(withStarterRoles
-            ? {
-                staffRoles: {
-                  create: STARTER_ROLES.map((role) => ({
-                    name: role.name,
-                    description: role.description,
-                    permissions: role.permissions,
-                    color: role.color,
-                  })),
-                },
-              }
-            : {}),
-        },
-        include: { staffRoles: true },
+          include: { staffRoles: true },
+        });
+        await spendApproval(tx, requestId, organization.id);
+        return organization;
       });
     }),
 

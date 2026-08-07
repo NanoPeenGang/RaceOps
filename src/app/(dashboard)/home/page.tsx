@@ -364,16 +364,21 @@ function WhatYouRun({ data }: { data: HomeData }) {
 /**
  * The first screen someone sees with nothing set up.
  *
- * Three routes rather than a generic welcome, because the platform serves
- * three different people and each wants a different first click. This is the
- * screen where an organization decides whether it is worth learning.
+ * Four routes rather than a generic welcome, because the platform serves
+ * different people and each wants a different first click. This is the screen
+ * where an organization decides whether it is worth learning.
+ *
+ * The three that need approving say so here rather than at the create button.
+ * Sending somebody to a form that refuses them is how a first run becomes a
+ * bounce — and racing takes no approval at all, which is the point worth
+ * making first.
  */
 function FirstRun() {
   const routes = [
     {
       title: "I want to race",
       description:
-        "Find an event, enter as yourself or a team, and sign what you need to.",
+        "Find an event, enter as yourself or a team, and sign what you need to. No approval needed — go.",
       href: "/events",
       cta: "Browse events",
       primary: true,
@@ -381,24 +386,32 @@ function FirstRun() {
     {
       title: "I run a championship",
       description:
-        "Create a series, schedule rounds, take entries and run race control.",
-      href: "/series",
-      cta: "Create a series",
+        "A calendar, entries, standings and race control. Reviewed first, so entrants can trust a series page is real.",
+      href: "/apply",
+      cta: "Apply to run a series",
       primary: false,
     },
     {
       title: "I run a team",
       description:
-        "Set up your team, add drivers and crew, and manage entries and sponsors.",
-      href: "/teams",
-      cta: "Create a team",
+        "Drivers, crew, a garage, entries and sponsors. Reviewed first — it takes a minute and stops the directory filling with ghosts.",
+      href: "/apply",
+      cta: "Apply to run a team",
+      primary: false,
+    },
+    {
+      title: "I want to sponsor",
+      description:
+        "Back teams and track every deal in one console. Reviewed first, because a sponsor account can pitch every team here.",
+      href: "/apply",
+      cta: "Apply as a sponsor",
       primary: false,
     },
   ];
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {routes.map((route) => (
           <Card key={route.title} className="flex flex-col">
             <CardContent className="flex flex-1 flex-col gap-3 p-5">

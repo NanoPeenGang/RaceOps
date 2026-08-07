@@ -10,6 +10,7 @@ import {
 } from "@/lib/sponsorship";
 import { TEAM_MANAGER_ROLES } from "@/lib/teams";
 import { notify } from "@/server/services/notifications";
+import { assertSponsorAccess } from "@/server/services/platform-admin";
 
 /**
  * Sponsorship deals against a team.
@@ -115,13 +116,18 @@ export const sponsorshipRouter = createTRPCRouter({
   }),
 
   /**
-   * A sponsor proposes a deal to a team. Open to any signed-in user — pitching
-   * is how the marketplace works — but it lands as an OFFER the team must act
-   * on, and the sponsor is recorded as the proposer.
+   * A sponsor proposes a deal to a team.
+   *
+   * Approved sponsors only. This used to be open to anyone signed in, on the
+   * theory that pitching is how a marketplace works — but an unsolicited offer
+   * arrives in a manager's inbox carrying a company name, a link and money,
+   * which is a spam vector with a notification attached. The application is
+   * once; after that a sponsor pitches as many teams as they like.
    */
   offer: protectedProcedure
     .input(z.object({ teamId: z.string().cuid(), ...dealFields }))
     .mutation(async ({ ctx, input }) => {
+      await assertSponsorAccess(ctx.db, ctx.user);
       const { teamId, ...fields } = input;
       const team = await ctx.db.team.findUnique({
         where: { id: teamId },

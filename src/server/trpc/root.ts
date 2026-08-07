@@ -36,6 +36,8 @@ import { channelRouter } from "@/server/trpc/routers/channel";
 import { messageRouter } from "@/server/trpc/routers/message";
 import { hiringRouter } from "@/server/trpc/routers/hiring";
 import { payrollRouter } from "@/server/trpc/routers/payroll";
+import { accessRouter } from "@/server/trpc/routers/access";
+import { sponsorRouter } from "@/server/trpc/routers/sponsor";
 
 export const appRouter = createTRPCRouter({
   user: userRouter,
@@ -75,6 +77,8 @@ export const appRouter = createTRPCRouter({
   message: messageRouter,
   hiring: hiringRouter,
   payroll: payrollRouter,
+  access: accessRouter,
+  sponsor: sponsorRouter,
 });
 
 export type AppRouter = typeof appRouter;

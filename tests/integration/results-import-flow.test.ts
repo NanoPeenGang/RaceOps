@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PrismaClient, SeriesDiscipline } from "@prisma/client";
+import {
+  PlatformRole,
+  PrismaClient,
+  SeriesDiscipline,
+} from "@prisma/client";
 import { createCaller } from "@/server/trpc/root";
 
 /** Bulk results import end-to-end. Opt in with RUN_DB_TESTS=1. */
@@ -15,6 +19,10 @@ async function makeUser(suffix: string) {
     data: {
       email: `${suffix}@example.test`,
       authProviderId: `clerk_${suffix}`,
+      // Platform staff, so these fixtures bypass the access-request queue —
+      // the queue itself is exercised in access-flow.test.ts, and making every
+      // suite apply for a team first would test one gate thirty times.
+      platformRole: PlatformRole.ADMIN,
       profile: { create: { displayName: suffix } },
     },
   });

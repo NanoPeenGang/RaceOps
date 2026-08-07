@@ -2,6 +2,7 @@ import { EventStatus } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import { CHAMPCAR, CHAMPCAR_TRACKS, type SeedSeries } from "./champcar.mts";
 import { LEMONS } from "./lemons.mts";
+import { AER } from "./aer.mts";
 import { seedReferenceTracks } from "./seed-tracks.mts";
 
 /**
@@ -26,13 +27,14 @@ import { seedReferenceTracks } from "./seed-tracks.mts";
 /**
  * The championships that ship with the platform.
  *
- * ChampCar carries a calendar; Lemons carries only its rule book, because its
- * schedule could not be verified — see the note in `lemons.mts`. A series with
- * no rounds is a supported shape rather than a broken one: the rules are worth
- * having on their own, and a round can be added the moment somebody can source
- * one.
+ * Three shapes, all deliberate. ChampCar carries a full published calendar;
+ * AER carries the rounds that could be corroborated and says the list may be
+ * short; Lemons carries no calendar at all, because two rounds of a
+ * twenty-odd-round season would be read as the season. A series with no rounds
+ * is a supported shape rather than a broken one — the rules are worth having
+ * on their own, and rounds can be added the moment somebody can source them.
  */
-export const REFERENCE_SERIES: readonly SeedSeries[] = [CHAMPCAR, LEMONS];
+export const REFERENCE_SERIES: readonly SeedSeries[] = [CHAMPCAR, LEMONS, AER];
 
 export interface SeriesSeedSummary {
   seriesCreated: number;

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
-import { ACCOUNT_LINKS, NAV_LINKS } from "@/lib/nav";
+import { api } from "@/lib/trpc/client";
+import { ACCOUNT_LINKS, ADMIN_LINKS, NAV_LINKS } from "@/lib/nav";
 
 /**
  * Hamburger menu for < md screens — the desktop inline nav is hidden there,
@@ -12,6 +13,11 @@ import { ACCOUNT_LINKS, NAV_LINKS } from "@/lib/nav";
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const { isSignedIn } = useUser();
+  // Only fetched once the menu is open, and only for signed-in visitors —
+  // a nav item is not worth a request on every page load.
+  const access = api.access.mine.useQuery(undefined, {
+    enabled: Boolean(isSignedIn) && open,
+  });
 
   return (
     <div className="lg:hidden">
@@ -43,6 +49,22 @@ export function MobileNav() {
               <>
                 <li aria-hidden className="my-2 border-t border-brand-black/10" />
                 {ACCOUNT_LINKS.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      onClick={() => setOpen(false)}
+                      className="block rounded-md px-3 py-3 text-base font-medium text-brand-black/80 hover:bg-brand-black/5 hover:text-brand-red"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </>
+            )}
+            {access.data?.isStaff && (
+              <>
+                <li aria-hidden className="my-2 border-t border-brand-black/10" />
+                {ADMIN_LINKS.map((link) => (
                   <li key={link.href}>
                     <Link
                       href={link.href}

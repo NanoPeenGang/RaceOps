@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/notification-bell";
 import { MobileNav } from "@/components/mobile-nav";
+import { AdminNav } from "@/components/admin-nav";
 import { NAV_LINKS } from "@/lib/nav";
 
 export function Header() {
@@ -77,6 +78,7 @@ export function Header() {
             >
               Billing
             </Link>
+            <AdminNav />
             <NotificationBell />
             <Link
               href="/profile"

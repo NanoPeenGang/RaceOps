@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -23,16 +23,40 @@ export interface TabDefinition {
   content: React.ReactNode;
 }
 
-export function Tabs({
-  tabs,
-  /** Query-string key, so two tab sets on one page do not fight. */
-  param = "tab",
-  className,
-}: {
+export interface TabsProps {
   tabs: TabDefinition[];
+  /** Query-string key, so two tab sets on one page do not fight. */
   param?: string;
   className?: string;
-}) {
+}
+
+/**
+ * Wrapped in Suspense because the state lives in the query string.
+ *
+ * `useSearchParams` opts a component out of prerendering unless a boundary
+ * sits above it, and without one Next refuses to build any *static* page that
+ * uses tabs. Putting the boundary here rather than in each page means the next
+ * console to reach for tabs cannot hit that, and the fallback is the tab bar's
+ * own height so the page does not jump when it resolves.
+ */
+export function Tabs(props: TabsProps) {
+  return (
+    <Suspense
+      fallback={
+        <div
+          className={cn(
+            "h-10 border-b border-brand-black/10",
+            props.className,
+          )}
+        />
+      }
+    >
+      <TabsInner {...props} />
+    </Suspense>
+  );
+}
+
+function TabsInner({ tabs, param = "tab", className }: TabsProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { RegistrationStatus, TeamRole } from "@prisma/client";
+import { AccessRequestKind, RegistrationStatus, TeamRole } from "@prisma/client";
 import {
   createTRPCRouter,
   protectedProcedure,
@@ -14,6 +14,10 @@ import {
   selectTable,
 } from "@/server/services/standings";
 import { attentionForTeam } from "@/server/services/team-attention";
+import {
+  findSpendableApproval,
+  spendApproval,
+} from "@/server/services/platform-admin";
 import type { TRPCContext } from "@/server/trpc/trpc";
 
 const MANAGER_ROLES: TeamRole[] = TEAM_MANAGER_ROLES;
@@ -111,6 +115,14 @@ export const teamRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Approved first: a team page carries a roster, hiring and a public
+      // name, which is exactly what spam wants. Platform staff bypass.
+      const { requestId } = await findSpendableApproval(
+        ctx.db,
+        ctx.user,
+        AccessRequestKind.TEAM,
+      );
+
       const slug = slugify(input.name);
       const clash = await ctx.db.team.findFirst({
         where: { OR: [{ name: input.name }, { slug }] },
@@ -121,15 +133,22 @@ export const teamRouter = createTRPCRouter({
           message: "A team with that name already exists.",
         });
       }
-      return ctx.db.team.create({
-        data: {
-          name: input.name,
-          slug,
-          description: input.description,
-          roster: {
-            create: { userId: ctx.user.id, role: TeamRole.OWNER },
+
+      // One transaction, so an approval can never be spent on a creation that
+      // then failed — nor a team exist against an approval still marked open.
+      return ctx.db.$transaction(async (tx) => {
+        const team = await tx.team.create({
+          data: {
+            name: input.name,
+            slug,
+            description: input.description,
+            roster: {
+              create: { userId: ctx.user.id, role: TeamRole.OWNER },
+            },
           },
-        },
+        });
+        await spendApproval(tx, requestId, team.id);
+        return team;
       });
     }),
 

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   EventStatus,
+  PlatformRole,
   PrismaClient,
   SeriesDiscipline,
   SeriesRole,
@@ -26,15 +27,21 @@ const db = ENABLED ? new PrismaClient() : (null as unknown as PrismaClient);
 describe.skipIf(!ENABLED)("reference series seeding (integration)", () => {
   const run = Date.now();
 
-  // A private fixture rather than the real ChampCar calendar: this test is
-  // about the seeding rules, and asserting against shipped data would make
-  // every future schedule correction break the suite.
+  /*
+   * A private fixture rather than the real ChampCar calendar: this test is
+   * about the seeding rules, and asserting against shipped data would make
+   * every future schedule correction break the suite.
+   *
+   * "ZW" is this suite's sentinel region and nobody else's. Sharing one with
+   * the track-seed suite made both flaky — each cleaned up by region, so
+   * whichever finished first deleted the other's fixtures mid-run.
+   */
   const tracks: SeedTrack[] = [
     {
       name: `Seed Series Circuit ${run}`,
       kind: TrackKind.CIRCUIT,
       city: "Elkhart Lake",
-      state: "ZY",
+      state: "ZW",
       layouts: [
         {
           name: "Full Course",
@@ -129,14 +136,14 @@ describe.skipIf(!ENABLED)("reference series seeding (integration)", () => {
     if (!ENABLED) return;
     await db.raceEvent.deleteMany({ where: { series: { slug } } });
     await db.series.deleteMany({ where: { slug } });
-    await db.track.deleteMany({ where: { region: "ZY" } });
+    await db.track.deleteMany({ where: { region: "ZW" } });
   });
 
   afterAll(async () => {
     if (!ENABLED) return;
     await db.raceEvent.deleteMany({ where: { series: { slug } } });
     await db.series.deleteMany({ where: { slug } });
-    await db.track.deleteMany({ where: { region: "ZY" } });
+    await db.track.deleteMany({ where: { region: "ZW" } });
     await db.$disconnect();
   });
 
@@ -309,6 +316,10 @@ describe.skipIf(!ENABLED)("reference series seeding (integration)", () => {
       data: {
         email: `seriesseed_${run}@example.test`,
         authProviderId: `clerk_seriesseed_${run}`,
+        // Platform staff, so these fixtures bypass the access-request queue —
+        // the queue itself is exercised in access-flow.test.ts, and making every
+        // suite apply for a team first would test one gate thirty times.
+        platformRole: PlatformRole.ADMIN,
       },
     });
     await db.series.update({

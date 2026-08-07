@@ -108,6 +108,15 @@ model User {
   authProviderId         String             @unique // Clerk user id
   profileTypes           ProfileType[]
   verificationStatus     VerificationStatus @default(UNVERIFIED)
+  /**
+   * Standing on the platform itself. Almost everybody is a MEMBER; the review
+   * queue for access requests is the only thing the others unlock.
+   *
+   * The bootstrap admin comes from `PLATFORM_ADMIN_EMAILS` rather than this
+   * column, so a fresh deployment always has somebody who can approve the
+   * first request and nobody can lock themselves out of their own instance.
+   */
+  platformRole           PlatformRole       @default(MEMBER)
   stripeCustomerId       String?            @unique
   stripeConnectAccountId String?            @unique
   createdAt              DateTime           @default(now())
@@ -171,6 +180,8 @@ model User {
   channelsCreated        ChatChannel[]            @relation("ChannelCreator")
   threadsCreated         DirectThread[]           @relation("ThreadCreator")
   threadParticipations   DirectParticipant[]      @relation("ThreadParticipant")
+  accessRequests         AccessRequest[]          @relation("AccessRequester")
+  accessReviews          AccessRequest[]          @relation("AccessReviewer")
   interviewsCreated      Interview[]              @relation("InterviewCreator")
   offersCreated          Offer[]                  @relation("OfferCreator")
   payRates               PayRate[]                @relation("PayRateSubject")
@@ -3696,4 +3707,92 @@ model PayrollLine {
   @@index([userId, paidAt])
   @@index([payRateId])
   @@index([eventId])
+}
+
+// ---------------------------------------------------------------------------
+// Platform administration & access requests
+// ---------------------------------------------------------------------------
+
+/**
+ * Standing on the platform itself, as distinct from any team or series.
+ *
+ * Almost everybody is a MEMBER. The other two exist so somebody can review
+ * access requests and keep spam off the platform, which is a job that belongs
+ * to whoever runs the deployment rather than to any organizer.
+ */
+enum PlatformRole {
+  MEMBER
+  /// Reviews access requests. Cannot change anybody's platform role.
+  MODERATOR
+  /// Reviews requests and promotes or demotes moderators.
+  ADMIN
+}
+
+enum AccessRequestKind {
+  TEAM
+  ORGANIZATION
+  SERIES
+  /// Not a thing to create — a standing capability to pitch sponsorship and
+  /// use the sponsor dashboard.
+  SPONSOR
+}
+
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  /// Pulled by the requester before a decision.
+  WITHDRAWN
+}
+
+/**
+ * An application to create something on the platform.
+ *
+ * Anyone can sign up, keep a profile, drive, crew and apply for seats. What
+ * needs approval is *publishing*: a team, an organization, a championship or a
+ * sponsor account. Those are the surfaces spam actually uses, and each one of
+ * them puts a name in front of everybody else on the platform.
+ *
+ * An approval is **consumed by one creation**, not a standing licence. The
+ * request names what is going to be created and `fulfilledEntityId` records
+ * what came of it — so an approved request cannot be spent twice, and somebody
+ * who wants a second team asks again. `SPONSOR` is the exception: there is
+ * nothing to create, so approval is the standing grant itself.
+ */
+model AccessRequest {
+  id            String              @id @default(cuid())
+  kind          AccessRequestKind
+  status        AccessRequestStatus @default(PENDING)
+  requestedById String
+
+  /// What they want to call it. Not reserved — two pending requests may name
+  /// the same thing, and whoever creates it first takes the slug.
+  proposedName  String
+  /// Why this should exist, in their words. The main thing a reviewer reads.
+  summary       String  @db.Text
+  /// Somewhere to check them: a club site, a results page, a social account.
+  websiteUrl    String?
+  /// What they have done before. Optional — a first-time organizer is not
+  /// disqualified, they just have less to point at.
+  experience    String? @db.Text
+
+  reviewedById String?
+  reviewedAt   DateTime?
+  /// The reviewer's reason. Required on a rejection by the router, because
+  /// "no" with no explanation is the thing that makes people re-apply blind.
+  decisionNote String?   @db.Text
+
+  /// Set when an approval is spent. Non-null means this request is used up.
+  fulfilledEntityId String?
+  fulfilledAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requestedBy User  @relation("AccessRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  reviewedBy  User? @relation("AccessReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, kind, createdAt])
+  @@index([requestedById, status])
+  @@index([reviewedById])
 }

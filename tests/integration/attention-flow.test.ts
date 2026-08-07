@@ -5,6 +5,7 @@ import {
   PartCategory,
   PayBasis,
   PayRunStatus,
+  PlatformRole,
   PrismaClient,
   ServiceStatus,
   TeamRole,
@@ -74,6 +75,10 @@ describe.skipIf(!ENABLED)("team attention (integration)", () => {
       data: {
         email: `amanager_${run}@example.test`,
         authProviderId: `clerk_amanager_${run}`,
+        // Platform staff, so these fixtures bypass the access-request queue —
+        // the queue itself is exercised in access-flow.test.ts, and making every
+        // suite apply for a team first would test one gate thirty times.
+        platformRole: PlatformRole.ADMIN,
         profile: { create: { displayName: "amanager" } },
       },
     });
@@ -81,6 +86,7 @@ describe.skipIf(!ENABLED)("team attention (integration)", () => {
       data: {
         email: `adriver_${run}@example.test`,
         authProviderId: `clerk_adriver_${run}`,
+        platformRole: PlatformRole.ADMIN,
         profile: { create: { displayName: "adriver" } },
       },
     });
@@ -130,6 +136,7 @@ describe.skipIf(!ENABLED)("team attention (integration)", () => {
           data: {
             email: `${label}_${run}@example.test`,
             authProviderId: `clerk_${label}_${run}`,
+            platformRole: PlatformRole.ADMIN,
           },
         });
         userIds.push(user.id);

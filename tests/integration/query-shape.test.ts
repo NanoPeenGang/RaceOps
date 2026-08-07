@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   ChannelKind,
   InterviewStatus,
+  PlatformRole,
   PrismaClient,
   TeamRole,
 } from "@prisma/client";
@@ -60,6 +61,10 @@ describe.skipIf(!ENABLED)("query shape (integration)", () => {
       data: {
         email: `${suffix}_${run}@example.test`,
         authProviderId: `clerk_${suffix}_${run}`,
+        // Platform staff, so these fixtures bypass the access-request queue —
+        // the queue itself is exercised in access-flow.test.ts, and making every
+        // suite apply for a team first would test one gate thirty times.
+        platformRole: PlatformRole.ADMIN,
         profile: { create: { displayName: suffix } },
       },
     });
@@ -302,6 +307,7 @@ describe.skipIf(!ENABLED)("interview reply notes (integration)", () => {
       data: {
         email: `nmanager_${run}@example.test`,
         authProviderId: `clerk_nmanager_${run}`,
+        platformRole: PlatformRole.ADMIN,
         profile: { create: { displayName: "nmanager" } },
       },
     });
@@ -309,6 +315,7 @@ describe.skipIf(!ENABLED)("interview reply notes (integration)", () => {
       data: {
         email: `napplicant_${run}@example.test`,
         authProviderId: `clerk_napplicant_${run}`,
+        platformRole: PlatformRole.ADMIN,
         profile: { create: { displayName: "napplicant" } },
       },
     });

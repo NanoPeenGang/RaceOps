@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
+  AccessRequestKind,
   EventStatus,
   NotificationType,
   Prisma,
@@ -25,6 +26,10 @@ import {
   SERIES_EVENT_ROLES,
 } from "@/server/services/series-auth";
 import { computeSeriesStandings } from "@/server/services/standings";
+import {
+  findSpendableApproval,
+  spendApproval,
+} from "@/server/services/platform-admin";
 
 export const seriesRouter = createTRPCRouter({
   /** Public directory of series. */
@@ -419,6 +424,14 @@ export const seriesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Approved first. A series publishes events other people tow to, which
+      // makes a fake one costlier than a fake anything else here. Staff bypass.
+      const { requestId } = await findSpendableApproval(
+        ctx.db,
+        ctx.user,
+        AccessRequestKind.SERIES,
+      );
+
       const slug = slugify(input.name);
       const clash = await ctx.db.series.findFirst({
         where: { OR: [{ name: input.name }, { slug }] },
@@ -429,14 +442,21 @@ export const seriesRouter = createTRPCRouter({
           message: "A series with that name already exists.",
         });
       }
-      return ctx.db.series.create({
-        data: {
-          ...input,
-          slug,
-          organizers: {
-            create: { userId: ctx.user.id, role: SeriesRole.OWNER },
+
+      // One transaction, so an approval is never spent on a creation that then
+      // failed, and no series exists against an approval still marked open.
+      return ctx.db.$transaction(async (tx) => {
+        const series = await tx.series.create({
+          data: {
+            ...input,
+            slug,
+            organizers: {
+              create: { userId: ctx.user.id, role: SeriesRole.OWNER },
+            },
           },
-        },
+        });
+        await spendApproval(tx, requestId, series.id);
+        return series;
       });
     }),
 

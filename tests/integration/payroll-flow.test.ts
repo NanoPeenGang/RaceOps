@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   PayBasis,
   PayRunStatus,
+  PlatformRole,
   PrismaClient,
   TeamRole,
 } from "@prisma/client";
@@ -36,6 +37,10 @@ describe.skipIf(!ENABLED)("payroll (integration)", () => {
       data: {
         email: `${suffix}_${run}@example.test`,
         authProviderId: `clerk_${suffix}_${run}`,
+        // Platform staff, so these fixtures bypass the access-request queue —
+        // the queue itself is exercised in access-flow.test.ts, and making every
+        // suite apply for a team first would test one gate thirty times.
+        platformRole: PlatformRole.ADMIN,
         profile: { create: { displayName: suffix } },
       },
     });
