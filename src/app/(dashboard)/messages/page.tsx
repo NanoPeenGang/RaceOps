@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/ui/page";
 import { DirectThread } from "@/components/direct-thread";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * Direct messages.
@@ -18,7 +19,7 @@ import { DirectThread } from "@/components/direct-thread";
  */
 export default function MessagesPage() {
   return (
-    <Suspense fallback={<p className="text-brand-black/60">Loading…</p>}>
+    <Suspense fallback={<ListSkeleton />}>
       <Inbox />
     </Suspense>
   );
@@ -63,7 +64,7 @@ function Inbox() {
         />
       )}
 
-      {inbox.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {inbox.isLoading && <ListSkeleton />}
 
       {!inbox.isLoading && threads.length === 0 && !starting && (
         <EmptyState

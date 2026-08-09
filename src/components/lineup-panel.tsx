@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * An entry's declared crew and their time in the car.
@@ -29,7 +30,10 @@ export function LineupPanel({
   title?: string;
 }) {
   const utils = api.useUtils();
-  const lineup = api.lineup.forRegistration.useQuery({ registrationId });
+  const lineup = api.lineup.forRegistration.useQuery(
+    { registrationId },
+    { meta: { silenceError: true } },
+  );
   const [showAdd, setShowAdd] = useState(false);
   const [driverQuery, setDriverQuery] = useState("");
   const [pendingUserId, setPendingUserId] = useState("");
@@ -65,7 +69,7 @@ export function LineupPanel({
   const startStint = api.lineup.startStint.useMutation({ onSuccess: refresh });
   const endStint = api.lineup.endStint.useMutation({ onSuccess: refresh });
 
-  if (lineup.isLoading) return <p className="text-brand-black/60">Loading…</p>;
+  if (lineup.isLoading) return <ListSkeleton />;
   if (lineup.error)
     return <p className="text-sm text-brand-red">{lineup.error.message}</p>;
 
@@ -81,8 +85,11 @@ export function LineupPanel({
   const openStint = stints.find((stint) => stint.endedAt === null);
   const regulated = hasDriveTimeRules(rules);
   const mutationError =
-    addDriver.error ?? setDriverRole.error ?? removeDriver.error ??
-    startStint.error ?? endStint.error;
+    addDriver.error ??
+    setDriverRole.error ??
+    removeDriver.error ??
+    startStint.error ??
+    endStint.error;
 
   return (
     <section className="space-y-3">

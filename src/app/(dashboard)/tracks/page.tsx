@@ -12,6 +12,7 @@ import { TRACK_KIND_LABELS, formatLength } from "@/lib/tracks";
 import { TrackDiagram } from "@/components/track-diagram";
 import { formatTurns } from "@/lib/track-diagram";
 import { REGION_LABELS, countryLabel, placeLabel } from "@/lib/regions";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * The venue directory.
@@ -150,7 +151,7 @@ export default function TracksPage() {
               }`
         }
       >
-        {tracks.isLoading && <p className="text-brand-black/60">Loading…</p>}
+        {tracks.isLoading && <ListSkeleton />}
 
         {!tracks.isLoading && items.length === 0 && (
           <EmptyState

@@ -13,6 +13,7 @@ import { SESSION_STATUS_LABELS } from "@/lib/timing";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 const dayLabel = (date: Date) =>
   date.toLocaleDateString(undefined, {
@@ -186,7 +187,7 @@ export function SchedulePanel({ eventId }: { eventId: string }) {
         </Card>
       )}
 
-      {sessions.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {sessions.isLoading && <ListSkeleton />}
       {rows.length === 0 && !sessions.isLoading && (
         <p className="text-brand-black/60">
           No sessions yet. Add scrutineering, practice, qualifying and the race

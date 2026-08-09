@@ -9,6 +9,7 @@ import { EmptyState, PageHeader } from "@/components/ui/page";
 import { ACCESS_ZONE_LABELS, sortZones } from "@/lib/credentials";
 import { relativeDay } from "@/lib/dashboard";
 import { eventVenueLabel } from "@/lib/tracks";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * Every pass a person holds, on its own page.
@@ -30,7 +31,7 @@ export default function PassesPage() {
         description="Accreditation issued to you. Show the code at the gate — a pass page keeps working once it has loaded, which matters in a paddock with no signal."
       />
 
-      {passes.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {passes.isLoading && <ListSkeleton />}
 
       {!passes.isLoading && credentials.length === 0 && (
         <EmptyState

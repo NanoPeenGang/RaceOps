@@ -19,7 +19,10 @@ import { Card, CardContent } from "@/components/ui/card";
  * invisible in a table built from stints, and they are the whole point.
  */
 export function SeatTimePanel({ teamId }: { teamId: string }) {
-  const seatTime = api.garage.seatTime.useQuery({ teamId });
+  const seatTime = api.garage.seatTime.useQuery(
+    { teamId },
+    { meta: { silenceError: true } },
+  );
 
   if (seatTime.isLoading) {
     return <p className="text-sm text-brand-black/60">Loading seat time…</p>;
@@ -73,8 +76,8 @@ export function SeatTimePanel({ teamId }: { teamId: string }) {
                     {formatMinutes(driver.totalMinutes)}
                     <span className="ml-2 text-xs text-brand-black/50">
                       {driver.stintCount} stint
-                      {driver.stintCount === 1 ? "" : "s"} ·{" "}
-                      {driver.eventCount} event
+                      {driver.stintCount === 1 ? "" : "s"} · {driver.eventCount}{" "}
+                      event
                       {driver.eventCount === 1 ? "" : "s"}
                       {driver.laps > 0 && ` · ${driver.laps} laps`}
                     </span>

@@ -6,6 +6,7 @@ import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 const URGENCY_LABELS: Record<AnnouncementUrgency, string> = {
   INFO: "Info",
@@ -160,9 +161,7 @@ export function AnnouncementsPanel({
         </Card>
       )}
 
-      {announcements.isLoading && (
-        <p className="text-brand-black/60">Loading…</p>
-      )}
+      {announcements.isLoading && <ListSkeleton />}
       {announcements.data?.length === 0 && (
         <p className="text-brand-black/60">No notices posted.</p>
       )}

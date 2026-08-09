@@ -40,7 +40,10 @@ export function InventoryPanel({
   teamSlug: string;
 }) {
   const utils = api.useUtils();
-  const stock = api.garage.inventory.useQuery({ teamId });
+  const stock = api.garage.inventory.useQuery(
+    { teamId },
+    { meta: { silenceError: true } },
+  );
   const [adding, setAdding] = useState(false);
   const [openItem, setOpenItem] = useState<string | null>(null);
 

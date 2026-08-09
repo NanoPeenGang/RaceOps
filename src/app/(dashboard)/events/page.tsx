@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EVENT_STATUS_LABELS, REGISTRATION_STATUS_LABELS } from "@/lib/events";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export default function EventsPage() {
   const events = api.event.listPublished.useQuery({});
@@ -90,7 +91,7 @@ export default function EventsPage() {
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Upcoming events</h2>
-        {events.isLoading && <p className="text-brand-black/60">Loading…</p>}
+        {events.isLoading && <ListSkeleton />}
         {events.data?.items.length === 0 && (
           <p className="text-brand-black/60">
             No published events yet. Organizers can create one under{" "}

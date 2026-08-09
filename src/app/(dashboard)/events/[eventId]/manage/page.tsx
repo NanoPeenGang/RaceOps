@@ -38,6 +38,7 @@ import { BrandingEditor } from "@/components/branding-editor";
 import { useRouter } from "next/navigation";
 import { Tabs } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/ui/page";
+import { ListSkeleton, PageSkeleton } from "@/components/ui/skeleton";
 
 export default function ManageEventPage({
   params,
@@ -47,7 +48,10 @@ export default function ManageEventPage({
   const { eventId } = use(params);
   const router = useRouter();
   const utils = api.useUtils();
-  const event = api.event.byId.useQuery({ eventId });
+  const event = api.event.byId.useQuery(
+    { eventId },
+    { meta: { silenceError: true } },
+  );
   const setStatus = api.event.setStatus.useMutation({
     onSuccess: () => utils.event.byId.invalidate({ eventId }),
   });
@@ -67,7 +71,7 @@ export default function ManageEventPage({
     },
   });
 
-  if (event.isLoading) return <p className="text-brand-black/60">Loading…</p>;
+  if (event.isLoading) return <PageSkeleton />;
   if (event.error)
     return <p className="text-brand-red">{event.error.message}</p>;
   const data = event.data!;
@@ -314,9 +318,7 @@ function RegistrationsPanel({
           {confirmed} confirmed{capacity ? ` / ${capacity}` : ""}
         </p>
       </div>
-      {registrations.isLoading && (
-        <p className="text-brand-black/60">Loading…</p>
-      )}
+      {registrations.isLoading && <ListSkeleton />}
       {registrations.data?.length === 0 && (
         <p className="text-brand-black/60">No entries yet.</p>
       )}

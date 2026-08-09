@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LineupPanel } from "@/components/lineup-panel";
 import { PitStopPlanner } from "@/components/pit-stop-planner";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * Race control's view of endurance line-ups: the drive-time regulations for the
@@ -27,7 +28,7 @@ export function LineupsPanel({ eventId }: { eventId: string }) {
 
       <DriveTimeRulesForm eventId={eventId} />
 
-      {compliance.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {compliance.isLoading && <ListSkeleton />}
       {compliance.error && (
         <p className="text-sm text-brand-red">{compliance.error.message}</p>
       )}

@@ -20,6 +20,7 @@ import { useOfflineMutation } from "@/lib/trpc/offline-mutation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * The stewards' queue: reports in, decisions out.
@@ -35,7 +36,10 @@ export default function IncidentsPage({
   const { eventId } = use(params);
   const utils = api.useUtils();
   const event = api.event.byId.useQuery({ eventId });
-  const queue = api.incident.forEvent.useQuery({ eventId });
+  const queue = api.incident.forEvent.useQuery(
+    { eventId },
+    { meta: { silenceError: true } },
+  );
   const [showForm, setShowForm] = useState(false);
 
   const refresh = () => {
@@ -43,7 +47,7 @@ export default function IncidentsPage({
     utils.penalty.forEvent.invalidate({ eventId });
   };
 
-  if (queue.isLoading) return <p className="text-brand-black/60">Loading…</p>;
+  if (queue.isLoading) return <ListSkeleton />;
   if (queue.error)
     return <p className="text-brand-red">{queue.error.message}</p>;
 

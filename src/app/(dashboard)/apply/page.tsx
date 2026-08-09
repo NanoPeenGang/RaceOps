@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader, Section } from "@/components/ui/page";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * Applying to publish something.
@@ -43,7 +44,7 @@ export default function ApplyPage() {
         description="Driving, crewing, applying for seats and messaging people need no approval — sign up and go. This page is only for the four things that put a name in front of everybody else."
       />
 
-      {mine.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {mine.isLoading && <ListSkeleton />}
 
       {mine.data?.isStaff && (
         <Card>

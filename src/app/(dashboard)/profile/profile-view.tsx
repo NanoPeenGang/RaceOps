@@ -17,6 +17,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { ImageUpload } from "@/components/image-upload";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RoleTagPicker } from "@/components/role-tag-picker";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 export function ProfileView() {
   const utils = api.useUtils();
@@ -24,7 +25,7 @@ export function ProfileView() {
   const [editing, setEditing] = useState(false);
 
   if (me.isLoading) {
-    return <p className="text-brand-black/60">Loading…</p>;
+    return <PageSkeleton />;
   }
 
   if (!me.data) {

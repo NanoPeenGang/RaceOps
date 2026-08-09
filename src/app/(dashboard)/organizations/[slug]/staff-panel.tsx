@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, Section } from "@/components/ui/page";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * The staff list and the roles behind it.
@@ -25,7 +26,10 @@ import { EmptyState, Section } from "@/components/ui/page";
  */
 export function StaffPanel({ organizationId }: { organizationId: string }) {
   const utils = api.useUtils();
-  const staff = api.organization.staff.useQuery({ organizationId });
+  const staff = api.organization.staff.useQuery(
+    { organizationId },
+    { meta: { silenceError: true } },
+  );
   const [addingMember, setAddingMember] = useState(false);
   const [addingRole, setAddingRole] = useState(false);
 
@@ -41,7 +45,7 @@ export function StaffPanel({ organizationId }: { organizationId: string }) {
     onSuccess: refresh,
   });
 
-  if (staff.isLoading) return <p className="text-brand-black/60">Loading…</p>;
+  if (staff.isLoading) return <ListSkeleton />;
   if (staff.error)
     return <p className="text-brand-red">{staff.error.message}</p>;
   const { members, roles } = staff.data!;

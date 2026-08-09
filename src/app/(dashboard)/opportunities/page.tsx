@@ -7,6 +7,7 @@ import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 const TYPE_LABELS: Record<OpportunityType, string> = {
   SEAT: "Race seat",
@@ -48,7 +49,7 @@ export default function OpportunitiesPage() {
         ))}
       </div>
 
-      {list.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {list.isLoading && <ListSkeleton />}
       {list.data?.items.length === 0 && (
         <p className="text-brand-black/60">
           No open opportunities in this category yet.

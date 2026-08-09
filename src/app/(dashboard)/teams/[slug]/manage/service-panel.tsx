@@ -25,7 +25,10 @@ import { Card, CardContent } from "@/components/ui/card";
  */
 export function ServicePanel({ teamId }: { teamId: string }) {
   const utils = api.useUtils();
-  const services = api.garage.services.useQuery({ teamId });
+  const services = api.garage.services.useQuery(
+    { teamId },
+    { meta: { silenceError: true } },
+  );
   const [loggingFor, setLoggingFor] = useState<string | null>(null);
 
   const refresh = () => utils.garage.services.invalidate({ teamId });

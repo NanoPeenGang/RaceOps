@@ -7,6 +7,7 @@ import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export default function SeriesPage() {
   const utils = api.useUtils();
@@ -71,7 +72,7 @@ export default function SeriesPage() {
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">All series</h2>
-        {all.isLoading && <p className="text-brand-black/60">Loading…</p>}
+        {all.isLoading && <ListSkeleton />}
         {all.data?.items.length === 0 && (
           <p className="text-brand-black/60">
             No series yet — create the first one.

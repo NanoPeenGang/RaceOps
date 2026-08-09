@@ -8,6 +8,7 @@ import { APPLICATION_STATUS_LABELS } from "@/lib/hiring";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export default function MyPostingsPage() {
   const postings = api.opportunity.myPostings.useQuery();
@@ -20,7 +21,7 @@ export default function MyPostingsPage() {
           <Button variant="primary">Post an opportunity</Button>
         </Link>
       </div>
-      {postings.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {postings.isLoading && <ListSkeleton />}
       {postings.data?.length === 0 && (
         <p className="text-brand-black/60">
           You haven&apos;t posted any opportunities yet.

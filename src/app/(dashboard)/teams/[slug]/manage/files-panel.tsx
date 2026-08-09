@@ -32,11 +32,14 @@ export function FilesPanel({ teamId }: { teamId: string }) {
   const [adding, setAdding] = useState(false);
 
   const cars = api.car.forTeam.useQuery({ teamId });
-  const library = api.garage.files.useQuery({
-    teamId,
-    ...(carId ? { carId } : {}),
-    ...(kind ? { kind } : {}),
-  });
+  const library = api.garage.files.useQuery(
+    {
+      teamId,
+      ...(carId ? { carId } : {}),
+      ...(kind ? { kind } : {}),
+    },
+    { meta: { silenceError: true } },
+  );
 
   const refresh = () => utils.garage.files.invalidate();
 

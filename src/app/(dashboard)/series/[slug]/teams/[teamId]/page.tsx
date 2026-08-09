@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MediaPanel } from "@/components/media-panel";
+import { ListSkeleton, PageSkeleton } from "@/components/ui/skeleton";
 
 /**
  * A competitor's public record within a series: championship position and the
@@ -22,7 +23,10 @@ export default function TeamSeriesProfilePage({
   params: Promise<{ slug: string; teamId: string }>;
 }) {
   const { slug, teamId } = use(params);
-  const series = api.series.bySlug.useQuery({ slug });
+  const series = api.series.bySlug.useQuery(
+    { slug },
+    { meta: { silenceError: true } },
+  );
   const seriesId = series.data?.id ?? "";
 
   const standings = api.series.standings.useQuery(
@@ -34,7 +38,7 @@ export default function TeamSeriesProfilePage({
     { enabled: Boolean(seriesId) },
   );
 
-  if (series.isLoading) return <p className="text-brand-black/60">Loading…</p>;
+  if (series.isLoading) return <PageSkeleton />;
   if (series.error)
     return <p className="text-brand-red">{series.error.message}</p>;
 
@@ -76,7 +80,7 @@ export default function TeamSeriesProfilePage({
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Penalty record</h2>
-        {penalties.isLoading && <p className="text-brand-black/60">Loading…</p>}
+        {penalties.isLoading && <ListSkeleton />}
         {penalties.data?.length === 0 && (
           <p className="text-brand-black/60">
             No penalties on record in this series.

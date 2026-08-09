@@ -24,6 +24,7 @@ import {
   zoneSummary,
 } from "@/lib/credentials";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * The allocation sheet and the accreditation list.
@@ -206,7 +207,7 @@ function AccreditationTab({
   onChanged: () => void;
 }) {
   const [adding, setAdding] = useState(false);
-  if (!data) return <p className="text-sm text-brand-black/60">Loading…</p>;
+  if (!data) return <ListSkeleton />;
 
   return (
     <div className="space-y-4">

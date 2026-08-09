@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export type ChatScope = {
   eventId?: string;
@@ -82,7 +83,7 @@ export function PaddockChat({
             className="max-h-80 space-y-3 overflow-y-auto"
             aria-live="polite"
           >
-            {chat.isLoading && <p className="text-brand-black/60">Loading…</p>}
+            {chat.isLoading && <ListSkeleton />}
             {messages?.length === 0 && (
               <p className="text-brand-black/60">
                 Nothing posted yet — say hello.

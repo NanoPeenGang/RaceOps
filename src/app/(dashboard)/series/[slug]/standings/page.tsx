@@ -7,6 +7,7 @@ import type { StandingsBasis } from "@/lib/standings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton, PageSkeleton } from "@/components/ui/skeleton";
 
 const BASIS_LABELS: Record<StandingsBasis, string> = {
   entrant: "Entrants",
@@ -27,7 +28,10 @@ export default function StandingsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
-  const series = api.series.bySlug.useQuery({ slug });
+  const series = api.series.bySlug.useQuery(
+    { slug },
+    { meta: { silenceError: true } },
+  );
   const standings = api.series.standings.useQuery(
     { seriesId: series.data?.id ?? "" },
     { enabled: Boolean(series.data?.id) },
@@ -36,7 +40,7 @@ export default function StandingsPage({
   const [basis, setBasis] = useState<StandingsBasis>("entrant");
   const [classId, setClassId] = useState<string | null>(null);
 
-  if (series.isLoading) return <p className="text-brand-black/60">Loading…</p>;
+  if (series.isLoading) return <PageSkeleton />;
   if (series.error)
     return <p className="text-brand-red">{series.error.message}</p>;
 
@@ -51,7 +55,9 @@ export default function StandingsPage({
 
   // Only offer a basis that actually has somebody in it: a series of solo
   // entrants has no teams' championship to show.
-  const availableBases = (["entrant", "driver", "team"] as StandingsBasis[]).filter(
+  const availableBases = (
+    ["entrant", "driver", "team"] as StandingsBasis[]
+  ).filter(
     (candidate) =>
       data?.tables.some(
         (t) =>
@@ -129,7 +135,7 @@ export default function StandingsPage({
         </div>
       )}
 
-      {standings.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {standings.isLoading && <ListSkeleton />}
       {!standings.isLoading && rows.length === 0 && (
         <p className="text-brand-black/60">
           {classes.length > 0 && classId !== null

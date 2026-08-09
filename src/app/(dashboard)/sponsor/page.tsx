@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader, Section, Stat } from "@/components/ui/page";
 import { Tabs } from "@/components/ui/tabs";
+import { ListSkeleton, PageSkeleton } from "@/components/ui/skeleton";
 
 /**
  * The sponsor's console.
@@ -37,7 +38,7 @@ export default function SponsorPage() {
   const access = api.sponsor.access.useQuery();
 
   if (access.isLoading) {
-    return <p className="text-brand-black/60">Loading…</p>;
+    return <PageSkeleton />;
   }
 
   // Not an error screen: somebody who has not applied yet is not doing
@@ -69,7 +70,7 @@ function SponsorConsole() {
   const dashboard = api.sponsor.dashboard.useQuery();
   const data = dashboard.data;
 
-  if (!data) return <p className="text-brand-black/60">Loading…</p>;
+  if (!data) return <PageSkeleton />;
 
   const { totals } = data;
   const stale = new Set(data.stale);
@@ -328,7 +329,7 @@ function Discover() {
         </Button>
       </div>
 
-      {teams.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {teams.isLoading && <ListSkeleton />}
 
       {teams.data?.teams.length === 0 && (
         <EmptyState

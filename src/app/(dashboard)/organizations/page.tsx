@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader, Section } from "@/components/ui/page";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * Organizations the caller belongs to.
@@ -35,9 +36,7 @@ export default function OrganizationsPage() {
 
       {creating && <CreateForm onCreated={() => setCreating(false)} />}
 
-      {organizations.isLoading && (
-        <p className="text-brand-black/60">Loading…</p>
-      )}
+      {organizations.isLoading && <ListSkeleton />}
 
       {organizations.data?.length === 0 && !creating && (
         <EmptyState

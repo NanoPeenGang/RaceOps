@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader, Section, Stat } from "@/components/ui/page";
 import { Tabs } from "@/components/ui/tabs";
+import { ListSkeleton, PageSkeleton } from "@/components/ui/skeleton";
 
 /**
  * The review queue.
@@ -42,7 +43,10 @@ export default function AccessQueuePage() {
   const [status, setStatus] = useState<AccessRequestStatus | undefined>(
     AccessRequestStatus.PENDING,
   );
-  const queue = api.access.queue.useQuery({ status });
+  const queue = api.access.queue.useQuery(
+    { status },
+    { meta: { silenceError: true } },
+  );
 
   if (queue.error) {
     return (
@@ -110,9 +114,7 @@ export default function AccessQueuePage() {
             badge: data?.pendingTotal || undefined,
             content: (
               <div className="space-y-3 pt-4">
-                {queue.isLoading && (
-                  <p className="text-brand-black/60">Loading…</p>
-                )}
+                {queue.isLoading && <ListSkeleton />}
                 {data?.requests.length === 0 && (
                   <EmptyState
                     title="Nothing here"
@@ -318,7 +320,7 @@ function StaffPanel() {
     onSuccess: () => utils.access.staff.invalidate(),
   });
 
-  if (!staff.data) return <p className="pt-4 text-brand-black/60">Loading…</p>;
+  if (!staff.data) return <PageSkeleton />;
 
   const owners = new Set(staff.data.ownerEmails);
 

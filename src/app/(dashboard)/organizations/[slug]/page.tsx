@@ -17,6 +17,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { BrandHeader, BrandTheme } from "@/components/brand-theme";
 import { BrandingEditor } from "@/components/branding-editor";
 import { StaffPanel } from "./staff-panel";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 /**
  * An organization's page: public front, management behind tabs.
@@ -31,10 +32,13 @@ export default function OrganizationPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
-  const organization = api.organization.bySlug.useQuery({ slug });
+  const organization = api.organization.bySlug.useQuery(
+    { slug },
+    { meta: { silenceError: true } },
+  );
 
   if (organization.isLoading) {
-    return <p className="text-brand-black/60">Loading…</p>;
+    return <PageSkeleton />;
   }
   if (organization.error) {
     return <p className="text-brand-red">{organization.error.message}</p>;

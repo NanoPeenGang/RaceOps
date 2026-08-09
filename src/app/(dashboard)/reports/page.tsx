@@ -5,6 +5,7 @@ import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /** Public feed of published race reports. */
 export default function ReportsPage() {
@@ -29,7 +30,7 @@ export default function ReportsPage() {
         </Link>
       </div>
 
-      {feed.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {feed.isLoading && <ListSkeleton />}
       {!feed.isLoading && reports.length === 0 && (
         <p className="text-brand-black/60">
           No reports published yet — be the first to write one up.

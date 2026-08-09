@@ -17,6 +17,7 @@ import { TEAM_ROLE_LABELS } from "@/lib/teams";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * Team payroll.
@@ -33,7 +34,13 @@ type Run = Runs[number];
 
 export function PayrollPanel({ teamId }: { teamId: string }) {
   const utils = api.useUtils();
-  const runs = api.payroll.runs.useQuery({ teamId }, { retry: false });
+  const runs = api.payroll.runs.useQuery(
+    { teamId },
+    {
+      meta: { silenceError: true },
+      retry: false,
+    },
+  );
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [showRates, setShowRates] = useState(false);
@@ -226,7 +233,7 @@ function RunDetail({
   };
 
   if (detail.isLoading) {
-    return <p className="text-sm text-brand-black/60">Loading…</p>;
+    return <ListSkeleton />;
   }
   if (detail.error) {
     return <p className="text-sm text-brand-red">{detail.error.message}</p>;

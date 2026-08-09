@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MyPasses } from "@/components/my-passes";
 import { EmptyState, PageHeader, Section, Stat } from "@/components/ui/page";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 /**
  * The signed-in home page.
@@ -28,12 +29,13 @@ import { EmptyState, PageHeader, Section, Stat } from "@/components/ui/page";
  */
 export default function HomePage() {
   const home = api.dashboard.home.useQuery(undefined, {
+    meta: { silenceError: true },
     // Cheap to refresh and the live-session row goes stale fastest.
     refetchInterval: 60_000,
   });
 
   if (home.isLoading) {
-    return <p className="text-brand-black/60">Loading…</p>;
+    return <PageSkeleton />;
   }
   if (home.error) {
     return <p className="text-brand-red">{home.error.message}</p>;
@@ -253,7 +255,9 @@ export default function HomePage() {
                       </div>
                       <Badge
                         variant={
-                          signup.status === "WAITLISTED" ? "default" : "verified"
+                          signup.status === "WAITLISTED"
+                            ? "default"
+                            : "verified"
                         }
                       >
                         {signup.status.replace("_", " ").toLowerCase()}

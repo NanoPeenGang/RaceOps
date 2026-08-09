@@ -6,6 +6,7 @@ import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   RULEBOOK: "Rule book",
@@ -223,7 +224,7 @@ export function DocumentsPanel({
         </Card>
       )}
 
-      {documents.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {documents.isLoading && <ListSkeleton />}
       {documents.data?.length === 0 && (
         <p className="text-brand-black/60">
           No documents published yet.

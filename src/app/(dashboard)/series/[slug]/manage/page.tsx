@@ -19,6 +19,7 @@ import { BrandingEditor } from "@/components/branding-editor";
 import { Tabs } from "@/components/ui/tabs";
 import { SeriesStaffPanel } from "./staff-panel";
 import { useRouter } from "next/navigation";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 export default function SeriesDashboardPage({
   params,
@@ -28,7 +29,10 @@ export default function SeriesDashboardPage({
   const { slug } = use(params);
   const router = useRouter();
   const utils = api.useUtils();
-  const series = api.series.bySlug.useQuery({ slug });
+  const series = api.series.bySlug.useQuery(
+    { slug },
+    { meta: { silenceError: true } },
+  );
   const [showEventForm, setShowEventForm] = useState(false);
 
   const isOwner = series.data?.myRole === "OWNER";
@@ -46,7 +50,7 @@ export default function SeriesDashboardPage({
   });
 
   if (series.isLoading) {
-    return <p className="text-brand-black/60">Loading…</p>;
+    return <PageSkeleton />;
   }
   if (series.error) {
     return <p className="text-brand-red">{series.error.message}</p>;

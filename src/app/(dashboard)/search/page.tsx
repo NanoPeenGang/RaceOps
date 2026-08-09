@@ -25,13 +25,16 @@ export default function SearchPage() {
   const [location, setLocation] = useState("");
 
   const me = api.user.me.useQuery();
-  const results = api.search.profiles.useQuery({
-    query: query || undefined,
-    profileType: profileType || undefined,
-    simRole: simRole || undefined,
-    realWorldRole: realWorldRole || undefined,
-    location: location || undefined,
-  });
+  const results = api.search.profiles.useQuery(
+    {
+      query: query || undefined,
+      profileType: profileType || undefined,
+      simRole: simRole || undefined,
+      realWorldRole: realWorldRole || undefined,
+      location: location || undefined,
+    },
+    { meta: { silenceError: true } },
+  );
 
   const hasRoleFilter = simRole !== "" || realWorldRole !== "";
 

@@ -43,7 +43,13 @@ export function DepartmentChannels({
   description?: string;
 }) {
   const utils = api.useUtils();
-  const channels = api.channel.list.useQuery({ scope }, { retry: false });
+  const channels = api.channel.list.useQuery(
+    { scope },
+    {
+      meta: { silenceError: true },
+      retry: false,
+    },
+  );
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 

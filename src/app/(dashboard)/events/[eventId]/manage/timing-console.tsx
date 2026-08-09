@@ -28,6 +28,7 @@ import {
 } from "@/lib/timing";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * Race-control console: pick a session, run the flags, and push timing rows.
@@ -49,7 +50,7 @@ export function TimingConsole({ eventId }: { eventId: string }) {
     <section className="space-y-3">
       <h2 className="text-xl font-semibold">Live timing control</h2>
 
-      {sessions.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {sessions.isLoading && <ListSkeleton />}
       {sessions.data?.length === 0 && (
         <p className="text-brand-black/60">
           Add sessions to the running order first — timing hangs off a session.
@@ -103,7 +104,7 @@ function SessionConsole({ sessionId }: { sessionId: string }) {
     onSuccess: invalidate,
   });
 
-  if (board.isLoading) return <p className="text-brand-black/60">Loading…</p>;
+  if (board.isLoading) return <ListSkeleton />;
   if (board.error)
     return <p className="text-sm text-brand-red">{board.error.message}</p>;
 

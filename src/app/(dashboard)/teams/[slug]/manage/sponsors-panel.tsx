@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { TeamDashboard, TeamSponsorships } from "./types";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * Sponsorship offers and active deals.
@@ -27,7 +28,10 @@ import type { TeamDashboard, TeamSponsorships } from "./types";
 export function SponsorsPanel({ team }: { team: TeamDashboard }) {
   const utils = api.useUtils();
   const canManage = isTeamManager(team.myRole);
-  const sponsorships = api.sponsorship.forTeam.useQuery({ teamId: team.id });
+  const sponsorships = api.sponsorship.forTeam.useQuery(
+    { teamId: team.id },
+    { meta: { silenceError: true } },
+  );
   const [showForm, setShowForm] = useState(false);
 
   const refresh = () =>
@@ -38,7 +42,7 @@ export function SponsorsPanel({ team }: { team: TeamDashboard }) {
   const remove = api.sponsorship.remove.useMutation({ onSuccess: refresh });
 
   if (sponsorships.isLoading) {
-    return <p className="text-brand-black/60">Loading…</p>;
+    return <ListSkeleton />;
   }
   if (sponsorships.error) {
     return (

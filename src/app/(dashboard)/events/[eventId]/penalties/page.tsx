@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MediaPanel } from "@/components/media-panel";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 type Penalty = inferRouterOutputs<AppRouter>["penalty"]["forEvent"][number];
 
@@ -46,7 +47,7 @@ export default function EventPenaltiesPage({
         </p>
       </div>
 
-      {penalties.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {penalties.isLoading && <ListSkeleton />}
       {penalties.data?.length === 0 && (
         <p className="text-brand-black/60">
           No penalties issued for this event.

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   MutationCache,
+  QueryCache,
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
@@ -39,6 +40,21 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
     () =>
       new QueryClient({
         defaultOptions: { queries: { staleTime: 30_000 } },
+        /*
+         * A query that fails renders an empty list, and an empty list is a
+         * statement: "there is nothing here". That is a silent lie, and the
+         * worst kind — somebody concludes their entries did not save, or that
+         * a queue is clear when it is not. Fires only after retries are spent.
+         */
+        queryCache: new QueryCache({
+          onError: (error, query) => {
+            if (query.meta?.silenceError) return;
+            toast({
+              tone: "error",
+              message: `Could not load that. ${describeFailure(error)}`,
+            });
+          },
+        }),
         mutationCache: new MutationCache({
           onError: (error, _variables, _context, mutation) => {
             /*

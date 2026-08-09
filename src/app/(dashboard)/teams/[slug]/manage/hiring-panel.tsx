@@ -50,7 +50,13 @@ type Application = Inbox["pipeline"][number]["applications"][number];
 
 export function HiringPanel({ teamId }: { teamId: string }) {
   const utils = api.useUtils();
-  const inbox = api.hiring.inbox.useQuery({ teamId }, { retry: false });
+  const inbox = api.hiring.inbox.useQuery(
+    { teamId },
+    {
+      meta: { silenceError: true },
+      retry: false,
+    },
+  );
   const [openId, setOpenId] = useState<string | null>(null);
   const [showClosed, setShowClosed] = useState(false);
 

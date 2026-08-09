@@ -4,6 +4,7 @@ import Link from "next/link";
 import { api } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export default function NotificationsPage() {
   const utils = api.useUtils();
@@ -28,9 +29,7 @@ export default function NotificationsPage() {
           Mark all read
         </Button>
       </div>
-      {notifications.isLoading && (
-        <p className="text-brand-black/60">Loading…</p>
-      )}
+      {notifications.isLoading && <ListSkeleton />}
       {notifications.data?.items.length === 0 && (
         <p className="text-brand-black/60">Nothing yet.</p>
       )}

@@ -8,6 +8,16 @@
  */
 declare module "@tanstack/react-query" {
   interface Register {
+    queryMeta: {
+      /**
+       * Suppresses the global "could not load" toast.
+       *
+       * For screens that already render the failure themselves — a review
+       * queue that says "not your queue" rather than showing nothing is
+       * handling its own error, and does not want it repeated in the corner.
+       */
+      silenceError?: boolean;
+    };
     mutationMeta: {
       /**
        * Shown when the mutation succeeds. Write what happened in the words

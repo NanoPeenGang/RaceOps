@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EntryEquipment } from "@/components/entry-equipment";
 import { EntryCredentials } from "@/components/entry-credentials";
 import { WaiverPanel } from "@/components/waiver-panel";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 const WINDOW_MESSAGES: Record<string, string> = {
   not_published: "Registration has not opened — this event is still a draft.",
@@ -30,9 +31,12 @@ const WINDOW_MESSAGES: Record<string, string> = {
  */
 export function EntryPanels({ eventId }: { eventId: string }) {
   const utils = api.useUtils();
-  const event = api.event.byId.useQuery({ eventId });
+  const event = api.event.byId.useQuery(
+    { eventId },
+    { meta: { silenceError: true } },
+  );
 
-  if (event.isLoading) return <p className="text-brand-black/60">Loading…</p>;
+  if (event.isLoading) return <PageSkeleton />;
   if (event.error)
     return <p className="text-sm text-brand-red">{event.error.message}</p>;
   const data = event.data!;

@@ -20,6 +20,7 @@ import { describeConditions } from "@/lib/conditions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /** Public live timing board. Polls while a session is running. */
 export default function TimingPage({
@@ -52,7 +53,7 @@ export default function TimingPage({
         <h1 className="mt-1 text-3xl font-bold">Live timing</h1>
       </div>
 
-      {sessions.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {sessions.isLoading && <ListSkeleton />}
       {sessions.data?.length === 0 && (
         <p className="text-brand-black/60">
           No sessions have been scheduled for this event yet.
@@ -91,7 +92,7 @@ function TimingBoard({ sessionId }: { sessionId: string }) {
     },
   );
 
-  if (board.isLoading) return <p className="text-brand-black/60">Loading…</p>;
+  if (board.isLoading) return <ListSkeleton />;
   if (board.error)
     return <p className="text-sm text-brand-red">{board.error.message}</p>;
 

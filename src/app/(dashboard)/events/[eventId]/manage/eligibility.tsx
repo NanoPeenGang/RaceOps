@@ -7,6 +7,7 @@ import type { EligibilityState } from "@/lib/eligibility";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 const STATE_LABELS: Record<EligibilityState, string> = {
   met: "Met",
@@ -31,7 +32,13 @@ const STATE_STYLES: Record<EligibilityState, string> = {
  */
 export function EligibilityPanel({ eventId }: { eventId: string }) {
   const utils = api.useUtils();
-  const rows = api.eligibility.forEvent.useQuery({ eventId }, { retry: false });
+  const rows = api.eligibility.forEvent.useQuery(
+    { eventId },
+    {
+      meta: { silenceError: true },
+      retry: false,
+    },
+  );
   const [open, setOpen] = useState<string | null>(null);
 
   const refresh = () => {
@@ -62,7 +69,7 @@ export function EligibilityPanel({ eventId }: { eventId: string }) {
     <section className="space-y-3">
       <h2 className="text-xl font-semibold">Entry eligibility</h2>
 
-      {rows.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {rows.isLoading && <ListSkeleton />}
       {!rows.isLoading && withRequirements.length === 0 && (
         <p className="text-brand-black/60">
           {data.length === 0

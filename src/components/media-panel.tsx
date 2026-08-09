@@ -6,6 +6,7 @@ import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 type Scope = {
   seriesId?: string;
@@ -151,9 +152,7 @@ export function MediaPanel({
           </div>
         )}
 
-        {media.isLoading && (
-          <p className="text-sm text-brand-black/60">Loading…</p>
-        )}
+        {media.isLoading && <ListSkeleton />}
         {media.data?.length === 0 && (
           <p className="text-sm text-brand-black/60">No media yet.</p>
         )}

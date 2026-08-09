@@ -32,6 +32,7 @@ import {
   TRACK_KIND_LABELS,
   turnLabel,
 } from "@/lib/tracks";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 export default function TrackPage({
   params,
@@ -43,7 +44,7 @@ export default function TrackPage({
   const me = api.user.me.useQuery();
   const [openLayout, setOpenLayout] = useState<string | null>(null);
 
-  if (track.isLoading) return <p className="text-brand-black/60">Loading…</p>;
+  if (track.isLoading) return <PageSkeleton />;
   if (!track.data)
     return <p className="text-brand-black/60">Track not found.</p>;
 

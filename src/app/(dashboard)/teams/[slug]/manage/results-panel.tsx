@@ -6,6 +6,7 @@ import { RESULT_STATUS_LABELS } from "@/lib/standings";
 import { orderResultsByRecency, totalsAcrossSeries } from "@/lib/team-season";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * Standings and results for every series the team races in.
@@ -15,9 +16,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  * recalculated — one source of truth for points.
  */
 export function ResultsPanel({ teamId }: { teamId: string }) {
-  const season = api.team.season.useQuery({ teamId });
+  const season = api.team.season.useQuery(
+    { teamId },
+    { meta: { silenceError: true } },
+  );
 
-  if (season.isLoading) return <p className="text-brand-black/60">Loading…</p>;
+  if (season.isLoading) return <ListSkeleton />;
   if (season.error)
     return <p className="text-sm text-brand-red">{season.error.message}</p>;
 
@@ -92,8 +96,8 @@ export function ResultsPanel({ teamId }: { teamId: string }) {
                 </p>
                 {summary.pointsDeducted > 0 && (
                   <p className="text-brand-red">
-                    −{summary.pointsDeducted} points from{" "}
-                    {summary.penaltyCount} penalt
+                    −{summary.pointsDeducted} points from {summary.penaltyCount}{" "}
+                    penalt
                     {summary.penaltyCount === 1 ? "y" : "ies"}
                   </p>
                 )}

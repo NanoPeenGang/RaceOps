@@ -7,6 +7,7 @@ import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MediaPanel } from "@/components/media-panel";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 /** A single race report. The author gets publish/unpublish and delete here. */
 export default function ReportPage({
@@ -17,7 +18,10 @@ export default function ReportPage({
   const { reportId } = use(params);
   const router = useRouter();
   const utils = api.useUtils();
-  const report = api.report.byId.useQuery({ reportId });
+  const report = api.report.byId.useQuery(
+    { reportId },
+    { meta: { silenceError: true } },
+  );
 
   const update = api.report.update.useMutation({
     meta: { silenceError: true },
@@ -27,7 +31,7 @@ export default function ReportPage({
     onSuccess: () => router.push("/reports"),
   });
 
-  if (report.isLoading) return <p className="text-brand-black/60">Loading…</p>;
+  if (report.isLoading) return <PageSkeleton />;
   if (report.error)
     return <p className="text-brand-red">{report.error.message}</p>;
   const data = report.data!;

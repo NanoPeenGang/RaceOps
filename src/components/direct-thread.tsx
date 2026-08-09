@@ -5,6 +5,7 @@ import { api } from "@/lib/trpc/client";
 import { threadTitle } from "@/lib/direct-messages";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * One direct conversation.
@@ -113,7 +114,7 @@ export function DirectThread({ threadId }: { threadId: string }) {
           className="max-h-96 space-y-3 overflow-y-auto"
           aria-live="polite"
         >
-          {thread.isLoading && <p className="text-brand-black/60">Loading…</p>}
+          {thread.isLoading && <ListSkeleton />}
           {messages?.length === 0 && (
             <p className="text-sm text-brand-black/55">
               Nothing here yet — say what you need.

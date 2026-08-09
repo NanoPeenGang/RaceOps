@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/ui/page";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * The applicant's side of hiring.
@@ -64,7 +65,7 @@ export default function MyApplicationsPage() {
         description="Where every application has got to, and anything waiting on you."
       />
 
-      {data.isLoading && <p className="text-brand-black/60">Loading…</p>}
+      {data.isLoading && <ListSkeleton />}
 
       {!data.isLoading && applications.length === 0 && (
         <EmptyState

@@ -10,6 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
  * Waivers for an event, and the signatures collected against them.
@@ -133,7 +134,7 @@ function SignatureList({
       </p>
     );
   }
-  if (!signatures.data) return <p className="text-sm">Loading…</p>;
+  if (!signatures.data) return <ListSkeleton />;
   if (signatures.data.items.length === 0) {
     return (
       <p className="text-sm text-brand-black/60">Nobody has signed yet.</p>

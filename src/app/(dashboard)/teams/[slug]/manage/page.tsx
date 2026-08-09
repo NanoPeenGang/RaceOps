@@ -24,6 +24,7 @@ import { DepartmentChannels } from "@/components/department-channels";
 import { BrandingEditor } from "@/components/branding-editor";
 import { Tabs, type TabDefinition } from "@/components/ui/tabs";
 import { attentionItems, tabBadge, type TeamAttention } from "@/lib/attention";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 /**
  * Team console — one page to run a race team: who is on the books, what races
@@ -38,7 +39,10 @@ export default function TeamManagePage({
   const { slug } = use(params);
   const utils = api.useUtils();
   // The console is keyed by id, but the URL is a slug — resolve it first.
-  const team = api.team.bySlug.useQuery({ slug });
+  const team = api.team.bySlug.useQuery(
+    { slug },
+    { meta: { silenceError: true } },
+  );
   const teamId = team.data?.id;
 
   const dashboard = api.team.dashboard.useQuery(
@@ -47,7 +51,7 @@ export default function TeamManagePage({
   );
 
   if (team.isLoading || (teamId && dashboard.isLoading)) {
-    return <p className="text-brand-black/60">Loading…</p>;
+    return <PageSkeleton />;
   }
   if (team.error) return <p className="text-brand-red">{team.error.message}</p>;
   if (dashboard.error) {
