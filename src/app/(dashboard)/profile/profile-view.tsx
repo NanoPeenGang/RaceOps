@@ -18,6 +18,7 @@ import { ImageUpload } from "@/components/image-upload";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RoleTagPicker } from "@/components/role-tag-picker";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { PageHeader, Section } from "@/components/ui/page";
 
 export function ProfileView() {
   const utils = api.useUtils();
@@ -84,8 +85,7 @@ export function ProfileView() {
         </p>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">What I do</h2>
+      <Section title="What I do">
         {tags.length === 0 ? (
           <p className="text-sm text-brand-black/60">
             No role tags yet. Add them so teams and organizers looking for what
@@ -94,7 +94,7 @@ export function ProfileView() {
         ) : (
           <RoleTagList tags={tags} />
         )}
-      </section>
+      </Section>
 
       {profile?.bio && (
         <Card>
@@ -149,12 +149,16 @@ function ProfileEditor({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-3xl font-bold">Edit profile</h1>
-        <Button variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
+      <PageHeader
+        title="Edit profile"
+        actions={
+          <>
+            <Button variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+          </>
+        }
+      />
 
       <Card>
         <CardHeader>

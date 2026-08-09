@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MediaPanel } from "@/components/media-panel";
+import { Section } from "@/components/ui/page";
 
 /** Classify confirmed entries so the championship can be scored. */
 export function ResultsPanel({ eventId }: { eventId: string }) {
@@ -38,8 +39,7 @@ export function ResultsPanel({ eventId }: { eventId: string }) {
   );
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xl font-semibold">Results</h2>
+    <Section title="Results">
       {confirmed.length === 0 && (
         <p className="text-brand-black/60">
           Confirm entries before recording results.
@@ -59,7 +59,7 @@ export function ResultsPanel({ eventId }: { eventId: string }) {
       {record.error && (
         <p className="text-sm text-brand-red">{record.error.message}</p>
       )}
-    </section>
+    </Section>
   );
 }
 

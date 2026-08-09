@@ -1,7 +1,6 @@
 "use client";
 
 import { use } from "react";
-import Link from "next/link";
 import { api } from "@/lib/trpc/client";
 import {
   APPEAL_STATUS_LABELS,
@@ -12,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MediaPanel } from "@/components/media-panel";
 import { ListSkeleton, PageSkeleton } from "@/components/ui/skeleton";
+import { PageHeader, Section } from "@/components/ui/page";
 
 /**
  * A competitor's public record within a series: championship position and the
@@ -55,18 +55,14 @@ export default function TeamSeriesProfilePage({
 
   return (
     <div className="space-y-8">
-      <div>
-        <Link
-          href={`/series/${slug}`}
-          className="text-sm text-brand-red hover:underline"
-        >
-          ← {series.data!.name}
-        </Link>
-        <h1 className="mt-1 text-3xl font-bold">{teamName}</h1>
-        <p className="mt-1 text-sm text-brand-black/60">
-          Series record and disciplinary history
-        </p>
-      </div>
+      <PageHeader
+        breadcrumbs={[
+          { label: series.data!.name, href: `/series/${slug}` },
+          { label: teamName },
+        ]}
+        title={teamName}
+        description="Series record and disciplinary history"
+      />
 
       <div className="grid gap-4 sm:grid-cols-4">
         <Stat
@@ -78,8 +74,7 @@ export default function TeamSeriesProfilePage({
         <Stat label="Penalties" value={penalties.data?.length ?? 0} />
       </div>
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Penalty record</h2>
+      <Section title="Penalty record">
         {penalties.isLoading && <ListSkeleton />}
         {penalties.data?.length === 0 && (
           <p className="text-brand-black/60">
@@ -159,7 +154,7 @@ export default function TeamSeriesProfilePage({
             </Card>
           ))}
         </div>
-      </section>
+      </Section>
 
       <MediaPanel
         scope={{ teamId }}

@@ -23,7 +23,7 @@ import { TEAM_ROLE_LABELS } from "@/lib/teams";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState, PageHeader } from "@/components/ui/page";
+import { EmptyState, PageHeader, Section } from "@/components/ui/page";
 import { ListSkeleton } from "@/components/ui/skeleton";
 
 /**
@@ -80,8 +80,7 @@ export default function MyApplicationsPage() {
       )}
 
       {needsYou.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">Waiting on you</h2>
+        <Section title="Waiting on you">
           {needsYou.map((application) => (
             <ActionCard
               key={application.id}
@@ -89,12 +88,11 @@ export default function MyApplicationsPage() {
               onChanged={refresh}
             />
           ))}
-        </section>
+        </Section>
       )}
 
       {applications.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">Everything</h2>
+        <Section title="Everything">
           {applications.map((application) => (
             <Card key={application.id}>
               <CardHeader>
@@ -143,7 +141,7 @@ export default function MyApplicationsPage() {
               </CardContent>
             </Card>
           ))}
-        </section>
+        </Section>
       )}
     </div>
   );

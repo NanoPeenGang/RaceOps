@@ -1,11 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  calculateFuelStrategy,
-  planDriverRotation,
-} from "@/lib/strategy";
+import { calculateFuelStrategy, planDriverRotation } from "@/lib/strategy";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page";
 
 export default function StrategyPage() {
   const [raceMinutes, setRaceMinutes] = useState(60);
@@ -47,7 +45,7 @@ export default function StrategyPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Pit Wall</h1>
+        <PageHeader title="Pit Wall" />
         <p className="mt-1 text-brand-black/60">
           Fuel strategy, stint planning, and driver rotation — usable standalone
           or shared with your team.
@@ -106,7 +104,10 @@ export default function StrategyPage() {
               {fuel ? (
                 <dl className="grid grid-cols-2 gap-3 text-sm">
                   <Stat label="Total laps" value={fuel.totalLaps} />
-                  <Stat label="Total fuel" value={`${fuel.totalFuelLitres} L`} />
+                  <Stat
+                    label="Total fuel"
+                    value={`${fuel.totalFuelLitres} L`}
+                  />
                   <Stat label="Pit stops" value={fuel.stops} />
                   <Stat label="Laps per stint" value={fuel.lapsPerStint} />
                   <Stat

@@ -33,6 +33,7 @@ import {
   turnLabel,
 } from "@/lib/tracks";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { PageHeader, Section } from "@/components/ui/page";
 
 export default function TrackPage({
   params,
@@ -61,22 +62,32 @@ export default function TrackPage({
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-bold">{data.name}</h1>
-          <Badge>{TRACK_KIND_LABELS[data.kind]}</Badge>
-          {data.isReference && <Badge variant="outline">Reference</Badge>}
-          {data.licenceGrade && (
-            <Badge variant="outline">{data.licenceGrade}</Badge>
-          )}
-        </div>
-        <p className="text-sm text-brand-black/60">
-          {[data.addressLine, placeLabel(data), data.postalCode]
-            .filter(Boolean)
-            .join(", ") || "Location not given"}
-          {data.pitBoxCount ? ` · ${data.pitBoxCount} pit boxes` : ""}
-          {data.garageCount ? ` · ${data.garageCount} garages` : ""}
-        </p>
+      <PageHeader
+        breadcrumbs={[
+          { label: "Tracks", href: "/tracks" },
+          { label: data.name },
+        ]}
+        title={data.name}
+        status={
+          <>
+            <Badge>{TRACK_KIND_LABELS[data.kind]}</Badge>
+            {data.isReference && <Badge variant="outline">Reference</Badge>}
+            {data.licenceGrade && (
+              <Badge variant="outline">{data.licenceGrade}</Badge>
+            )}
+          </>
+        }
+        description={
+          <>
+            {[data.addressLine, placeLabel(data), data.postalCode]
+              .filter(Boolean)
+              .join(", ") || "Location not given"}
+            {data.pitBoxCount ? ` · ${data.pitBoxCount} pit boxes` : ""}
+            {data.garageCount ? ` · ${data.garageCount} garages` : ""}
+          </>
+        }
+      />
+      <div className="space-y-2">
         <p className="flex flex-wrap items-center gap-3 text-xs">
           <a
             href={venueMapUrl({ ...data, name: data.name })}
@@ -118,7 +129,7 @@ export default function TrackPage({
             </p>
           )
         )}
-      </header>
+      </div>
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -262,8 +273,7 @@ export default function TrackPage({
         </div>
       </section>
 
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">The facility</h2>
+      <Section title="The facility">
         <TrackGallery
           trackId={data.id}
           layoutId={null}
@@ -273,7 +283,7 @@ export default function TrackPage({
           title="Paddock plans and site photos"
           description="Images of the venue rather than of one configuration — the paddock plan, the gates, the scrutineering bay."
         />
-      </section>
+      </Section>
 
       <TrackRules
         trackId={data.id}
@@ -711,26 +721,23 @@ function TrackRules({
   const groups = groupRules(rules);
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-xl font-semibold">Rules & ordinances</h2>
-          <p className="text-sm text-brand-black/60">
-            What this facility requires, on top of whatever your series
-            regulates.
-          </p>
-        </div>
-        {canCurate && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setAdding((open) => !open)}
-          >
-            {adding ? "Cancel" : "Add a rule"}
-          </Button>
-        )}
-      </div>
-
+    <Section
+      title="Rules & ordinances"
+      description="What this facility requires, on top of whatever your series regulates."
+      actions={
+        <>
+          {canCurate && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAdding((open) => !open)}
+            >
+              {adding ? "Cancel" : "Add a rule"}
+            </Button>
+          )}
+        </>
+      }
+    >
       {adding && (
         <RuleForm
           trackId={trackId}
@@ -805,7 +812,7 @@ function TrackRules({
           ))}
         </div>
       ))}
-    </section>
+    </Section>
   );
 }
 

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EVENT_STATUS_LABELS, REGISTRATION_STATUS_LABELS } from "@/lib/events";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { PageHeader, Section } from "@/components/ui/page";
 
 export default function EventsPage() {
   const events = api.event.listPublished.useQuery({});
@@ -15,18 +16,15 @@ export default function EventsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Events</h1>
-        <p className="mt-1 text-sm text-brand-black/60">
-          Enter a race, or sign up to work one.
-        </p>
-      </div>
+      <PageHeader
+        title="Events"
+        description="Enter a race, or sign up to work one."
+      />
 
       <LiveNow />
 
       {myRegistrations.data && myRegistrations.data.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">My entries</h2>
+        <Section title="My entries">
           <div className="space-y-2">
             {myRegistrations.data.map((registration) => (
               <Card key={registration.id}>
@@ -58,12 +56,11 @@ export default function EventsPage() {
               </Card>
             ))}
           </div>
-        </section>
+        </Section>
       )}
 
       {myShifts.data && myShifts.data.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">My volunteer shifts</h2>
+        <Section title="My volunteer shifts">
           <div className="space-y-2">
             {myShifts.data.map((signup) => (
               <Card key={signup.id}>
@@ -86,11 +83,10 @@ export default function EventsPage() {
               </Card>
             ))}
           </div>
-        </section>
+        </Section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Upcoming events</h2>
+      <Section title="Upcoming events">
         {events.isLoading && <ListSkeleton />}
         {events.data?.items.length === 0 && (
           <p className="text-brand-black/60">
@@ -134,7 +130,7 @@ export default function EventsPage() {
             </Card>
           ))}
         </div>
-      </section>
+      </Section>
     </div>
   );
 }

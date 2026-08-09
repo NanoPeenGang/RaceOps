@@ -887,6 +887,42 @@ results feed the championship standings immediately.
 > Realtime is optional. With Pusher credentials set, boards and chat update
 > instantly; without them everything polls and still works.
 
+**The consoles look like one product (done):** the page primitives in
+`src/components/ui/page.tsx` existed but only ten of forty-four pages used
+them, so `/search` opened with bare markup while `/apply` next door had
+breadcrumbs, a description and a proper empty state. Somebody learning the
+platform had to re-read each screen instead of recognising it. 27 pages now
+carry `PageHeader` and 33 use `Section`; the trackside screens — gate, timing,
+broadcast, the scanner, the label sheet — are deliberately exempt, because
+they are used standing up by somebody whose whole job for four hours is that
+one screen, and the console furniture is screen they do not have.
+`tests/page-furniture.test.ts` guards it, with the exemptions listed and a
+check that none of them is stale.
+
+Alongside it, four things that were missing rather than inconsistent:
+
+- **Feedback.** Every mutation showed a busy state and then stopped, and 38 of
+  164 never rendered their error either. Failures now surface globally so none
+  can be silent, and 37 mutations carry a confirmation in their own words.
+  Errors never dismiss themselves — one that vanishes before it is read leaves
+  somebody knowing only that something failed.
+- **Loading and failure.** 56 bare "Loading…" strings became shaped skeletons,
+  which keeps the page still instead of shoving content down when data lands.
+  There were no `loading.tsx`, `error.tsx` or `not-found.tsx` files anywhere;
+  an unhandled throw rendered a blank page with no way back. A failed *query*
+  used to render an empty list, which is a silent lie — "there is nothing
+  here" when in fact nobody could tell.
+- **Forms.** Three `<form>` elements against 278 click handlers meant Enter did
+  nothing anywhere, and on a phone the keyboard's Go key did nothing either.
+  Single-purpose forms are now real forms; panels of independent row controls
+  are deliberately left alone, since wrapping those would make the first button
+  the default action for Enter.
+- **Desktop navigation.** Six account destinations were reachable only through
+  the `lg:hidden` mobile menu, so on a laptop there was no path to Messages, My
+  organizations, My passes, My postings, Apply or the sponsor console at all.
+  The nav test had passed throughout, because it asked whether a route was
+  *listed*, not whether anything rendered it at every width.
+
 **Parts get labels, and labels get scanned (done):** the garage stock ledger
 now prints QR labels and takes them back in through the camera. A crew loading
 a trailer sets the direction once — *taking out* or *putting back* — and then

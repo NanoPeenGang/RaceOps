@@ -6,6 +6,7 @@ import { serverApi } from "@/server/trpc/server-caller";
 import { logTime } from "@/lib/officials-log";
 import { eventVenueLabel } from "@/lib/tracks";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page";
 
 /**
  * The end-of-meeting bulletin: race control's published log, in order.
@@ -64,7 +65,7 @@ export default async function BulletinPage({
         >
           ← {event.name}
         </Link>
-        <h1 className="text-3xl font-bold">Official bulletin</h1>
+        <PageHeader title="Official bulletin" />
         <p className="text-sm text-brand-black/60">
           {[
             event.series?.name,

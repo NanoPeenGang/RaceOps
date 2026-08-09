@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page";
 
 const TYPE_LABELS: Record<OpportunityType, string> = {
   SEAT: "Race seat",
@@ -23,21 +24,25 @@ export default function OpportunitiesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold">Opportunities</h1>
-        <div className="flex gap-2">
-          <Link href="/opportunities/mine">
-            <Button variant="outline" size="sm">
-              My postings
-            </Button>
-          </Link>
-          <Link href="/opportunities/new">
-            <Button variant="primary" size="sm">
-              Post
-            </Button>
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Opportunities"
+        actions={
+          <>
+            <div className="flex gap-2">
+              <Link href="/opportunities/mine">
+                <Button variant="outline" size="sm">
+                  My postings
+                </Button>
+              </Link>
+              <Link href="/opportunities/new">
+                <Button variant="primary" size="sm">
+                  Post
+                </Button>
+              </Link>
+            </div>
+          </>
+        }
+      />
       <div className="flex flex-wrap gap-2">
         <FilterChip active={type === ""} onClick={() => setType("")}>
           All

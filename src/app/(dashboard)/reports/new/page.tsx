@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page";
 import { Form } from "@/components/ui/form";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -37,15 +37,14 @@ export default function NewReportPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href="/reports"
-          className="text-sm text-brand-red hover:underline"
-        >
-          ← Race reports
-        </Link>
-        <h1 className="mt-1 text-3xl font-bold">Write a report</h1>
-      </div>
+      <PageHeader
+        breadcrumbs={[
+          { label: "Race reports", href: "/reports" },
+          { label: "New" },
+        ]}
+        title="Write a report"
+        description="How the weekend went, for the people who were not there."
+      />
 
       <Card className="max-w-3xl">
         <CardContent className="space-y-4 p-5">

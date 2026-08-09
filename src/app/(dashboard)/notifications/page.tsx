@@ -5,6 +5,7 @@ import { api } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page";
 
 export default function NotificationsPage() {
   const utils = api.useUtils();
@@ -19,7 +20,7 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Notifications</h1>
+        <PageHeader title="Notifications" />
         <Button
           variant="outline"
           size="sm"

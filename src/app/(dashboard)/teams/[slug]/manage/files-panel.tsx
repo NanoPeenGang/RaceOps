@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Section } from "@/components/ui/page";
 
 /**
  * Telemetry, setups and the rest of the crew's file library.
@@ -48,26 +49,23 @@ export function FilesPanel({ teamId }: { teamId: string }) {
   const groups = groupByKind(files);
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-xl font-semibold">Telemetry &amp; setups</h2>
-          <p className="text-sm text-brand-black/60">
-            Data and setup sheets, filed against the car and the circuit they
-            came from.
-          </p>
-        </div>
-        {canWrite && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setAdding((open) => !open)}
-          >
-            {adding ? "Cancel" : "Add a file"}
-          </Button>
-        )}
-      </div>
-
+    <Section
+      title="Telemetry &amp; setups"
+      description="Data and setup sheets, filed against the car and the circuit they came from."
+      actions={
+        <>
+          {canWrite && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAdding((open) => !open)}
+            >
+              {adding ? "Cancel" : "Add a file"}
+            </Button>
+          )}
+        </>
+      }
+    >
       <div className="flex flex-wrap gap-2">
         <select
           className="rounded-md border border-brand-black/20 px-3 py-1.5 text-sm"
@@ -142,7 +140,7 @@ export function FilesPanel({ teamId }: { teamId: string }) {
           ))}
         </div>
       ))}
-    </section>
+    </Section>
   );
 }
 

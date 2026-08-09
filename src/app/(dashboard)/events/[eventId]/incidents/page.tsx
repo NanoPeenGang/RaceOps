@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page";
 
 /**
  * The stewards' queue: reports in, decisions out.
@@ -62,19 +63,21 @@ export default function IncidentsPage({
         >
           ← {event.data?.name ?? "Event"}
         </Link>
-        <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-bold">Incidents</h1>
-            <p className="mt-1 text-sm text-brand-black/60">
-              {isOfficial
-                ? `${summary.open} open · ${summary.investigating} under investigation · ${summary.protests} protest${summary.protests === 1 ? "" : "s"} · ${summary.closed} closed`
-                : "Decided reports are published here; open investigations are not."}
-            </p>
-          </div>
-          <Button variant="primary" onClick={() => setShowForm((v) => !v)}>
-            {showForm ? "Cancel" : "Report an incident"}
-          </Button>
-        </div>
+        <PageHeader
+          title="Incidents"
+          description={
+            isOfficial
+              ? `${summary.open} open · ${summary.investigating} under investigation · ${summary.protests} protest${summary.protests === 1 ? "" : "s"} · ${summary.closed} closed`
+              : "Decided reports are published here; open investigations are not."
+          }
+          actions={
+            <>
+              <Button variant="primary" onClick={() => setShowForm((v) => !v)}>
+                {showForm ? "Cancel" : "Report an incident"}
+              </Button>
+            </>
+          }
+        />
       </div>
 
       {showForm && (

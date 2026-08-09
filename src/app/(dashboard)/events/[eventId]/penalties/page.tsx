@@ -1,7 +1,6 @@
 "use client";
 
 import { use, useState } from "react";
-import Link from "next/link";
 import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/lib/trpc/client";
 import type { AppRouter } from "@/server/trpc/root";
@@ -13,6 +12,7 @@ import {
 } from "@/lib/penalties";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MediaPanel } from "@/components/media-panel";
 import { ListSkeleton } from "@/components/ui/skeleton";
@@ -33,19 +33,14 @@ export default function EventPenaltiesPage({
 
   return (
     <div className="space-y-8">
-      <div>
-        <Link
-          href={`/events/${eventId}`}
-          className="text-sm text-brand-red hover:underline"
-        >
-          ← {event.data?.name ?? "Event"}
-        </Link>
-        <h1 className="mt-1 text-3xl font-bold">Penalties & appeals</h1>
-        <p className="mt-1 text-sm text-brand-black/60">
-          Every decision issued by race control for this event is on the public
-          record.
-        </p>
-      </div>
+      <PageHeader
+        breadcrumbs={[
+          { label: event.data?.name ?? "Event", href: `/events/${eventId}` },
+          { label: "Penalties" },
+        ]}
+        title="Penalties &amp; appeals"
+        description="Every decision issued by race control for this event is on the public record."
+      />
 
       {penalties.isLoading && <ListSkeleton />}
       {penalties.data?.length === 0 && (

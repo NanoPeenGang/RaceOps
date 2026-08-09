@@ -4,7 +4,11 @@ import type { Metadata } from "next";
 import { TRPCError } from "@trpc/server";
 import { serverApi } from "@/server/trpc/server-caller";
 import { EVENT_STATUS_LABELS } from "@/lib/events";
-import { SESSION_TYPE_LABELS, groupSessionsByDay, scheduleSpan } from "@/lib/schedule";
+import {
+  SESSION_TYPE_LABELS,
+  groupSessionsByDay,
+  scheduleSpan,
+} from "@/lib/schedule";
 import { SESSION_STATUS_LABELS } from "@/lib/timing";
 import { eventVenueLabel } from "@/lib/tracks";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +25,7 @@ import { EventVenue } from "@/components/event-venue";
 import { brandingForEvent } from "@/server/services/branding";
 import { db } from "@/server/db/client";
 import { EntryPanels } from "./entry-panels";
+import { Section } from "@/components/ui/page";
 
 /**
  * Public landing page for a single event — the link that goes out to entrants.
@@ -119,7 +124,9 @@ export default async function EventLandingPage({
           .join(" · ")}
         actions={
           <>
-            <Badge variant={event.status === "PUBLISHED" ? "verified" : "default"}>
+            <Badge
+              variant={event.status === "PUBLISHED" ? "verified" : "default"}
+            >
               {EVENT_STATUS_LABELS[event.status]}
             </Badge>
             <Link href={`/events/${eventId}/timing`}>
@@ -161,7 +168,10 @@ export default async function EventLandingPage({
         )}
 
         <div className="flex flex-wrap gap-6 text-sm">
-          <Stat label="Confirmed entries" value={String(event.confirmedCount)} />
+          <Stat
+            label="Confirmed entries"
+            value={String(event.confirmedCount)}
+          />
           {event.entryCapacity !== null && (
             <Stat label="Entry capacity" value={String(event.entryCapacity)} />
           )}
@@ -175,8 +185,7 @@ export default async function EventLandingPage({
       {event.trackLayout && <EventVenue layout={event.trackLayout} />}
 
       {days.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">Running order</h2>
+        <Section title="Running order">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {days.map((day) => (
               <Card key={day.dayKey}>
@@ -220,7 +229,7 @@ export default async function EventLandingPage({
               </Card>
             ))}
           </div>
-        </section>
+        </Section>
       )}
 
       <EntryList eventId={eventId} />
@@ -261,8 +270,7 @@ async function EntryList({ eventId }: { eventId: string }) {
   if (entries.length === 0) return null;
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xl font-semibold">Entry list</h2>
+    <Section title="Entry list">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="border-b border-brand-black/10 text-left text-xs uppercase tracking-wide text-brand-black/60">
@@ -312,7 +320,7 @@ async function EntryList({ eventId }: { eventId: string }) {
           </tbody>
         </table>
       </div>
-    </section>
+    </Section>
   );
 }
 

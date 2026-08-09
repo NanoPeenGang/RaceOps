@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { PrintButton } from "@/components/print-button";
 import { OverlayLinks } from "./overlay-links";
+import { PageHeader, Section } from "@/components/ui/page";
 
 /**
  * Everything a broadcast needs: the commentator pack and the overlay feeds.
@@ -63,7 +64,7 @@ export default async function BroadcastPage({
         </Link>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold">Broadcast pack</h1>
+            <PageHeader title="Broadcast pack" />
             <p className="text-sm text-brand-black/60">
               {[
                 pack.series?.name,
@@ -80,8 +81,7 @@ export default async function BroadcastPage({
       </header>
 
       {pack.talkingPoints.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-xl font-semibold">Talking points</h2>
+        <Section title="Talking points">
           <Card>
             <CardContent className="space-y-1 p-4 text-sm">
               {pack.talkingPoints.map((point) => (
@@ -89,7 +89,7 @@ export default async function BroadcastPage({
               ))}
             </CardContent>
           </Card>
-        </section>
+        </Section>
       )}
 
       <section className="space-y-2">
@@ -151,8 +151,12 @@ export default async function BroadcastPage({
                   <td className="py-1 text-xs text-brand-black/70">
                     {[
                       `${entry.starts} start${entry.starts === 1 ? "" : "s"}`,
-                      entry.wins > 0 ? `${entry.wins} win${entry.wins === 1 ? "" : "s"}` : null,
-                      entry.podiums > 0 ? `${entry.podiums} podium${entry.podiums === 1 ? "" : "s"}` : null,
+                      entry.wins > 0
+                        ? `${entry.wins} win${entry.wins === 1 ? "" : "s"}`
+                        : null,
+                      entry.podiums > 0
+                        ? `${entry.podiums} podium${entry.podiums === 1 ? "" : "s"}`
+                        : null,
                       entry.penaltyCount > 0
                         ? `${entry.penaltyCount} penalt${entry.penaltyCount === 1 ? "y" : "ies"}`
                         : null,
@@ -177,8 +181,8 @@ export default async function BroadcastPage({
           <h2 className="text-xl font-semibold">Overlay feeds</h2>
           <p className="text-sm text-brand-black/60">
             Point an OBS browser source at one of these. Every value is
-            pre-formatted, so the overlay renders strings rather than doing
-            time arithmetic.
+            pre-formatted, so the overlay renders strings rather than doing time
+            arithmetic.
           </p>
         </div>
         {sessions.length === 0 ? (

@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { Section } from "@/components/ui/page";
 
 /**
  * Team payroll.
@@ -52,10 +53,9 @@ export function PayrollPanel({ teamId }: { teamId: string }) {
 
   if (runs.error) {
     return (
-      <section className="space-y-2">
-        <h2 className="text-xl font-semibold">Payroll</h2>
+      <Section title="Payroll">
         <p className="text-sm text-brand-black/60">{runs.error.message}</p>
-      </section>
+      </Section>
     );
   }
 

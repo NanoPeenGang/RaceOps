@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { EmptyState, PageHeader } from "@/components/ui/page";
 
 /** Public feed of published race reports. */
 export default function ReportsPage() {
@@ -18,23 +19,29 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold">Race reports</h1>
-          <p className="mt-1 text-sm text-brand-black/60">
-            Post-race writeups from the paddock.
-          </p>
-        </div>
-        <Link href="/reports/new">
-          <Button variant="primary">Write a report</Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Race reports"
+        description="Post-race writeups from the paddock."
+        actions={
+          <>
+            <Link href="/reports/new">
+              <Button variant="primary">Write a report</Button>
+            </Link>
+          </>
+        }
+      />
 
       {feed.isLoading && <ListSkeleton />}
       {!feed.isLoading && reports.length === 0 && (
-        <p className="text-brand-black/60">
-          No reports published yet — be the first to write one up.
-        </p>
+        <EmptyState
+          title="Nothing written up yet"
+          description="Race reports are how a weekend gets remembered by people who were not there."
+          action={
+            <Link href="/reports/new">
+              <Button variant="primary">Write the first one</Button>
+            </Link>
+          }
+        />
       )}
 
       <div className="space-y-3">

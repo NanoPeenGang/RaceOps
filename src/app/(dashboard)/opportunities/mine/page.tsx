@@ -9,18 +9,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page";
 
 export default function MyPostingsPage() {
   const postings = api.opportunity.myPostings.useQuery();
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold">My postings</h1>
-        <Link href="/opportunities/new">
-          <Button variant="primary">Post an opportunity</Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="My postings"
+        actions={
+          <>
+            <Link href="/opportunities/new">
+              <Button variant="primary">Post an opportunity</Button>
+            </Link>
+          </>
+        }
+      />
       {postings.isLoading && <ListSkeleton />}
       {postings.data?.length === 0 && (
         <p className="text-brand-black/60">

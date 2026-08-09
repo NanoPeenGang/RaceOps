@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { Section } from "@/components/ui/page";
 
 const STATE_LABELS: Record<EligibilityState, string> = {
   met: "Met",
@@ -55,10 +56,9 @@ export function EligibilityPanel({ eventId }: { eventId: string }) {
 
   if (rows.error) {
     return (
-      <section className="space-y-2">
-        <h2 className="text-xl font-semibold">Entry eligibility</h2>
+      <Section title="Entry eligibility">
         <p className="text-sm text-brand-black/60">{rows.error.message}</p>
-      </section>
+      </Section>
     );
   }
 
@@ -66,9 +66,7 @@ export function EligibilityPanel({ eventId }: { eventId: string }) {
   const withRequirements = data.filter((row) => row.findings.length > 0);
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xl font-semibold">Entry eligibility</h2>
-
+    <Section title="Entry eligibility">
       {rows.isLoading && <ListSkeleton />}
       {!rows.isLoading && withRequirements.length === 0 && (
         <p className="text-brand-black/60">
@@ -203,6 +201,6 @@ export function EligibilityPanel({ eventId }: { eventId: string }) {
           {decide.error?.message ?? clear.error?.message}
         </p>
       )}
-    </section>
+    </Section>
   );
 }

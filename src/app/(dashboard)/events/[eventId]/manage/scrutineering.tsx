@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Section } from "@/components/ui/page";
 
 /**
  * The scrutineering bay: every car's technical standing, with a card that can
@@ -51,10 +52,9 @@ export function ScrutineeringPanel({
 
   if (entries.error) {
     return (
-      <section className="space-y-2">
-        <h2 className="text-xl font-semibold">Scrutineering</h2>
+      <Section title="Scrutineering">
         <p className="text-sm text-brand-black/60">{entries.error.message}</p>
-      </section>
+      </Section>
     );
   }
 

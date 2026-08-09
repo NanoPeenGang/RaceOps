@@ -5,6 +5,7 @@ import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page";
 
 const TIERS: Array<{
   tier: SubscriptionTier;
@@ -62,18 +63,22 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold">Billing</h1>
-        {status.data?.subscriptions.length ? (
-          <Button
-            variant="outline"
-            disabled={portal.isPending}
-            onClick={() => portal.mutate()}
-          >
-            Manage subscription
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Billing"
+        actions={
+          <>
+            {status.data?.subscriptions.length ? (
+              <Button
+                variant="outline"
+                disabled={portal.isPending}
+                onClick={() => portal.mutate()}
+              >
+                Manage subscription
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
       {status.data && !status.data.stripeConfigured && (
         <p className="rounded-md border border-brand-red/30 bg-brand-red/5 p-3 text-sm">

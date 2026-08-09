@@ -34,6 +34,7 @@ import { TEAM_ROLE_LABELS } from "@/lib/teams";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Section } from "@/components/ui/page";
 
 /**
  * The applications inbox.
@@ -64,10 +65,9 @@ export function HiringPanel({ teamId }: { teamId: string }) {
 
   if (inbox.error) {
     return (
-      <section className="space-y-2">
-        <h2 className="text-xl font-semibold">Applications</h2>
+      <Section title="Applications">
         <p className="text-sm text-brand-black/60">{inbox.error.message}</p>
-      </section>
+      </Section>
     );
   }
   if (inbox.isLoading) {
@@ -81,22 +81,19 @@ export function HiringPanel({ teamId }: { teamId: string }) {
   ].find((application) => application.id === openId);
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h2 className="text-xl font-semibold">Applications</h2>
-          <p className="text-sm text-brand-black/60">
-            Everybody who has applied to any of your postings, and what they are
-            waiting on.
-          </p>
-        </div>
-        <Link href="/opportunities/new">
-          <Button size="sm" variant="outline">
-            Post a seat or job
-          </Button>
-        </Link>
-      </div>
-
+    <Section
+      title="Applications"
+      description="Everybody who has applied to any of your postings, and what they are waiting on."
+      actions={
+        <>
+          <Link href="/opportunities/new">
+            <Button size="sm" variant="outline">
+              Post a seat or job
+            </Button>
+          </Link>
+        </>
+      }
+    >
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
         <Stat label="New" value={data.counts.unread} tone="red" />
         <Stat label="Open" value={data.counts.open} />
@@ -174,7 +171,7 @@ export function HiringPanel({ teamId }: { teamId: string }) {
           )}
         </div>
       )}
-    </section>
+    </Section>
   );
 }
 

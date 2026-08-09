@@ -7,6 +7,7 @@ import { orderResultsByRecency, totalsAcrossSeries } from "@/lib/team-season";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { Section } from "@/components/ui/page";
 
 /**
  * Standings and results for every series the team races in.
@@ -36,20 +37,17 @@ export function ResultsPanel({ teamId }: { teamId: string }) {
 
   if (summaries.length === 0 && recent.length === 0) {
     return (
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Standings & results</h2>
+      <Section title="Standings & results">
         <p className="text-brand-black/60">
           Nothing classified yet. Confirmed entries appear here once an event is
           completed and its results are in.
         </p>
-      </section>
+      </Section>
     );
   }
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Standings & results</h2>
-
+    <Section title="Standings & results">
       <div className="flex flex-wrap gap-6 text-sm">
         <Stat label="Series" value={String(totals.seriesCount)} />
         <Stat label="Starts" value={String(totals.starts)} />
@@ -187,7 +185,7 @@ export function ResultsPanel({ teamId }: { teamId: string }) {
           </div>
         </div>
       )}
-    </section>
+    </Section>
   );
 }
 

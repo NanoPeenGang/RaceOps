@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { Section } from "@/components/ui/page";
 
 /**
  * Waivers for an event, and the signatures collected against them.
@@ -32,24 +33,21 @@ export function WaiversPanel({ eventId }: { eventId: string }) {
   };
 
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-xl font-semibold">Waivers</h2>
-          <p className="text-sm text-brand-black/60">
-            Signed by the participants themselves — an organizer cannot sign or
-            waive one. Required waivers block entry confirmation.
-          </p>
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setAdding((open) => !open)}
-        >
-          {adding ? "Cancel" : "Add waiver"}
-        </Button>
-      </div>
-
+    <Section
+      title="Waivers"
+      description="Signed by the participants themselves — an organizer cannot sign or waive one. Required waivers block entry confirmation."
+      actions={
+        <>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setAdding((open) => !open)}
+          >
+            {adding ? "Cancel" : "Add waiver"}
+          </Button>
+        </>
+      }
+    >
       {adding && (
         <WaiverForm
           eventId={eventId}
@@ -111,7 +109,7 @@ export function WaiversPanel({ eventId }: { eventId: string }) {
           </Card>
         ))}
       </div>
-    </section>
+    </Section>
   );
 }
 

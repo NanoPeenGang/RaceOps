@@ -24,6 +24,7 @@ import {
 } from "@/lib/inventory";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Section } from "@/components/ui/page";
 
 /**
  * Parts stock.
@@ -63,41 +64,39 @@ export function InventoryPanel({
   const value = stockValue(items);
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-xl font-semibold">Parts &amp; stock</h2>
-          <p className="text-sm text-brand-black/60">
-            What is on the shelf, and who took the last one.
-          </p>
-        </div>
-        {canWrite && (
-          <div className="flex flex-wrap gap-2">
-            {/* First, and as a filled button: scanning is the fast path, and
+    <Section
+      title="Parts &amp; stock"
+      description="What is on the shelf, and who took the last one."
+      actions={
+        <>
+          {canWrite && (
+            <div className="flex flex-wrap gap-2">
+              {/* First, and as a filled button: scanning is the fast path, and
                 the keypad below is what you fall back to when the phone is
                 flat. Burying it behind the console's tabs would make the
                 labels ornamental. */}
-            <Link href={`/teams/${teamSlug}/scan`}>
-              <Button size="sm" variant="primary">
-                Scan parts
+              <Link href={`/teams/${teamSlug}/scan`}>
+                <Button size="sm" variant="primary">
+                  Scan parts
+                </Button>
+              </Link>
+              <Link href={`/teams/${teamSlug}/labels`}>
+                <Button size="sm" variant="outline">
+                  Print labels
+                </Button>
+              </Link>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAdding((open) => !open)}
+              >
+                {adding ? "Cancel" : "Add a part"}
               </Button>
-            </Link>
-            <Link href={`/teams/${teamSlug}/labels`}>
-              <Button size="sm" variant="outline">
-                Print labels
-              </Button>
-            </Link>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setAdding((open) => !open)}
-            >
-              {adding ? "Cancel" : "Add a part"}
-            </Button>
-          </div>
-        )}
-      </div>
-
+            </div>
+          )}
+        </>
+      }
+    >
       {adding && (
         <ItemForm
           teamId={teamId}
@@ -167,7 +166,7 @@ export function InventoryPanel({
             ` — ${value.unpriced} line${value.unpriced === 1 ? "" : "s"} with no unit cost, not counted.`}
         </p>
       )}
-    </section>
+    </Section>
   );
 }
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { MediaPanel } from "@/components/media-panel";
 import { PageSkeleton } from "@/components/ui/skeleton";
@@ -45,10 +46,10 @@ export default function ReportPage({
         >
           ← Race reports
         </Link>
-        <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
-          <h1 className="text-3xl font-bold">{data.title}</h1>
-          {!data.published && <Badge>Draft</Badge>}
-        </div>
+        <PageHeader
+          title={data.title}
+          status={!data.published ? <Badge>Draft</Badge> : undefined}
+        />
         <p className="mt-1 text-sm text-brand-black/60">
           {data.author.profile?.displayName ?? "Unnamed"} ·{" "}
           {new Date(data.createdAt).toLocaleDateString()}

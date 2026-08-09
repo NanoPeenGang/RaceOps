@@ -21,6 +21,7 @@ import { BrandHeader, BrandTheme } from "@/components/brand-theme";
 import { brandingForSeries } from "@/server/services/branding";
 import { db } from "@/server/db/client";
 import { StandingsPreview } from "./standings-preview";
+import { Section } from "@/components/ui/page";
 
 /**
  * Public landing page for a championship — the link an organizer shares.
@@ -148,7 +149,10 @@ export default async function SeriesLandingPage({
                   rel="noreferrer noopener"
                   className="inline-block text-sm text-brand-red hover:underline"
                 >
-                  {series.sourceUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")} ↗
+                  {series.sourceUrl
+                    .replace(/^https?:\/\//, "")
+                    .replace(/\/$/, "")}{" "}
+                  ↗
                 </a>
               )}
             </CardContent>
@@ -194,12 +198,13 @@ export default async function SeriesLandingPage({
 
       <StandingsPreview seriesId={series.id} slug={slug} />
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Calendar</h2>
+      <Section title="Calendar">
         {published.length === 0 ? (
           <p className="text-brand-black/60">
             No rounds published yet.
-            {canManage ? " Add and publish events from the series console." : ""}
+            {canManage
+              ? " Add and publish events from the series console."
+              : ""}
           </p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -251,7 +256,7 @@ export default async function SeriesLandingPage({
             ))}
           </div>
         )}
-      </section>
+      </Section>
 
       {ruleGroups.length > 0 && (
         <section className="space-y-4">
@@ -330,8 +335,7 @@ export default async function SeriesLandingPage({
       {/* A reference series has none by design; an empty heading reads as a
           missing list rather than an intentionally absent one. */}
       {series.organizers.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">Organizers</h2>
+        <Section title="Organizers">
           <div className="flex flex-wrap gap-2">
             {series.organizers.map((organizer) => (
               <Badge key={organizer.id}>
@@ -340,7 +344,7 @@ export default async function SeriesLandingPage({
               </Badge>
             ))}
           </div>
-        </section>
+        </Section>
       )}
     </BrandTheme>
   );

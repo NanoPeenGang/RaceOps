@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { LineupPanel } from "@/components/lineup-panel";
 import { PitStopPlanner } from "@/components/pit-stop-planner";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { Section } from "@/components/ui/page";
 
 /**
  * Race control's view of endurance line-ups: the drive-time regulations for the
@@ -23,9 +24,7 @@ export function LineupsPanel({ eventId }: { eventId: string }) {
   const [openEntry, setOpenEntry] = useState<string | null>(null);
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Line-ups & drive time</h2>
-
+    <Section title="Line-ups & drive time">
       <DriveTimeRulesForm eventId={eventId} />
 
       {compliance.isLoading && <ListSkeleton />}
@@ -103,7 +102,7 @@ export function LineupsPanel({ eventId }: { eventId: string }) {
           </Card>
         ))}
       </div>
-    </section>
+    </Section>
   );
 }
 

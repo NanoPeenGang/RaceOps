@@ -18,6 +18,7 @@ import { MessageButton } from "@/components/message-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RoleGroup } from "@/lib/roles";
+import { PageHeader } from "@/components/ui/page";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
@@ -53,7 +54,7 @@ export default function SearchPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Discover people</h1>
+      <PageHeader title="Discover people" />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <SearchInput

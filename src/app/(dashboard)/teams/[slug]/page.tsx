@@ -16,6 +16,7 @@ import { brandingForTeam } from "@/server/services/branding";
 import { db } from "@/server/db/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MediaPanel } from "@/components/media-panel";
+import { Section } from "@/components/ui/page";
 
 /**
  * Public team landing page: who they are, who drives, and what they have done.
@@ -104,7 +105,11 @@ export default async function TeamLandingPage({
         actions={
           <>
             {team.websiteUrl && (
-              <a href={team.websiteUrl} target="_blank" rel="noopener noreferrer">
+              <a
+                href={team.websiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <Button variant="outline">Website</Button>
               </a>
             )}
@@ -137,8 +142,7 @@ export default async function TeamLandingPage({
       </div>
 
       {season.summaries.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">Championships</h2>
+        <Section title="Championships">
           <div className="grid gap-3 sm:grid-cols-2">
             {season.summaries.map((summary) => (
               <Card key={summary.seriesId}>
@@ -152,7 +156,9 @@ export default async function TeamLandingPage({
                         {summary.seriesName}
                       </Link>
                     </CardTitle>
-                    <Badge variant={summary.position === 1 ? "verified" : "default"}>
+                    <Badge
+                      variant={summary.position === 1 ? "verified" : "default"}
+                    >
                       {summary.position === null
                         ? "Unclassified"
                         : `P${summary.position} of ${summary.fieldSize}`}
@@ -180,11 +186,10 @@ export default async function TeamLandingPage({
               </Card>
             ))}
           </div>
-        </section>
+        </Section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Line-up</h2>
+      <Section title="Line-up">
         {roster.drivers.length > 0 && (
           <RosterGroup title="Drivers" members={roster.drivers} />
         )}
@@ -194,11 +199,10 @@ export default async function TeamLandingPage({
         {roster.active.length === 0 && (
           <p className="text-brand-black/60">No current members listed.</p>
         )}
-      </section>
+      </Section>
 
       {recent.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">Recent results</h2>
+        <Section title="Recent results">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-brand-black/10 text-left text-xs uppercase tracking-wide text-brand-black/60">
@@ -240,7 +244,9 @@ export default async function TeamLandingPage({
                     </td>
                     <td className="py-2">
                       {result.status === null ? (
-                        <span className="text-brand-black/50">Not classified</span>
+                        <span className="text-brand-black/50">
+                          Not classified
+                        </span>
                       ) : (
                         <span className="font-medium">
                           {result.finishPosition !== null
@@ -258,14 +264,16 @@ export default async function TeamLandingPage({
               </tbody>
             </table>
           </div>
-        </section>
+        </Section>
       )}
 
       <MediaPanel
         scope={{ teamId: team.id }}
         title="Media"
         description="Team imagery and race coverage."
-        canManage={membership?.myRole === "OWNER" || membership?.myRole === "MANAGER"}
+        canManage={
+          membership?.myRole === "OWNER" || membership?.myRole === "MANAGER"
+        }
       />
     </BrandTheme>
   );
@@ -273,7 +281,10 @@ export default async function TeamLandingPage({
 
 type TeamBySlug = inferRouterOutputs<AppRouter>["team"]["bySlug"];
 /** Roster entries as the router returns them, with dates already revived. */
-type RosterEntry = Omit<TeamBySlug["roster"][number], "startDate" | "endDate"> & {
+type RosterEntry = Omit<
+  TeamBySlug["roster"][number],
+  "startDate" | "endDate"
+> & {
   startDate: Date;
   endDate: Date | null;
 };
@@ -292,7 +303,9 @@ function RosterGroup({
       </h3>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {members.map((member) => {
-          const tags = member.user.profile ? roleTagsOf(member.user.profile) : [];
+          const tags = member.user.profile
+            ? roleTagsOf(member.user.profile)
+            : [];
           return (
             <Card key={member.id}>
               <CardContent className="space-y-1.5 p-4">

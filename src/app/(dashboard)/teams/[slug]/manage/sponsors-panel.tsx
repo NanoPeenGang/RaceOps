@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { TeamDashboard, TeamSponsorships } from "./types";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { Section } from "@/components/ui/page";
 
 /**
  * Sponsorship offers and active deals.
@@ -46,12 +47,11 @@ export function SponsorsPanel({ team }: { team: TeamDashboard }) {
   }
   if (sponsorships.error) {
     return (
-      <section className="space-y-2">
-        <h2 className="text-xl font-semibold">Sponsorship</h2>
+      <Section title="Sponsorship">
         <p className="text-sm text-brand-black/60">
           {sponsorships.error.message}
         </p>
-      </section>
+      </Section>
     );
   }
 

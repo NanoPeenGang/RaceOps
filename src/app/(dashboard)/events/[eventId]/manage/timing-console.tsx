@@ -29,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { Section } from "@/components/ui/page";
 
 /**
  * Race-control console: pick a session, run the flags, and push timing rows.
@@ -47,9 +48,7 @@ export function TimingConsole({ eventId }: { eventId: string }) {
     sessions.data?.[0];
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xl font-semibold">Live timing control</h2>
-
+    <Section title="Live timing control">
       {sessions.isLoading && <ListSkeleton />}
       {sessions.data?.length === 0 && (
         <p className="text-brand-black/60">
@@ -73,7 +72,7 @@ export function TimingConsole({ eventId }: { eventId: string }) {
       )}
 
       {active && <SessionConsole key={active.id} sessionId={active.id} />}
-    </section>
+    </Section>
   );
 }
 

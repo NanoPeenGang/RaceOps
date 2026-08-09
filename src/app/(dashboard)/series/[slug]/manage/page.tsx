@@ -20,6 +20,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { SeriesStaffPanel } from "./staff-panel";
 import { useRouter } from "next/navigation";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { Section } from "@/components/ui/page";
 
 export default function SeriesDashboardPage({
   params,
@@ -145,8 +146,7 @@ export default function SeriesDashboardPage({
             badge: data.events.length || undefined,
             content: (
               <div className="space-y-8">
-                <section className="space-y-3">
-                  <h2 className="text-xl font-semibold">Calendar</h2>
+                <Section title="Calendar">
                   {data.events.length === 0 && (
                     <p className="text-brand-black/60">
                       No events scheduled yet.
@@ -225,7 +225,7 @@ export default function SeriesDashboardPage({
                       </Card>
                     ))}
                   </div>
-                </section>
+                </Section>
               </div>
             ),
           },

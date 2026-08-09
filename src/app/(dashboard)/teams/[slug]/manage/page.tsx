@@ -25,6 +25,7 @@ import { BrandingEditor } from "@/components/branding-editor";
 import { Tabs, type TabDefinition } from "@/components/ui/tabs";
 import { attentionItems, tabBadge, type TeamAttention } from "@/lib/attention";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page";
 
 /**
  * Team console — one page to run a race team: who is on the books, what races
@@ -183,20 +184,20 @@ export default function TeamManagePage({
         >
           ← {data.name}
         </Link>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-bold">Team console</h1>
-            <p className="mt-1 text-sm text-brand-black/60">
-              {[
-                data.homeBase,
-                `${data.roster.filter((m) => m.endDate === null).length} on the books`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          </div>
-          <Badge variant="verified">{TEAM_ROLE_LABELS[data.myRole]}</Badge>
-        </div>
+        <PageHeader
+          title="Team console"
+          description={[
+            data.homeBase,
+            `${data.roster.filter((m) => m.endDate === null).length} on the books`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          actions={
+            <>
+              <Badge variant="verified">{TEAM_ROLE_LABELS[data.myRole]}</Badge>
+            </>
+          }
+        />
       </header>
 
       {/* Above the tabs on purpose: the whole point is that it is seen without

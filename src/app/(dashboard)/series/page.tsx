@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
+import { EmptyState, PageHeader, Section } from "@/components/ui/page";
 
 export default function SeriesPage() {
   const utils = api.useUtils();
@@ -18,18 +19,17 @@ export default function SeriesPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold">Series</h1>
-          <p className="mt-1 text-sm text-brand-black/60">
-            Run a championship: schedule events, take entries, and staff
-            volunteers from one place.
-          </p>
-        </div>
-        <Button variant="primary" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? "Cancel" : "Create a series"}
-        </Button>
-      </div>
+      <PageHeader
+        title="Series"
+        description="Run a championship: schedule events, take entries, and staff volunteers from one place."
+        actions={
+          <>
+            <Button variant="primary" onClick={() => setShowForm((v) => !v)}>
+              {showForm ? "Cancel" : "Create a series"}
+            </Button>
+          </>
+        }
+      />
 
       {showForm && (
         <CreateSeriesForm
@@ -42,8 +42,7 @@ export default function SeriesPage() {
       )}
 
       {mine.data && mine.data.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">Series you organize</h2>
+        <Section title="Series you organize">
           <div className="grid gap-4 md:grid-cols-2">
             {mine.data.map((series) => (
               // Organizers land in the console; the public page is one click on.
@@ -68,16 +67,16 @@ export default function SeriesPage() {
               </Link>
             ))}
           </div>
-        </section>
+        </Section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">All series</h2>
+      <Section title="All series">
         {all.isLoading && <ListSkeleton />}
         {all.data?.items.length === 0 && (
-          <p className="text-brand-black/60">
-            No series yet — create the first one.
-          </p>
+          <EmptyState
+            title="No championships yet"
+            description="A series carries a calendar, entries and standings. Create one and it appears in this directory."
+          />
         )}
         <div className="grid gap-4 md:grid-cols-2">
           {all.data?.items.map((series) => (
@@ -115,7 +114,7 @@ export default function SeriesPage() {
             </Link>
           ))}
         </div>
-      </section>
+      </Section>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { api } from "@/lib/trpc/client";
 import type { StandingsBasis } from "@/lib/standings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page";
 import { Card, CardContent } from "@/components/ui/card";
 import { ListSkeleton, PageSkeleton } from "@/components/ui/skeleton";
 
@@ -69,27 +70,27 @@ export default function StandingsPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href={`/series/${slug}`}
-          className="text-sm text-brand-red hover:underline"
-        >
-          ← {series.data!.name}
-        </Link>
-        <h1 className="mt-1 text-3xl font-bold">Championship standings</h1>
-        <p className="mt-1 text-sm text-brand-black/60">
-          Points from completed rounds, less any deductions from penalties that
-          still stand.
-          {config?.countBestRounds
-            ? ` Best ${config.countBestRounds} rounds count${
-                data ? ` of ${data.roundsScored} scored so far` : ""
-              }.`
-            : ""}
-          {config?.minStartsForTitle
-            ? ` ${config.minStartsForTitle} starts are needed for title eligibility.`
-            : ""}
-        </p>
-      </div>
+      <PageHeader
+        breadcrumbs={[
+          { label: series.data!.name, href: `/series/${slug}` },
+          { label: "Standings" },
+        ]}
+        title="Championship standings"
+        description={
+          <>
+            Points from completed rounds, less any deductions from penalties
+            that still stand.
+            {config?.countBestRounds
+              ? ` Best ${config.countBestRounds} rounds count${
+                  data ? ` of ${data.roundsScored} scored so far` : ""
+                }.`
+              : ""}
+            {config?.minStartsForTitle
+              ? ` ${config.minStartsForTitle} starts are needed for title eligibility.`
+              : ""}
+          </>
+        }
+      />
 
       {classes.length > 0 && (
         <div className="space-y-2">

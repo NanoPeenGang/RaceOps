@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Section } from "@/components/ui/page";
 
 export default function TeamsPage() {
   const utils = api.useUtils();
@@ -32,11 +33,10 @@ export default function TeamsPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold">Teams</h1>
+      <PageHeader title="Teams" />
 
       {myTeams.data && myTeams.data.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">My teams</h2>
+        <Section title="My teams">
           <div className="grid gap-4 md:grid-cols-2">
             {myTeams.data.map((team) => (
               <Card key={team.id}>
@@ -63,7 +63,7 @@ export default function TeamsPage() {
               </Card>
             ))}
           </div>
-        </section>
+        </Section>
       )}
 
       <Card className="max-w-xl">
