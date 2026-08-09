@@ -6,6 +6,7 @@ import { SeriesDiscipline } from "@prisma/client";
 import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Form } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
 
@@ -139,69 +140,9 @@ function CreateSeriesForm({ onCreated }: { onCreated: () => void }) {
         <CardTitle>New series</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <label className="block text-sm font-medium">
-          Series name
-          <input
-            className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Apex Endurance Championship"
-          />
-        </label>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <label className="block text-sm font-medium">
-            Discipline
-            <select
-              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-              value={discipline}
-              onChange={(e) =>
-                setDiscipline(e.target.value as SeriesDiscipline)
-              }
-            >
-              <option value={SeriesDiscipline.SIM}>Sim racing</option>
-              <option value={SeriesDiscipline.REAL_WORLD}>Real world</option>
-            </select>
-          </label>
-          <label className="block text-sm font-medium">
-            Platform / sanctioning body
-            <input
-              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-              value={platform}
-              onChange={(e) => setPlatform(e.target.value)}
-              placeholder="iRacing / SRO"
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            Season
-            <input
-              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-              value={season}
-              onChange={(e) => setSeason(e.target.value)}
-              placeholder="2026"
-            />
-          </label>
-        </div>
-        <label className="block text-sm font-medium">
-          Description
-          <textarea
-            className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-            rows={3}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Format, classes, eligibility…"
-          />
-        </label>
-        {create.error && (
-          <p className="text-sm text-brand-red">{create.error.message}</p>
-        )}
-        <Button
-          variant="primary"
-          disabled={
-            create.isPending ||
-            name.trim().length < 2 ||
-            platform.trim().length < 1
-          }
-          onClick={() =>
+        <Form
+          busy={create.isPending}
+          onSubmit={() =>
             create.mutate({
               name: name.trim(),
               discipline,
@@ -210,9 +151,75 @@ function CreateSeriesForm({ onCreated }: { onCreated: () => void }) {
               description: description.trim() || undefined,
             })
           }
+          className="space-y-3"
         >
-          {create.isPending ? "Creating…" : "Create series"}
-        </Button>
+          <label className="block text-sm font-medium">
+            Series name
+            <input
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Apex Endurance Championship"
+            />
+          </label>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <label className="block text-sm font-medium">
+              Discipline
+              <select
+                className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+                value={discipline}
+                onChange={(e) =>
+                  setDiscipline(e.target.value as SeriesDiscipline)
+                }
+              >
+                <option value={SeriesDiscipline.SIM}>Sim racing</option>
+                <option value={SeriesDiscipline.REAL_WORLD}>Real world</option>
+              </select>
+            </label>
+            <label className="block text-sm font-medium">
+              Platform / sanctioning body
+              <input
+                className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+                value={platform}
+                onChange={(e) => setPlatform(e.target.value)}
+                placeholder="iRacing / SRO"
+              />
+            </label>
+            <label className="block text-sm font-medium">
+              Season
+              <input
+                className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+                value={season}
+                onChange={(e) => setSeason(e.target.value)}
+                placeholder="2026"
+              />
+            </label>
+          </div>
+          <label className="block text-sm font-medium">
+            Description
+            <textarea
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Format, classes, eligibility…"
+            />
+          </label>
+          {create.error && (
+            <p className="text-sm text-brand-red">{create.error.message}</p>
+          )}
+          <Button
+            variant="primary"
+            disabled={
+              create.isPending ||
+              name.trim().length < 2 ||
+              platform.trim().length < 1
+            }
+            type="submit"
+          >
+            {create.isPending ? "Creating…" : "Create series"}
+          </Button>
+        </Form>
       </CardContent>
     </Card>
   );

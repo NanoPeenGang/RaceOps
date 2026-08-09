@@ -5,6 +5,7 @@ import { AnnouncementUrgency } from "@prisma/client";
 import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Form } from "@/components/ui/form";
 import { Card, CardContent } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
 
@@ -80,71 +81,9 @@ export function AnnouncementsPanel({
       {showForm && canManage && (
         <Card className="max-w-2xl">
           <CardContent className="space-y-4 p-5">
-            <label className="block text-sm font-medium">
-              Title
-              <input
-                className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-                value={noticeTitle}
-                onChange={(e) => setNoticeTitle(e.target.value)}
-                placeholder="Sunday warm-up moved to 09:15"
-              />
-            </label>
-            <label className="block text-sm font-medium">
-              Notice
-              <textarea
-                rows={4}
-                className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-              />
-            </label>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm font-medium">
-                Urgency
-                <select
-                  className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-                  value={urgency}
-                  onChange={(e) =>
-                    setUrgency(e.target.value as AnnouncementUrgency)
-                  }
-                >
-                  {Object.values(AnnouncementUrgency).map((u) => (
-                    <option key={u} value={u}>
-                      {URGENCY_LABELS[u]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="space-y-2 pt-6">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={pinned}
-                    onChange={(e) => setPinned(e.target.checked)}
-                  />
-                  Pin to the top
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={notify}
-                    onChange={(e) => setNotify(e.target.checked)}
-                  />
-                  Notify everyone entered
-                </label>
-              </div>
-            </div>
-            {post.error && (
-              <p className="text-sm text-brand-red">{post.error.message}</p>
-            )}
-            <Button
-              variant="primary"
-              disabled={
-                post.isPending ||
-                noticeTitle.trim().length < 2 ||
-                body.trim().length < 1
-              }
-              onClick={() =>
+            <Form
+              busy={post.isPending}
+              onSubmit={() =>
                 post.mutate({
                   scope,
                   title: noticeTitle.trim(),
@@ -154,9 +93,77 @@ export function AnnouncementsPanel({
                   notifyCompetitors: notify,
                 })
               }
+              className="space-y-3"
             >
-              {post.isPending ? "Posting…" : "Post notice"}
-            </Button>
+              <label className="block text-sm font-medium">
+                Title
+                <input
+                  className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+                  value={noticeTitle}
+                  onChange={(e) => setNoticeTitle(e.target.value)}
+                  placeholder="Sunday warm-up moved to 09:15"
+                />
+              </label>
+              <label className="block text-sm font-medium">
+                Notice
+                <textarea
+                  rows={4}
+                  className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                />
+              </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block text-sm font-medium">
+                  Urgency
+                  <select
+                    className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+                    value={urgency}
+                    onChange={(e) =>
+                      setUrgency(e.target.value as AnnouncementUrgency)
+                    }
+                  >
+                    {Object.values(AnnouncementUrgency).map((u) => (
+                      <option key={u} value={u}>
+                        {URGENCY_LABELS[u]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="space-y-2 pt-6">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={pinned}
+                      onChange={(e) => setPinned(e.target.checked)}
+                    />
+                    Pin to the top
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={notify}
+                      onChange={(e) => setNotify(e.target.checked)}
+                    />
+                    Notify everyone entered
+                  </label>
+                </div>
+              </div>
+              {post.error && (
+                <p className="text-sm text-brand-red">{post.error.message}</p>
+              )}
+              <Button
+                variant="primary"
+                disabled={
+                  post.isPending ||
+                  noticeTitle.trim().length < 2 ||
+                  body.trim().length < 1
+                }
+                type="submit"
+              >
+                {post.isPending ? "Posting…" : "Post notice"}
+              </Button>
+            </Form>
           </CardContent>
         </Card>
       )}

@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/trpc/client";
 import { relativeTime, sortInbox, threadTitle } from "@/lib/direct-messages";
 import { Button } from "@/components/ui/button";
+import { SearchInput } from "@/components/ui/form";
+import { useDebounced } from "@/lib/use-debounced";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/ui/page";
 import { DirectThread } from "@/components/direct-thread";
@@ -140,9 +142,12 @@ function Inbox() {
  */
 function NewMessage({ onOpened }: { onOpened: (threadId: string) => void }) {
   const [query, setQuery] = useState("");
+  // Debounced for the same reason the discover page is: typing a name fired a
+  // request per keystroke and flickered the list through every prefix of it.
+  const settled = useDebounced(query);
   const candidates = api.search.profiles.useQuery(
-    { query, limit: 8 },
-    { enabled: query.trim().length >= 2 },
+    { query: settled, limit: 8 },
+    { enabled: settled.trim().length >= 2 },
   );
   const open = api.message.openWith.useMutation({
     meta: { silenceError: true },
@@ -154,8 +159,8 @@ function NewMessage({ onOpened }: { onOpened: (threadId: string) => void }) {
       <CardContent className="space-y-3 p-5">
         <label className="block text-sm font-medium">
           Who do you want to message?
-          <input
-            className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+          <SearchInput
+            className="mt-1 w-full"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search by name"

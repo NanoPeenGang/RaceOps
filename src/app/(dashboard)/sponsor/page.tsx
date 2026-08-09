@@ -17,6 +17,7 @@ import { formatDealValue } from "@/lib/sponsorship";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Form, SearchInput } from "@/components/ui/form";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader, Section, Stat } from "@/components/ui/page";
 import { Tabs } from "@/components/ui/tabs";
@@ -311,23 +312,24 @@ function Discover() {
 
   return (
     <div className="space-y-4 pt-4">
-      <div className="flex flex-wrap gap-2">
-        <input
-          className="min-w-64 flex-1 rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+      {/* Was a hand-rolled onKeyDown Enter check, which is what a form does
+          for free — along with the mobile keyboard's Search key, a clear
+          button, and the browser's own list of previous searches. */}
+      <Form
+        busy={teams.isFetching}
+        onSubmit={() => setQuery(typed.trim() || undefined)}
+        className="flex flex-wrap gap-2"
+      >
+        <SearchInput
+          className="min-w-64 flex-1"
           value={typed}
           placeholder="Name, home base or what they race"
           onChange={(e) => setTyped(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") setQuery(typed.trim() || undefined);
-          }}
         />
-        <Button
-          variant="outline"
-          onClick={() => setQuery(typed.trim() || undefined)}
-        >
+        <Button type="submit" variant="outline">
           Search
         </Button>
-      </div>
+      </Form>
 
       {teams.isLoading && <ListSkeleton />}
 

@@ -21,6 +21,7 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Form } from "@/components/ui/form";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader, Section, Stat } from "@/components/ui/page";
 import { Tabs } from "@/components/ui/tabs";
@@ -368,22 +369,29 @@ function StaffPanel() {
           title="Appoint somebody"
           description="Search by their exact sign-in address — an exact match only, so this control cannot be used to browse the membership."
         >
-          <div className="flex flex-wrap gap-2">
+          <Form
+            busy={staff.isFetching}
+            onSubmit={() => setQuery(lookup.trim())}
+            className="flex flex-wrap gap-2"
+          >
             <input
               className="min-w-64 flex-1 rounded-md border border-brand-black/20 px-3 py-2 text-sm"
               value={lookup}
               type="email"
+              enterKeyHint="search"
+              autoCapitalize="off"
+              autoCorrect="off"
               placeholder="them@example.com"
               onChange={(e) => setLookup(e.target.value)}
             />
             <Button
+              type="submit"
               variant="outline"
               disabled={lookup.trim().length < 3}
-              onClick={() => setQuery(lookup.trim())}
             >
               Find
             </Button>
-          </div>
+          </Form>
 
           {query && staff.data.matches.length === 0 && (
             <p className="text-sm text-brand-black/60">

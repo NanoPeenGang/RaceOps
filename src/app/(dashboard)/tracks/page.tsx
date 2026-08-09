@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { TrackKind } from "@prisma/client";
 import { api } from "@/lib/trpc/client";
+import { SearchInput } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -78,7 +79,7 @@ export default function TracksPage() {
       <div className="flex flex-wrap items-end gap-3">
         <label className="min-w-0 flex-1 text-sm font-medium sm:max-w-sm">
           <span className="sr-only">Search tracks</span>
-          <input
+          <SearchInput
             className="w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
             placeholder="Search by name, city or state"
             value={query}

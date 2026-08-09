@@ -7,6 +7,7 @@ import { api } from "@/lib/trpc/client";
 import { TEAM_ROLE_LABELS } from "@/lib/teams";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Form } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function TeamsPage() {
@@ -70,34 +71,42 @@ export default function TeamsPage() {
           <CardTitle>Create a team</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <input
-            className="w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-            placeholder="Team name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <textarea
-            className="w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-            placeholder="What does your team run?"
-            rows={3}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-          {createTeam.error && (
-            <p className="text-sm text-brand-red">{createTeam.error.message}</p>
-          )}
-          <Button
-            variant="primary"
-            disabled={createTeam.isPending || name.trim().length < 2}
-            onClick={() =>
+          <Form
+            busy={createTeam.isPending}
+            onSubmit={() =>
               createTeam.mutate({
                 name: name.trim(),
                 description: description.trim() || undefined,
               })
             }
+            className="space-y-3"
           >
-            {createTeam.isPending ? "Creating…" : "Create team"}
-          </Button>
+            <input
+              className="w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              placeholder="Team name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <textarea
+              className="w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              placeholder="What does your team run?"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+            {createTeam.error && (
+              <p className="text-sm text-brand-red">
+                {createTeam.error.message}
+              </p>
+            )}
+            <Button
+              variant="primary"
+              disabled={createTeam.isPending || name.trim().length < 2}
+              type="submit"
+            >
+              {createTeam.isPending ? "Creating…" : "Create team"}
+            </Button>
+          </Form>
         </CardContent>
       </Card>
 

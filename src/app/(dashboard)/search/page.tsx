@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { ProfileType, RealWorldRole, SimRole } from "@prisma/client";
 import { api } from "@/lib/trpc/client";
+import { SearchInput } from "@/components/ui/form";
+import { isSettling, useDebounced } from "@/lib/use-debounced";
 import {
   PROFILE_TYPE_LABELS,
   REAL_WORLD_ROLE_GROUPS,
@@ -24,14 +26,25 @@ export default function SearchPage() {
   const [realWorldRole, setRealWorldRole] = useState<RealWorldRole | "">("");
   const [location, setLocation] = useState("");
 
+  /*
+   * Debounced, because this fired on every keystroke: typing "watkins" sent
+   * seven requests and flickered the results through seven states, six of
+   * which nobody wanted. The dropdowns are not debounced — a select changes
+   * once, deliberately, and delaying it would only make the page feel slow.
+   */
+  const settledQuery = useDebounced(query);
+  const settledLocation = useDebounced(location);
+  const typing =
+    isSettling(query, settledQuery) || isSettling(location, settledLocation);
+
   const me = api.user.me.useQuery();
   const results = api.search.profiles.useQuery(
     {
-      query: query || undefined,
+      query: settledQuery || undefined,
       profileType: profileType || undefined,
       simRole: simRole || undefined,
       realWorldRole: realWorldRole || undefined,
-      location: location || undefined,
+      location: settledLocation || undefined,
     },
     { meta: { silenceError: true } },
   );
@@ -43,7 +56,7 @@ export default function SearchPage() {
       <h1 className="text-3xl font-bold">Discover people</h1>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <input
+        <SearchInput
           className="rounded-md border border-brand-black/20 px-3 py-2 text-sm"
           placeholder="Search names and bios…"
           value={query}
@@ -94,11 +107,15 @@ export default function SearchPage() {
         )}
       </div>
 
-      {results.isLoading && <p className="text-brand-black/60">Searching…</p>}
+      {(results.isLoading || typing) && (
+        <p className="text-brand-black/60" role="status">
+          Searching…
+        </p>
+      )}
       {results.error && (
         <p className="text-sm text-brand-red">{results.error.message}</p>
       )}
-      {results.data?.users.length === 0 && (
+      {!typing && results.data?.users.length === 0 && (
         <p className="text-brand-black/60">No matching profiles yet.</p>
       )}
       <div className="grid gap-4 md:grid-cols-2">

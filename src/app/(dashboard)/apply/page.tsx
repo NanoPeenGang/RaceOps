@@ -16,6 +16,7 @@ import {
 } from "@/lib/access-requests";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Form } from "@/components/ui/form";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader, Section } from "@/components/ui/page";
 import { ListSkeleton } from "@/components/ui/skeleton";
@@ -160,87 +161,89 @@ function ApplyForm({
   return (
     <Card className="max-w-2xl">
       <CardContent className="space-y-4 p-5">
-        <div>
-          <h3 className="font-semibold">
-            {ACCESS_KIND_LABELS[kind]} application
-          </h3>
-          <p className="mt-1 text-sm text-brand-black/60">
-            {ACCESS_KIND_CRITERIA[kind]}
-          </p>
-        </div>
+        <Form
+          busy={apply.isPending}
+          onSubmit={() =>
+            apply.mutate({
+              kind,
+              proposedName: proposedName.trim(),
+              summary: summary.trim(),
+              websiteUrl: websiteUrl.trim() || null,
+              experience: experience.trim() || null,
+            })
+          }
+          className="space-y-3"
+        >
+          <div>
+            <h3 className="font-semibold">
+              {ACCESS_KIND_LABELS[kind]} application
+            </h3>
+            <p className="mt-1 text-sm text-brand-black/60">
+              {ACCESS_KIND_CRITERIA[kind]}
+            </p>
+          </div>
 
-        <label className="block text-sm font-medium">
-          {kind === AccessRequestKind.SPONSOR ? "Business name" : "Name"}
-          <input
-            className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-            value={proposedName}
-            maxLength={120}
-            onChange={(e) => setProposedName(e.target.value)}
-          />
-        </label>
+          <label className="block text-sm font-medium">
+            {kind === AccessRequestKind.SPONSOR ? "Business name" : "Name"}
+            <input
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              value={proposedName}
+              maxLength={120}
+              onChange={(e) => setProposedName(e.target.value)}
+            />
+          </label>
 
-        <label className="block text-sm font-medium">
-          What is it?
-          <textarea
-            className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-            rows={4}
-            maxLength={4000}
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            placeholder="A couple of sentences. This is the main thing a reviewer reads."
-          />
-        </label>
+          <label className="block text-sm font-medium">
+            What is it?
+            <textarea
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              rows={4}
+              maxLength={4000}
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="A couple of sentences. This is the main thing a reviewer reads."
+            />
+          </label>
 
-        <label className="block text-sm font-medium">
-          Website or social link
-          <input
-            className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-            value={websiteUrl}
-            onChange={(e) => setWebsiteUrl(e.target.value)}
-            placeholder="https://"
-          />
-          <span className="mt-1 block text-xs font-normal text-brand-black/50">
-            Optional, but it is the fastest way for somebody to check you are
-            real.
-          </span>
-        </label>
+          <label className="block text-sm font-medium">
+            Website or social link
+            <input
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+              placeholder="https://"
+            />
+            <span className="mt-1 block text-xs font-normal text-brand-black/50">
+              Optional, but it is the fastest way for somebody to check you are
+              real.
+            </span>
+          </label>
 
-        <label className="block text-sm font-medium">
-          Your racing background
-          <textarea
-            className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-            rows={3}
-            maxLength={4000}
-            value={experience}
-            onChange={(e) => setExperience(e.target.value)}
-            placeholder="Optional. Where you race, who with, how long."
-          />
-        </label>
+          <label className="block text-sm font-medium">
+            Your racing background
+            <textarea
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              rows={3}
+              maxLength={4000}
+              value={experience}
+              onChange={(e) => setExperience(e.target.value)}
+              placeholder="Optional. Where you race, who with, how long."
+            />
+          </label>
 
-        {apply.error && (
-          <p className="text-sm text-brand-red">{apply.error.message}</p>
-        )}
+          {apply.error && (
+            <p className="text-sm text-brand-red">{apply.error.message}</p>
+          )}
 
-        <div className="flex gap-2">
-          <Button
-            variant="primary"
-            disabled={apply.isPending}
-            onClick={() =>
-              apply.mutate({
-                kind,
-                proposedName: proposedName.trim(),
-                summary: summary.trim(),
-                websiteUrl: websiteUrl.trim() || null,
-                experience: experience.trim() || null,
-              })
-            }
-          >
-            {apply.isPending ? "Sending…" : "Send application"}
-          </Button>
-          <Button variant="outline" onClick={onDone}>
-            Cancel
-          </Button>
-        </div>
+          <div className="flex gap-2">
+            <Button variant="primary" disabled={apply.isPending} type="submit">
+              {apply.isPending ? "Sending…" : "Send application"}
+            </Button>
+            <Button variant="outline" onClick={onDone}>
+              Cancel
+            </Button>
+          </div>
+        </Form>
       </CardContent>
     </Card>
   );

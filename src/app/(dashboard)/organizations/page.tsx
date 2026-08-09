@@ -7,6 +7,7 @@ import { ORG_ROLE_LABELS } from "@/lib/permissions";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Form } from "@/components/ui/form";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader, Section } from "@/components/ui/page";
 import { ListSkeleton } from "@/components/ui/skeleton";
@@ -113,55 +114,61 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
   return (
     <Card className="max-w-xl">
       <CardContent className="space-y-4 p-5">
-        <p className="text-sm text-brand-black/60">
-          You will be the owner. A starter set of roles — Clerk of the Course,
-          Chief Scrutineer, Steward and so on — is created with it, all
-          editable.
-        </p>
-        <label className="block text-sm font-medium">
-          Name
-          <input
-            className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Apex Motorsport Club"
-          />
-        </label>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-medium">
-            Location
-            <input
-              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            Contact email
-            <input
-              type="email"
-              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-              value={contactEmail}
-              onChange={(e) => setContactEmail(e.target.value)}
-            />
-          </label>
-        </div>
-        {create.error && (
-          <p className="text-sm text-brand-red">{create.error.message}</p>
-        )}
-        <Button
-          variant="primary"
-          disabled={create.isPending || name.trim().length < 2}
-          onClick={() =>
+        <Form
+          busy={create.isPending}
+          onSubmit={() =>
             create.mutate({
               name: name.trim(),
               location: location.trim() || undefined,
               contactEmail: contactEmail.trim() || undefined,
             })
           }
+          className="space-y-3"
         >
-          {create.isPending ? "Creating…" : "Create organization"}
-        </Button>
+          <p className="text-sm text-brand-black/60">
+            You will be the owner. A starter set of roles — Clerk of the Course,
+            Chief Scrutineer, Steward and so on — is created with it, all
+            editable.
+          </p>
+          <label className="block text-sm font-medium">
+            Name
+            <input
+              className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Apex Motorsport Club"
+            />
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-sm font-medium">
+              Location
+              <input
+                className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+              />
+            </label>
+            <label className="block text-sm font-medium">
+              Contact email
+              <input
+                type="email"
+                className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+              />
+            </label>
+          </div>
+          {create.error && (
+            <p className="text-sm text-brand-red">{create.error.message}</p>
+          )}
+          <Button
+            variant="primary"
+            disabled={create.isPending || name.trim().length < 2}
+            type="submit"
+          >
+            {create.isPending ? "Creating…" : "Create organization"}
+          </Button>
+        </Form>
       </CardContent>
     </Card>
   );
