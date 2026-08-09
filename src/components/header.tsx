@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/notification-bell";
 import { MobileNav } from "@/components/mobile-nav";
-import { AdminNav } from "@/components/admin-nav";
+import { AccountMenu } from "@/components/account-menu";
 import { NAV_LINKS } from "@/lib/nav";
 
 export function Header() {
@@ -66,26 +66,11 @@ export function Header() {
             </SignUpButton>
           </Show>
           <Show when="signed-in">
-            <Link
-              href="/applications"
-              className="hidden text-sm font-medium text-brand-black/70 hover:text-brand-red lg:block"
-            >
-              Applications
-            </Link>
-            <Link
-              href="/billing"
-              className="hidden text-sm font-medium text-brand-black/70 hover:text-brand-red lg:block"
-            >
-              Billing
-            </Link>
-            <AdminNav />
+            {/* Three of the ten account destinations used to be hardcoded
+                here and the other seven were desktop-unreachable. They all
+                live in one menu now, which also keeps the header readable. */}
+            <AccountMenu />
             <NotificationBell />
-            <Link
-              href="/profile"
-              className="hidden text-sm font-medium text-brand-black/70 hover:text-brand-red lg:block"
-            >
-              My profile
-            </Link>
             <UserButton />
           </Show>
           <MobileNav />

@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ACCOUNT_LINKS, ADMIN_LINKS, NAV_LINKS } from "@/lib/nav";
@@ -64,6 +64,45 @@ describe("navigation coverage", () => {
     // catch, reintroduced through its own escape hatch.
     const routes = new Set(topLevelRoutes());
     for (const target of SCAN_TARGETS) expect(routes.has(target)).toBe(true);
+  });
+
+  /**
+   * The breakpoint half of the same bug.
+   *
+   * The original test asked whether a route was *listed* in the shared nav. It
+   * passed happily while six destinations were listed only in the mobile menu,
+   * which is `lg:hidden` — so on a laptop there was no path to Messages, My
+   * organizations, My passes, My postings, Apply or the sponsor console at
+   * all. Listing a link and rendering it at every width are different claims.
+   */
+  it("renders every nav list somewhere that is not the mobile menu", () => {
+    const componentsDir = join(process.cwd(), "src/components");
+    const renderers = readdirSync(componentsDir)
+      .filter((name) => name.endsWith(".tsx") && name !== "mobile-nav.tsx")
+      .map((name) => readFileSync(join(componentsDir, name), "utf8"));
+
+    for (const list of ["NAV_LINKS", "ACCOUNT_LINKS", "ADMIN_LINKS"]) {
+      /*
+       * Referenced, rather than provably rendered. Statically proving a link
+       * reaches the screen would mean evaluating JSX; what this catches is the
+       * bug that actually happened — a list whose only consumer in the whole
+       * component tree was the `lg:hidden` menu.
+       */
+      const rendered = renderers.some((source) => source.includes(list));
+      expect(rendered, `${list} is only rendered by the mobile menu`).toBe(true);
+    }
+  });
+
+  it("does not leave the mobile menu behind either", () => {
+    // The converse: a desktop-only menu would strand the same links on phones,
+    // which is the regression this file was written for in the first place.
+    const mobile = readFileSync(
+      join(process.cwd(), "src/components/mobile-nav.tsx"),
+      "utf8",
+    );
+    for (const list of ["NAV_LINKS", "ACCOUNT_LINKS", "ADMIN_LINKS"]) {
+      expect(mobile, `${list} is missing from the mobile menu`).toContain(list);
+    }
   });
 
   it("uses absolute, non-duplicated hrefs", () => {
