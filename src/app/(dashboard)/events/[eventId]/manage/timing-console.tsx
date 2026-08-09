@@ -87,6 +87,7 @@ function SessionConsole({ sessionId }: { sessionId: string }) {
   const invalidate = () => utils.session.timing.invalidate({ sessionId });
 
   const setLiveState = api.session.setLiveState.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       invalidate();
       utils.session.forEvent.invalidate();
@@ -94,9 +95,11 @@ function SessionConsole({ sessionId }: { sessionId: string }) {
     },
   });
   const seedTiming = api.session.seedTiming.useMutation({
+    meta: { successMessage: "Timing seeded from the entry list." },
     onSuccess: invalidate,
   });
   const pushTiming = api.session.pushTiming.useMutation({
+    meta: { successMessage: "Timing pushed." },
     onSuccess: invalidate,
   });
 
@@ -273,7 +276,9 @@ function TimingRowEditor({
       <CardContent className="grid gap-3 p-4 sm:grid-cols-[1fr_auto] sm:items-end">
         <div>
           <p className="font-medium">
-            {row.registration.carNumber ? `#${row.registration.carNumber} ` : ""}
+            {row.registration.carNumber
+              ? `#${row.registration.carNumber} `
+              : ""}
             {row.competitorLabel}
           </p>
           <p className="text-xs text-brand-black/60">
@@ -377,6 +382,7 @@ function ConditionsCard({
   const [notes, setNotes] = useState("");
 
   const log = api.session.logConditions.useMutation({
+    meta: { successMessage: "Conditions logged." },
     onSuccess: () => {
       onChanged();
       setNotes("");
@@ -480,7 +486,9 @@ function ConditionsCard({
           </label>
         </div>
 
-        {log.error && <p className="text-sm text-brand-red">{log.error.message}</p>}
+        {log.error && (
+          <p className="text-sm text-brand-red">{log.error.message}</p>
+        )}
 
         <Button
           size="sm"
@@ -493,9 +501,7 @@ function ConditionsCard({
               weather: weather || undefined,
               airTempC: airTempC.trim() ? Number(airTempC) : undefined,
               trackTempC: trackTempC.trim() ? Number(trackTempC) : undefined,
-              humidityPct: humidityPct.trim()
-                ? Number(humidityPct)
-                : undefined,
+              humidityPct: humidityPct.trim() ? Number(humidityPct) : undefined,
               notes: notes.trim() || undefined,
             })
           }
@@ -526,9 +532,7 @@ function ConditionsCard({
                     size="sm"
                     variant="outline"
                     disabled={remove.isPending}
-                    onClick={() =>
-                      remove.mutate({ conditionId: reading.id })
-                    }
+                    onClick={() => remove.mutate({ conditionId: reading.id })}
                   >
                     Remove
                   </Button>

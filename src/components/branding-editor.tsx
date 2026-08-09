@@ -61,7 +61,10 @@ export function BrandingEditor({
     utils.branding.own.invalidate();
     utils.branding.resolved.invalidate();
   };
-  const save = api.branding.update.useMutation({ onSuccess: refresh });
+  const save = api.branding.update.useMutation({
+    meta: { silenceError: true, successMessage: "Branding saved." },
+    onSuccess: refresh,
+  });
   const reset = api.branding.reset.useMutation({ onSuccess: refresh });
 
   if (stored.error) return null;
@@ -83,7 +86,8 @@ export function BrandingEditor({
   const primaryWarnings = normalizeHex(primaryColor)
     ? contrastWarnings(normalizeHex(primaryColor)!)
     : [];
-  const invalidPrimary = primaryColor.trim() !== "" && !normalizeHex(primaryColor);
+  const invalidPrimary =
+    primaryColor.trim() !== "" && !normalizeHex(primaryColor);
   const invalidAccent = accentColor.trim() !== "" && !normalizeHex(accentColor);
 
   return (
@@ -217,7 +221,10 @@ export function BrandingEditor({
               </div>
               <p className="text-sm">
                 Body text with{" "}
-                <span style={{ color: preview.primary }} className="font-medium">
+                <span
+                  style={{ color: preview.primary }}
+                  className="font-medium"
+                >
                   a link in your colour
                 </span>{" "}
                 to check it is readable on the page.
@@ -266,7 +273,9 @@ function ColourField({
             }`}
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={inheritedFrom ? `${inheritedFrom} (inherited)` : "#D91E1E"}
+            placeholder={
+              inheritedFrom ? `${inheritedFrom} (inherited)` : "#D91E1E"
+            }
           />
         </div>
       </label>

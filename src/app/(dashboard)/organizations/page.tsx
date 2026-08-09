@@ -104,6 +104,7 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
   const [contactEmail, setContactEmail] = useState("");
 
   const create = api.organization.create.useMutation({
+    meta: { silenceError: true },
     onSuccess: async () => {
       await utils.organization.mine.invalidate();
       onCreated();
@@ -115,7 +116,8 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
       <CardContent className="space-y-4 p-5">
         <p className="text-sm text-brand-black/60">
           You will be the owner. A starter set of roles — Clerk of the Course,
-          Chief Scrutineer, Steward and so on — is created with it, all editable.
+          Chief Scrutineer, Steward and so on — is created with it, all
+          editable.
         </p>
         <label className="block text-sm font-medium">
           Name

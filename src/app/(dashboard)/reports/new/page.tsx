@@ -18,6 +18,7 @@ export default function NewReportPage() {
   const [tags, setTags] = useState("");
 
   const create = api.report.create.useMutation({
+    meta: { silenceError: true, successMessage: "Report saved." },
     onSuccess: (report) => router.push(`/reports/${report.id}`),
   });
 
@@ -36,7 +37,10 @@ export default function NewReportPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/reports" className="text-sm text-brand-red hover:underline">
+        <Link
+          href="/reports"
+          className="text-sm text-brand-red hover:underline"
+        >
           ← Race reports
         </Link>
         <h1 className="mt-1 text-3xl font-bold">Write a report</h1>

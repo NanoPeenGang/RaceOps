@@ -1,11 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  AppealStatus,
-  PenaltyType,
-  ResultStatus,
-} from "@prisma/client";
+import { AppealStatus, PenaltyType, ResultStatus } from "@prisma/client";
 import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/lib/trpc/client";
 import { RESULT_STATUS_LABELS } from "@/lib/standings";
@@ -29,6 +25,7 @@ export function ResultsPanel({ eventId }: { eventId: string }) {
   const registrations = api.event.registrationsFor.useQuery({ eventId });
   const results = api.event.resultsFor.useQuery({ eventId });
   const record = api.event.recordResult.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       utils.event.resultsFor.invalidate({ eventId });
     },
@@ -175,6 +172,7 @@ export function PenaltiesPanel({ eventId }: { eventId: string }) {
     utils.event.resultsFor.invalidate({ eventId });
   };
   const issue = api.penalty.issue.useMutation({
+    meta: { successMessage: "Penalty issued and the entrant notified." },
     onSuccess: () => {
       setShowForm(false);
       invalidate();
@@ -354,13 +352,17 @@ function PenaltyAdminCard({
   const [reducedPoints, setReducedPoints] = useState("");
 
   const decide = api.penalty.decideAppeal.useMutation({
+    meta: { successMessage: "Appeal decided and the entrant told." },
     onSuccess: () => {
       setDecision("");
       setReducedPoints("");
       onChanged();
     },
   });
-  const rescind = api.penalty.rescind.useMutation({ onSuccess: onChanged });
+  const rescind = api.penalty.rescind.useMutation({
+    meta: { successMessage: "Penalty rescinded." },
+    onSuccess: onChanged,
+  });
 
   const competitor =
     penalty.registration.team?.name ??

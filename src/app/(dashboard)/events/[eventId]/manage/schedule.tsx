@@ -40,6 +40,7 @@ export function SchedulePanel({ eventId }: { eventId: string }) {
   };
 
   const createSession = api.session.create.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       setShowForm(false);
       setName("");
@@ -212,7 +213,9 @@ export function SchedulePanel({ eventId }: { eventId: string }) {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge
-                      variant={session.status === "LIVE" ? "verified" : "default"}
+                      variant={
+                        session.status === "LIVE" ? "verified" : "default"
+                      }
                     >
                       {SESSION_STATUS_LABELS[session.status]}
                     </Badge>

@@ -14,11 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  * transponder numbers and has no idea what a registration is, so an entry with
  * none is one the feed cannot place.
  */
-export function EntryEquipment({
-  registrationId,
-}: {
-  registrationId: string;
-}) {
+export function EntryEquipment({ registrationId }: { registrationId: string }) {
   const utils = api.useUtils();
   const cars = api.car.mine.useQuery();
   const transponders = api.car.myTransponders.useQuery();
@@ -33,7 +29,10 @@ export function EntryEquipment({
     utils.car.myTireAllocation.invalidate({ registrationId });
   };
 
-  const setCar = api.car.setEntryCar.useMutation({ onSuccess: refresh });
+  const setCar = api.car.setEntryCar.useMutation({
+    meta: { silenceError: true },
+    onSuccess: refresh,
+  });
   const assign = api.car.assignTransponder.useMutation({ onSuccess: refresh });
   const remove = api.car.removeTransponder.useMutation({ onSuccess: refresh });
 

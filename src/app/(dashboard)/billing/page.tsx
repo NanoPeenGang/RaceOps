@@ -36,6 +36,7 @@ const TIERS: Array<{
 export default function BillingPage() {
   const status = api.billing.status.useQuery();
   const checkout = api.billing.createCheckout.useMutation({
+    meta: { silenceError: true },
     onSuccess: ({ url }) => {
       window.location.href = url;
     },
@@ -101,7 +102,9 @@ export default function BillingPage() {
               {!entitled(tier) && (
                 <Button
                   variant="primary"
-                  disabled={checkout.isPending || !status.data?.stripeConfigured}
+                  disabled={
+                    checkout.isPending || !status.data?.stripeConfigured
+                  }
                   onClick={() => checkout.mutate({ tier })}
                 >
                   {checkout.isPending ? "Redirecting…" : "Subscribe"}

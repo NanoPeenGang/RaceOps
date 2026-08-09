@@ -168,7 +168,10 @@ function ServiceRow({
   canWrite: boolean;
   onChanged: () => void;
 }) {
-  const update = api.garage.updateService.useMutation({ onSuccess: onChanged });
+  const update = api.garage.updateService.useMutation({
+    meta: { silenceError: true },
+    onSuccess: onChanged,
+  });
   const assessment = assessDue(service, runningHours);
 
   return (
@@ -268,6 +271,7 @@ function HoursLine({
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(runningHours?.toString() ?? "");
   const save = api.garage.setRunningHours.useMutation({
+    meta: { successMessage: "Running hours updated." },
     onSuccess: () => {
       setEditing(false);
       onChanged();
@@ -420,7 +424,9 @@ function ServiceForm({
         </label>
       </div>
 
-      {log.error && <p className="text-sm text-brand-red">{log.error.message}</p>}
+      {log.error && (
+        <p className="text-sm text-brand-red">{log.error.message}</p>
+      )}
       <Button
         size="sm"
         variant="primary"

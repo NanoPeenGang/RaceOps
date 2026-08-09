@@ -28,6 +28,7 @@ export function SchedulePanel({
   const canManage = isTeamManager(team.myRole);
   const [openLineup, setOpenLineup] = useState<string | null>(null);
   const withdraw = api.event.withdrawRegistration.useMutation({
+    meta: { silenceError: true, successMessage: "Entry withdrawn." },
     onSuccess: onChanged,
   });
 
@@ -86,7 +87,9 @@ export function SchedulePanel({
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge
-                    variant={entry.status === "CONFIRMED" ? "verified" : "default"}
+                    variant={
+                      entry.status === "CONFIRMED" ? "verified" : "default"
+                    }
                   >
                     {REGISTRATION_STATUS_LABELS[entry.status]}
                   </Badge>

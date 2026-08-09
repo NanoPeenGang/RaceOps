@@ -20,6 +20,7 @@ export default function ReportPage({
   const report = api.report.byId.useQuery({ reportId });
 
   const update = api.report.update.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => utils.report.byId.invalidate({ reportId }),
   });
   const remove = api.report.remove.useMutation({
@@ -34,7 +35,10 @@ export default function ReportPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/reports" className="text-sm text-brand-red hover:underline">
+        <Link
+          href="/reports"
+          className="text-sm text-brand-red hover:underline"
+        >
           ← Race reports
         </Link>
         <div className="mt-1 flex flex-wrap items-start justify-between gap-3">

@@ -30,7 +30,8 @@ export function SponsorsPanel({ team }: { team: TeamDashboard }) {
   const sponsorships = api.sponsorship.forTeam.useQuery({ teamId: team.id });
   const [showForm, setShowForm] = useState(false);
 
-  const refresh = () => utils.sponsorship.forTeam.invalidate({ teamId: team.id });
+  const refresh = () =>
+    utils.sponsorship.forTeam.invalidate({ teamId: team.id });
   const setStatus = api.sponsorship.setStatus.useMutation({
     onSuccess: refresh,
   });
@@ -200,7 +201,9 @@ function DealGroup({
       {deals.map((deal) => (
         <Card
           key={deal.id}
-          className={highlight ? "border-brand-red/40 bg-brand-red/5" : undefined}
+          className={
+            highlight ? "border-brand-red/40 bg-brand-red/5" : undefined
+          }
         >
           <CardContent className="space-y-2 p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -237,7 +240,9 @@ function DealGroup({
               </div>
               <Badge
                 variant={
-                  deal.status === SponsorshipStatus.ACTIVE ? "verified" : "default"
+                  deal.status === SponsorshipStatus.ACTIVE
+                    ? "verified"
+                    : "default"
                 }
               >
                 {SPONSORSHIP_STATUS_LABELS[deal.status]}
@@ -260,7 +265,9 @@ function DealGroup({
                     key={status}
                     size="sm"
                     variant={
-                      status === SponsorshipStatus.ACTIVE ? "primary" : "outline"
+                      status === SponsorshipStatus.ACTIVE
+                        ? "primary"
+                        : "outline"
                     }
                     disabled={isPending}
                     onClick={() => onSetStatus(deal.id, status)}
@@ -299,13 +306,7 @@ const CREATABLE_STATUSES: CreatableStatus[] = [
   SponsorshipStatus.OFFERED,
 ];
 
-function DealForm({
-  teamId,
-  onDone,
-}: {
-  teamId: string;
-  onDone: () => void;
-}) {
+function DealForm({ teamId, onDone }: { teamId: string; onDone: () => void }) {
   const [sponsorName, setSponsorName] = useState("");
   const [tier, setTier] = useState("");
   const [value, setValue] = useState("");
@@ -320,7 +321,10 @@ function DealForm({
     SponsorshipStatus.ACTIVE,
   );
 
-  const create = api.sponsorship.create.useMutation({ onSuccess: onDone });
+  const create = api.sponsorship.create.useMutation({
+    meta: { silenceError: true },
+    onSuccess: onDone,
+  });
 
   const parsedValue = value.trim() === "" ? null : parseDealValue(value);
   const valueIsInvalid = value.trim() !== "" && parsedValue === null;
@@ -394,7 +398,8 @@ function DealForm({
             </select>
           </label>
           <label className="block text-sm font-medium">
-            Contact email <span className="text-brand-black/50">(optional)</span>
+            Contact email{" "}
+            <span className="text-brand-black/50">(optional)</span>
             <input
               className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
               value={contactEmail}

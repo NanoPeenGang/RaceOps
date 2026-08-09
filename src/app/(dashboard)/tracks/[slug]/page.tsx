@@ -44,7 +44,8 @@ export default function TrackPage({
   const [openLayout, setOpenLayout] = useState<string | null>(null);
 
   if (track.isLoading) return <p className="text-brand-black/60">Loading…</p>;
-  if (!track.data) return <p className="text-brand-black/60">Track not found.</p>;
+  if (!track.data)
+    return <p className="text-brand-black/60">Track not found.</p>;
 
   const data = track.data;
   const signedIn = Boolean(me.data?.id);
@@ -53,7 +54,9 @@ export default function TrackPage({
   // fixed. Those are open to anyone signed in, and every edit is audited.
   const canCurate = data.isReference
     ? signedIn
-    : Boolean(me.data?.id && data.createdById && me.data.id === data.createdById);
+    : Boolean(
+        me.data?.id && data.createdById && me.data.id === data.createdById,
+      );
 
   return (
     <div className="space-y-8">
@@ -129,8 +132,12 @@ export default function TrackPage({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle className="flex flex-wrap items-center gap-2">
                     {layout.name}
-                    {layout.isPrimary && <Badge variant="verified">Default</Badge>}
-                    {!layout.active && <Badge variant="outline">Inactive</Badge>}
+                    {layout.isPrimary && (
+                      <Badge variant="verified">Default</Badge>
+                    )}
+                    {!layout.active && (
+                      <Badge variant="outline">Inactive</Badge>
+                    )}
                     {layout.platform && (
                       <Badge variant="outline">{layout.platform}</Badge>
                     )}
@@ -167,11 +174,11 @@ export default function TrackPage({
                   </div>
 
                   <dl className="grid max-w-2xl grid-cols-2 gap-x-6 gap-y-3 self-start text-xs sm:grid-cols-3">
-                    <Spec label="Length" value={formatLength(layout.lengthMeters)} />
                     <Spec
-                      label="Turns"
-                      value={formatTurns(layout.turnCount)}
+                      label="Length"
+                      value={formatLength(layout.lengthMeters)}
                     />
+                    <Spec label="Turns" value={formatTurns(layout.turnCount)} />
                     <Spec
                       label="Direction"
                       value={TRACK_DIRECTION_LABELS[layout.direction]}
@@ -302,7 +309,12 @@ function Spec({ label, value }: { label: string; value: string | null }) {
 function TurnList({
   turns,
 }: {
-  turns: { id: string; number: number; name: string | null; sector: number | null }[];
+  turns: {
+    id: string;
+    number: number;
+    name: string | null;
+    sector: number | null;
+  }[];
 }) {
   if (turns.length === 0) {
     return (
@@ -376,7 +388,10 @@ function TurnEditor({
     );
   }, [turns]);
 
-  const save = api.track.setTurns.useMutation({ onSuccess: onSaved });
+  const save = api.track.setTurns.useMutation({
+    meta: { silenceError: true },
+    onSuccess: onSaved,
+  });
 
   const update = (index: number, patch: Partial<DraftTurn>) =>
     setDraft((rows) =>
@@ -481,7 +496,9 @@ function TurnEditor({
           {save.isPending ? "Saving…" : "Save corners"}
         </Button>
       </div>
-      {save.error && <p className="text-sm text-brand-red">{save.error.message}</p>}
+      {save.error && (
+        <p className="text-sm text-brand-red">{save.error.message}</p>
+      )}
     </div>
   );
 }
@@ -526,7 +543,9 @@ function LapRecords({ layoutId }: { layoutId: string }) {
               <span className="font-medium">
                 Outright · {overall.competitorLabel}
               </span>
-              <span className="tabular-nums">{formatLapTime(overall.lapMs)}</span>
+              <span className="tabular-nums">
+                {formatLapTime(overall.lapMs)}
+              </span>
               <span className="w-full text-xs text-brand-black/60">
                 {overall.eventName} · {overall.sessionName} ·{" "}
                 {new Date(overall.eventDate).toLocaleDateString()}
@@ -625,7 +644,9 @@ function AddLayoutForm({ trackId }: { trackId: string }) {
             </select>
           </label>
         </div>
-        {add.error && <p className="text-sm text-brand-red">{add.error.message}</p>}
+        {add.error && (
+          <p className="text-sm text-brand-red">{add.error.message}</p>
+        )}
         <div className="flex gap-2">
           <Button
             size="sm"
@@ -681,7 +702,10 @@ function TrackRules({
   onChanged: () => void;
 }) {
   const [adding, setAdding] = useState(false);
-  const verify = api.track.verifyRule.useMutation({ onSuccess: onChanged });
+  const verify = api.track.verifyRule.useMutation({
+    meta: { successMessage: "Marked as checked." },
+    onSuccess: onChanged,
+  });
   const remove = api.track.deleteRule.useMutation({ onSuccess: onChanged });
   const groups = groupRules(rules);
 
@@ -901,7 +925,9 @@ function LayoutDetailsForm({
   };
   onSaved: () => void;
 }) {
-  const [turnCount, setTurnCount] = useState(layout.turnCount?.toString() ?? "");
+  const [turnCount, setTurnCount] = useState(
+    layout.turnCount?.toString() ?? "",
+  );
   const [shape, setShape] = useState<LayoutShape | "">(layout.shape ?? "");
   const [banking, setBanking] = useState(
     layout.bankingDegrees?.toString() ?? "",
@@ -965,7 +991,6 @@ function LayoutDetailsForm({
           />
         </label>
       </div>
-
 
       {save.error && (
         <p className="text-sm text-brand-red">{save.error.message}</p>

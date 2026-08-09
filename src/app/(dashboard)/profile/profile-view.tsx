@@ -141,7 +141,10 @@ function ProfileEditor({
     profile.realWorldRoles,
   );
 
-  const update = api.profile.update.useMutation({ onSuccess: onDone });
+  const update = api.profile.update.useMutation({
+    meta: { silenceError: true, successMessage: "Profile saved." },
+    onSuccess: onDone,
+  });
 
   return (
     <div className="space-y-6">
@@ -264,11 +267,7 @@ function ProfileEditor({
  * Role tags, split so it is obvious which world each belongs to — the same
  * job title means different things across sim and real racing.
  */
-export function RoleTagList({
-  tags,
-}: {
-  tags: ReturnType<typeof roleTagsOf>;
-}) {
+export function RoleTagList({ tags }: { tags: ReturnType<typeof roleTagsOf> }) {
   const sim = tags.filter((tag) => tag.domain === "sim");
   const real = tags.filter((tag) => tag.domain === "real");
 

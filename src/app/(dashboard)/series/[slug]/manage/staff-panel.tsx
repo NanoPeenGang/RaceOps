@@ -50,7 +50,10 @@ export function SeriesStaffPanel({
     utils.organization.rolesForSeries.invalidate({ seriesId });
     onChanged();
   };
-  const assign = api.organization.assignRole.useMutation({ onSuccess: refresh });
+  const assign = api.organization.assignRole.useMutation({
+    meta: { silenceError: true },
+    onSuccess: refresh,
+  });
   const unassign = api.organization.unassignRole.useMutation({
     onSuccess: refresh,
   });
@@ -263,7 +266,9 @@ function RoleForm({
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("#D91E1E");
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  const create = api.organization.createRole.useMutation({ onSuccess: onSaved });
+  const create = api.organization.createRole.useMutation({
+    onSuccess: onSaved,
+  });
 
   // Organization permissions are meaningless on a series-scoped role, so they
   // are not offered — a checkbox that cannot do anything is a question mark.

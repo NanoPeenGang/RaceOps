@@ -42,6 +42,7 @@ export default function MyApplicationsPage() {
   const utils = api.useUtils();
   const data = api.hiring.myApplications.useQuery();
   const withdraw = api.opportunity.withdrawApplication.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => utils.hiring.myApplications.invalidate(),
   });
 
@@ -198,6 +199,7 @@ function InterviewInvite({
 }) {
   const [note, setNote] = useState("");
   const respond = api.hiring.respondToInterview.useMutation({
+    meta: { successMessage: "Reply sent." },
     onSuccess: onChanged,
   });
   const booked = chosenSlot(interview.slots);
@@ -306,7 +308,9 @@ function OfferCard({
             </span>
           )}
         </p>
-        {expiry && <span className="text-xs text-brand-black/60">{expiry}</span>}
+        {expiry && (
+          <span className="text-xs text-brand-black/60">{expiry}</span>
+        )}
       </div>
 
       <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">

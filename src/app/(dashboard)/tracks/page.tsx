@@ -166,7 +166,11 @@ export default function TracksPage() {
                   Clear filters
                 </Button>
               ) : (
-                <Button size="sm" variant="primary" onClick={() => setAdding(true)}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => setAdding(true)}
+                >
                   Add a track
                 </Button>
               )
@@ -218,30 +222,30 @@ export default function TracksPage() {
                     </div>
                   )}
                   <div className="min-w-0 space-y-2">
-                  <p className="text-xs text-brand-black/60">
-                    {placeLabel(track) ?? "Location not given"}
-                    {track.licenceGrade ? ` · ${track.licenceGrade}` : ""}
-                  </p>
-                  <p className="text-xs text-brand-black/60">
-                    {track.layouts.length} layout
-                    {track.layouts.length === 1 ? "" : "s"}
-                    {track.layouts.length > 0
-                      ? `: ${track.layouts
-                          .map((layout) => layout.name)
-                          .join(", ")}`
-                      : ""}
-                  </p>
-                  {primary && (
-                    <p className="text-xs tabular-nums text-brand-black/60">
-                      {[
-                        formatLength(primary.lengthMeters),
-                        formatTurns(primary.turnCount),
-                        primary.name,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
+                    <p className="text-xs text-brand-black/60">
+                      {placeLabel(track) ?? "Location not given"}
+                      {track.licenceGrade ? ` · ${track.licenceGrade}` : ""}
                     </p>
-                  )}
+                    <p className="text-xs text-brand-black/60">
+                      {track.layouts.length} layout
+                      {track.layouts.length === 1 ? "" : "s"}
+                      {track.layouts.length > 0
+                        ? `: ${track.layouts
+                            .map((layout) => layout.name)
+                            .join(", ")}`
+                        : ""}
+                    </p>
+                    {primary && (
+                      <p className="text-xs tabular-nums text-brand-black/60">
+                        {[
+                          formatLength(primary.lengthMeters),
+                          formatTurns(primary.turnCount),
+                          primary.name,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -277,6 +281,7 @@ function AddTrackForm({ onCreated }: { onCreated: () => void }) {
   const [firstLayoutName, setFirstLayoutName] = useState("Full course");
 
   const create = api.track.create.useMutation({
+    meta: { silenceError: true },
     onSuccess: async () => {
       await utils.track.list.invalidate();
       onCreated();

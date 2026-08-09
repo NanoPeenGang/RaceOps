@@ -41,6 +41,7 @@ export function AnnouncementsPanel({
 
   const invalidate = () => utils.document.listAnnouncements.invalidate(scope);
   const post = api.document.postAnnouncement.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       setShowForm(false);
       setNoticeTitle("");

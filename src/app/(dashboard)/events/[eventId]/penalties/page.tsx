@@ -89,6 +89,7 @@ function PenaltyCard({
   const [statement, setStatement] = useState("");
 
   const fileAppeal = api.penalty.fileAppeal.useMutation({
+    meta: { silenceError: true, successMessage: "Appeal filed." },
     onSuccess: () => {
       setShowAppeal(false);
       setStatement("");
@@ -102,7 +103,8 @@ function PenaltyCard({
     penalty.registration.entrantUser?.profile?.displayName ??
     "Unknown entry";
 
-  const appealable = canAppealThis && canAppeal(penalty.status) && !penalty.appeal;
+  const appealable =
+    canAppealThis && canAppeal(penalty.status) && !penalty.appeal;
 
   return (
     <Card>
@@ -175,7 +177,11 @@ function PenaltyCard({
         )}
 
         {appealable && !showAppeal && (
-          <Button size="sm" variant="outline" onClick={() => setShowAppeal(true)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowAppeal(true)}
+          >
             Appeal this penalty
           </Button>
         )}

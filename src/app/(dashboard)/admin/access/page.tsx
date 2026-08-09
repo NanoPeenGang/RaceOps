@@ -149,6 +149,10 @@ function ReviewCard({ request }: { request: QueueRow }) {
   const utils = api.useUtils();
   const [note, setNote] = useState("");
   const decide = api.access.decide.useMutation({
+    meta: {
+      silenceError: true,
+      successMessage: "Decision recorded and the applicant told.",
+    },
     onSuccess: () => utils.access.queue.invalidate(),
   });
 
@@ -310,6 +314,7 @@ function StaffPanel() {
   const [query, setQuery] = useState<string | undefined>();
   const staff = api.access.staff.useQuery({ query });
   const setRole = api.access.setPlatformRole.useMutation({
+    meta: { successMessage: "Platform role updated." },
     onSuccess: () => utils.access.staff.invalidate(),
   });
 
@@ -400,7 +405,8 @@ function StaffPanel() {
   );
 }
 
-type StaffPerson = inferRouterOutputs<AppRouter>["access"]["staff"]["staff"][number];
+type StaffPerson =
+  inferRouterOutputs<AppRouter>["access"]["staff"]["staff"][number];
 
 function StaffRow({
   person,

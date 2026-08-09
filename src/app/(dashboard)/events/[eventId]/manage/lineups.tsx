@@ -113,6 +113,7 @@ function DriveTimeRulesForm({ eventId }: { eventId: string }) {
   const [open, setOpen] = useState(false);
 
   const setRules = api.lineup.setRules.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       setOpen(false);
       utils.event.byId.invalidate({ eventId });
@@ -131,7 +132,9 @@ function DriveTimeRulesForm({ eventId }: { eventId: string }) {
       | "maxStintMinutes"
       | "minDriveMinutesPerDriver"
       | "maxDriveMinutesPerDriver",
-  ) => values[key] ?? (current?.[key] === null ? "" : String(current?.[key] ?? ""));
+  ) =>
+    values[key] ??
+    (current?.[key] === null ? "" : String(current?.[key] ?? ""));
 
   const numeric = (raw: string) =>
     raw.trim() === "" ? null : Number(raw) || null;
@@ -151,7 +154,9 @@ function DriveTimeRulesForm({ eventId }: { eventId: string }) {
     return (
       <div className="flex flex-wrap items-center gap-3">
         <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-          {summary.length > 0 ? "Edit drive-time rules" : "Set drive-time rules"}
+          {summary.length > 0
+            ? "Edit drive-time rules"
+            : "Set drive-time rules"}
         </Button>
         <p className="text-xs text-brand-black/60">
           {summary.length > 0

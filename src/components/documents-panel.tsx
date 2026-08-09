@@ -48,6 +48,7 @@ export function DocumentsPanel({
 
   const invalidate = () => utils.document.list.invalidate(scope);
   const publish = api.document.publish.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       setShowForm(false);
       setDocTitle("");
@@ -226,9 +227,7 @@ export function DocumentsPanel({
       {documents.data?.length === 0 && (
         <p className="text-brand-black/60">
           No documents published yet.
-          {canManage
-            ? " Publish the rule book so entrants can find it."
-            : ""}
+          {canManage ? " Publish the rule book so entrants can find it." : ""}
         </p>
       )}
 

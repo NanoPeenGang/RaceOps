@@ -42,10 +42,7 @@ export function EntryPanels({ eventId }: { eventId: string }) {
     <div className="grid gap-6 lg:grid-cols-2">
       <RegistrationPanel event={data} onChanged={refresh} />
       <VolunteerPanel event={data} onChanged={refresh} />
-      <WaiverPanel
-        eventId={eventId}
-        registrationId={data.myRegistration?.id}
-      />
+      <WaiverPanel eventId={eventId} registrationId={data.myRegistration?.id} />
       {data.myRegistration && data.myRegistration.status !== "WITHDRAWN" && (
         <>
           <EntryEquipment registrationId={data.myRegistration.id} />
@@ -70,8 +67,12 @@ function RegistrationPanel({
   const [carNumber, setCarNumber] = useState("");
   const [carClass, setCarClass] = useState("");
 
-  const register = api.event.register.useMutation({ onSuccess: onChanged });
+  const register = api.event.register.useMutation({
+    meta: { silenceError: true, successMessage: "Entry submitted." },
+    onSuccess: onChanged,
+  });
   const withdraw = api.event.withdrawRegistration.useMutation({
+    meta: { successMessage: "Entry withdrawn." },
     onSuccess: onChanged,
   });
 
@@ -115,9 +116,7 @@ function RegistrationPanel({
               Withdraw entry
             </Button>
             {withdraw.error && (
-              <p className="text-xs text-brand-red">
-                {withdraw.error.message}
-              </p>
+              <p className="text-xs text-brand-red">{withdraw.error.message}</p>
             )}
           </div>
         ) : !open ? (
@@ -193,8 +192,12 @@ function VolunteerPanel({
   event: EventData;
   onChanged: () => void;
 }) {
-  const signUp = api.event.volunteerSignUp.useMutation({ onSuccess: onChanged });
-  const cancel = api.event.volunteerCancel.useMutation({ onSuccess: onChanged });
+  const signUp = api.event.volunteerSignUp.useMutation({
+    onSuccess: onChanged,
+  });
+  const cancel = api.event.volunteerCancel.useMutation({
+    onSuccess: onChanged,
+  });
 
   return (
     <Card>

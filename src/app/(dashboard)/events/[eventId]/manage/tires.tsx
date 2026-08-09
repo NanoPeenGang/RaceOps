@@ -53,9 +53,7 @@ export function TiresPanel({ eventId }: { eventId: string }) {
       </div>
 
       {data.entries.length === 0 ? (
-        <p className="text-sm text-brand-black/60">
-          No confirmed entries yet.
-        </p>
+        <p className="text-sm text-brand-black/60">No confirmed entries yet.</p>
       ) : (
         <div className="space-y-2">
           {data.entries.map((entry) => (
@@ -115,7 +113,9 @@ export function TiresPanel({ eventId }: { eventId: string }) {
                                   : ""
                               }
                             >
-                              <span className="font-mono">{set.identifier}</span>
+                              <span className="font-mono">
+                                {set.identifier}
+                              </span>
                               {set.compound ? ` · ${set.compound}` : ""}
                               {set.dimension ? ` · ${set.dimension}` : ""}
                             </span>
@@ -142,7 +142,10 @@ function StatusButtons({
   set: { id: string; status: TireSetStatus };
   onSaved: () => void;
 }) {
-  const update = api.car.setTireStatus.useMutation({ onSuccess: onSaved });
+  const update = api.car.setTireStatus.useMutation({
+    meta: { silenceError: true },
+    onSuccess: onSaved,
+  });
   return (
     <span className="flex flex-wrap gap-1">
       {Object.values(TireSetStatus).map((status) => (

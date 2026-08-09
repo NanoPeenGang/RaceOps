@@ -112,9 +112,8 @@ export function PayrollPanel({ teamId }: { teamId: string }) {
 
       {!runs.isLoading && list.length === 0 && !creating && (
         <p className="rounded-lg border border-dashed border-brand-black/20 p-6 text-center text-sm text-brand-black/55">
-          No pay runs yet. Set rates for the people you pay, then create a run
-          — it starts pre-filled from those rates rather than from a blank
-          sheet.
+          No pay runs yet. Set rates for the people you pay, then create a run —
+          it starts pre-filled from those rates rather than from a blank sheet.
         </p>
       )}
 
@@ -165,7 +164,9 @@ function RunRow({
           </div>
           <div className="text-right">
             <Badge
-              variant={run.status === PayRunStatus.PAID ? "verified" : "outline"}
+              variant={
+                run.status === PayRunStatus.PAID ? "verified" : "outline"
+              }
             >
               {PAY_RUN_STATUS_LABELS[run.status]}
             </Badge>
@@ -211,15 +212,13 @@ function RunDetail({
   const [adding, setAdding] = useState(false);
 
   const approve = api.payroll.approve.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       utils.payroll.run.invalidate({ payRunId });
       onChanged();
     },
   });
-  const csv = api.payroll.exportCsv.useQuery(
-    { payRunId },
-    { enabled: false },
-  );
+  const csv = api.payroll.exportCsv.useQuery({ payRunId }, { enabled: false });
 
   const refresh = () => {
     utils.payroll.run.invalidate({ payRunId });
@@ -293,9 +292,7 @@ function RunDetail({
       )}
 
       {run.lines.length === 0 ? (
-        <p className="text-sm text-brand-black/55">
-          Nothing on this run yet.
-        </p>
+        <p className="text-sm text-brand-black/55">Nothing on this run yet.</p>
       ) : (
         <div className="space-y-1">
           {run.lines.map((line) => (
@@ -644,7 +641,9 @@ function LineForm({
         </label>
       </div>
 
-      {add.error && <p className="text-sm text-brand-red">{add.error.message}</p>}
+      {add.error && (
+        <p className="text-sm text-brand-red">{add.error.message}</p>
+      )}
       <Button
         size="sm"
         variant="primary"
@@ -703,9 +702,7 @@ function RatesPanel({
               </span>
               <span className="flex items-center gap-2">
                 <span className="text-brand-black/70">
-                  {member.rate
-                    ? describePay(member.rate)
-                    : "No rate set"}
+                  {member.rate ? describePay(member.rate) : "No rate set"}
                 </span>
                 <button
                   type="button"
@@ -751,7 +748,10 @@ function RateForm({
   const [currency, setCurrency] = useState("USD");
   const [label, setLabel] = useState("");
 
-  const save = api.payroll.setRate.useMutation({ onSuccess: onSaved });
+  const save = api.payroll.setRate.useMutation({
+    meta: { successMessage: "Pay rate saved." },
+    onSuccess: onSaved,
+  });
   const unpaid = basis === PayBasis.UNPAID;
 
   return (
@@ -813,7 +813,9 @@ function RateForm({
             userId,
             basis,
             amountMinor:
-              unpaid || !amount.trim() ? null : Math.round(Number(amount) * 100),
+              unpaid || !amount.trim()
+                ? null
+                : Math.round(Number(amount) * 100),
             currency,
             label: label.trim() || null,
           })

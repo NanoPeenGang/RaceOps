@@ -173,9 +173,7 @@ export function PitStopPlanner({
         <p className="flex flex-wrap gap-x-4 text-xs text-brand-black/55">
           <span>{timing.completed} completed</span>
           {timing.averageSeconds != null && (
-            <span>
-              average {formatStopSeconds(timing.averageSeconds)}
-            </span>
+            <span>average {formatStopSeconds(timing.averageSeconds)}</span>
           )}
           {timing.bestSeconds != null && (
             <span>best {formatStopSeconds(timing.bestSeconds)}</span>
@@ -192,12 +190,14 @@ export function PitStopPlanner({
   );
 }
 
-const STATUS_VARIANT: Record<PitStopStatus, "default" | "verified" | "outline"> =
-  {
-    PLANNED: "outline",
-    COMPLETED: "verified",
-    SKIPPED: "default",
-  };
+const STATUS_VARIANT: Record<
+  PitStopStatus,
+  "default" | "verified" | "outline"
+> = {
+  PLANNED: "outline",
+  COMPLETED: "verified",
+  SKIPPED: "default",
+};
 
 function StopRow({
   stop,
@@ -209,7 +209,10 @@ function StopRow({
   onChanged: () => void;
 }) {
   const update = api.pitStop.update.useMutation({ onSuccess: onChanged });
-  const remove = api.pitStop.remove.useMutation({ onSuccess: onChanged });
+  const remove = api.pitStop.remove.useMutation({
+    meta: { silenceError: true },
+    onSuccess: onChanged,
+  });
 
   return (
     <Card>

@@ -44,7 +44,10 @@ export function ScrutineeringPanel({
   const [templateId, setTemplateId] = useState("");
 
   const refresh = () => utils.scrutineering.forEvent.invalidate({ eventId });
-  const open = api.scrutineering.open.useMutation({ onSuccess: refresh });
+  const open = api.scrutineering.open.useMutation({
+    meta: { silenceError: true },
+    onSuccess: refresh,
+  });
 
   if (entries.error) {
     return (
@@ -146,7 +149,9 @@ export function ScrutineeringPanel({
                         size="sm"
                         variant="outline"
                         onClick={() =>
-                          setOpenEntry((c) => (c === entry.id ? null : entry.id))
+                          setOpenEntry((c) =>
+                            c === entry.id ? null : entry.id,
+                          )
                         }
                       >
                         {openEntry === entry.id ? "Close" : "Open card"}
@@ -225,8 +230,12 @@ function InspectionCard({
   const record = api.scrutineering.recordCheck.useMutation({
     onSuccess: onChanged,
   });
-  const refer = api.scrutineering.refer.useMutation({ onSuccess: onChanged });
+  const refer = api.scrutineering.refer.useMutation({
+    meta: { successMessage: "Referred to the stewards." },
+    onSuccess: onChanged,
+  });
   const raise = api.scrutineering.raisePenalty.useMutation({
+    meta: { successMessage: "Referred to the stewards." },
     onSuccess: onChanged,
   });
   const openRecheck = api.scrutineering.open.useMutation({
@@ -234,8 +243,7 @@ function InspectionCard({
   });
   const [measurements, setMeasurements] = useState<Record<string, string>>({});
 
-  const error =
-    record.error ?? refer.error ?? raise.error ?? openRecheck.error;
+  const error = record.error ?? refer.error ?? raise.error ?? openRecheck.error;
   const failed = checks.some((c) => c.result === CheckResult.FAIL);
 
   return (

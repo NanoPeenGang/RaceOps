@@ -18,6 +18,7 @@ export default function TeamsPage() {
   const [description, setDescription] = useState("");
 
   const createTeam = api.team.create.useMutation({
+    meta: { silenceError: true },
     onSuccess: (team) => {
       setName("");
       setDescription("");

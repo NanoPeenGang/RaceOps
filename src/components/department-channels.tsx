@@ -49,6 +49,7 @@ export function DepartmentChannels({
 
   const refresh = () => utils.channel.list.invalidate({ scope });
   const create = api.channel.create.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       setCreating(false);
       refresh();
@@ -163,7 +164,9 @@ export function DepartmentChannels({
       {open && (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={open.kind === ChannelKind.OPEN ? "default" : "outline"}>
+            <Badge
+              variant={open.kind === ChannelKind.OPEN ? "default" : "outline"}
+            >
               {describeAudience(
                 {
                   kind: open.kind,
@@ -277,7 +280,9 @@ function ChannelForm({
   });
 
   function toggle<T>(list: T[], value: T, set: (next: T[]) => void) {
-    set(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
+    set(
+      list.includes(value) ? list.filter((x) => x !== value) : [...list, value],
+    );
   }
 
   return (
@@ -315,8 +320,7 @@ function ChannelForm({
         </div>
 
         <label className="block text-sm font-medium">
-          What it is for{" "}
-          <span className="text-brand-black/50">(optional)</span>
+          What it is for <span className="text-brand-black/50">(optional)</span>
           <input
             className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
             value={description}

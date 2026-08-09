@@ -234,7 +234,12 @@ function TeamSettings({
   onSaved,
   defaultOpen = false,
 }: {
-  team: { id: string; description: string | null; websiteUrl: string | null; homeBase: string | null };
+  team: {
+    id: string;
+    description: string | null;
+    websiteUrl: string | null;
+    homeBase: string | null;
+  };
   onSaved: () => void;
   /** On a Settings tab the form is the point of the page, so it starts open. */
   defaultOpen?: boolean;
@@ -245,6 +250,7 @@ function TeamSettings({
   const [homeBase, setHomeBase] = useState(team.homeBase ?? "");
 
   const update = api.team.update.useMutation({
+    meta: { silenceError: true, successMessage: "Team saved." },
     onSuccess: () => {
       setOpen(false);
       onSaved();

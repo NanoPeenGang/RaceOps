@@ -60,11 +60,10 @@ export default function ManageEventPage({
     { enabled: canDelete, retry: false },
   );
   const deleteEvent = api.event.delete.useMutation({
+    meta: { silenceError: true },
     onSuccess: (result) => {
       utils.series.bySlug.invalidate();
-      router.push(
-        result.seriesId ? `/series` : "/events",
-      );
+      router.push(result.seriesId ? `/series` : "/events");
     },
   });
 
@@ -189,7 +188,10 @@ export default function ManageEventPage({
             label: "Paddock & tech",
             content: (
               <div className="space-y-8">
-                <ScrutineeringPanel eventId={eventId} seriesId={data.seriesId} />
+                <ScrutineeringPanel
+                  eventId={eventId}
+                  seriesId={data.seriesId}
+                />
                 <TiresPanel eventId={eventId} />
                 <PaddockPanel eventId={eventId} />
               </div>
@@ -294,6 +296,7 @@ function RegistrationsPanel({
     },
   });
   const setStatus = api.event.setRegistrationStatus.useMutation({
+    meta: { silenceError: true, successMessage: "Entrant told." },
     onSuccess: () => {
       utils.event.registrationsFor.invalidate({ eventId });
       utils.event.byId.invalidate({ eventId });
@@ -436,7 +439,9 @@ function ShiftsPanel({ eventId }: { eventId: string }) {
     },
   });
 
-  const [role, setRole] = useState<VolunteerRoleType>(VolunteerRoleType.MARSHAL);
+  const [role, setRole] = useState<VolunteerRoleType>(
+    VolunteerRoleType.MARSHAL,
+  );
   const [title, setTitle] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
@@ -464,9 +469,7 @@ function ShiftsPanel({ eventId }: { eventId: string }) {
                 <select
                   className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
                   value={role}
-                  onChange={(e) =>
-                    setRole(e.target.value as VolunteerRoleType)
-                  }
+                  onChange={(e) => setRole(e.target.value as VolunteerRoleType)}
                 >
                   {Object.values(VolunteerRoleType).map((r) => (
                     <option key={r} value={r}>

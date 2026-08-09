@@ -66,8 +66,7 @@ function PostingCard({
           onClick={() => setExpanded((v) => !v)}
         >
           {posting._count.applications} application
-          {posting._count.applications === 1 ? "" : "s"}{" "}
-          {expanded ? "▴" : "▾"}
+          {posting._count.applications === 1 ? "" : "s"} {expanded ? "▴" : "▾"}
         </button>
         {expanded && <ApplicationList opportunityId={posting.id} />}
       </CardContent>
@@ -77,9 +76,13 @@ function PostingCard({
 
 function ApplicationList({ opportunityId }: { opportunityId: string }) {
   const utils = api.useUtils();
-  const applications = api.opportunity.applicationsFor.useQuery({ opportunityId });
+  const applications = api.opportunity.applicationsFor.useQuery({
+    opportunityId,
+  });
   const setStatus = api.opportunity.setApplicationStatus.useMutation({
-    onSuccess: () => utils.opportunity.applicationsFor.invalidate({ opportunityId }),
+    meta: { silenceError: true, successMessage: "Applicant told." },
+    onSuccess: () =>
+      utils.opportunity.applicationsFor.invalidate({ opportunityId }),
   });
 
   if (applications.isLoading) {

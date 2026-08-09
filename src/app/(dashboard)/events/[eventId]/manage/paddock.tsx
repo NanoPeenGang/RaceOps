@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AccessZone, CredentialAudience, CredentialStatus } from "@prisma/client";
+import {
+  AccessZone,
+  CredentialAudience,
+  CredentialStatus,
+} from "@prisma/client";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/trpc/root";
 import { api } from "@/lib/trpc/client";
@@ -214,7 +218,9 @@ function AccreditationTab({
             data.issuance.map((type) => (
               <span key={type.typeId}>
                 {type.typeName}: {type.issued}
-                {type.totalAvailable !== null ? ` / ${type.totalAvailable}` : ""}
+                {type.totalAvailable !== null
+                  ? ` / ${type.totalAvailable}`
+                  : ""}
                 {type.exhausted ? " (exhausted)" : ""}
               </span>
             ))
@@ -306,9 +312,7 @@ function StatusButtons({
           size="sm"
           variant={status === credential.status ? "primary" : "outline"}
           disabled={update.isPending}
-          onClick={() =>
-            update.mutate({ credentialId: credential.id, status })
-          }
+          onClick={() => update.mutate({ credentialId: credential.id, status })}
         >
           {CREDENTIAL_STATUS_LABELS[status]}
         </Button>
@@ -330,7 +334,10 @@ function AddTypeForm({
   const [zones, setZones] = useState<AccessZone[]>([]);
   const [audience, setAudience] = useState<CredentialAudience | "">("");
 
-  const add = api.paddock.addCredentialType.useMutation({ onSuccess: onSaved });
+  const add = api.paddock.addCredentialType.useMutation({
+    meta: { silenceError: true },
+    onSuccess: onSaved,
+  });
 
   return (
     <Card>
@@ -422,7 +429,9 @@ function AddTypeForm({
           </span>
         </label>
 
-        {add.error && <p className="text-sm text-brand-red">{add.error.message}</p>}
+        {add.error && (
+          <p className="text-sm text-brand-red">{add.error.message}</p>
+        )}
         <Button
           size="sm"
           variant="primary"

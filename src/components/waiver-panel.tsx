@@ -40,9 +40,7 @@ export function WaiverPanel({
           {outstanding.length === 0 ? (
             <Badge variant="verified">All signed</Badge>
           ) : (
-            <Badge>
-              {outstanding.length} to sign
-            </Badge>
+            <Badge>{outstanding.length} to sign</Badge>
           )}
         </div>
       </CardHeader>
@@ -97,7 +95,13 @@ function WaiverItem({
   const [guardianName, setGuardianName] = useState("");
   const [guardianRelation, setGuardianRelation] = useState("");
 
-  const sign = api.waiver.sign.useMutation({ onSuccess: onSigned });
+  const sign = api.waiver.sign.useMutation({
+    meta: {
+      silenceError: true,
+      successMessage: "Signed. Your copy is on the event page.",
+    },
+    onSuccess: onSigned,
+  });
   const needsGuardian = capacity === "guardian";
 
   return (
@@ -143,9 +147,9 @@ function WaiverItem({
             <>
               {capacity === "unknown" && waiver.minSigningAge && (
                 <p className="text-sm text-brand-red">
-                  This waiver may only be signed by someone {waiver.minSigningAge}{" "}
-                  or over. Add your date of birth to your profile so we can tell
-                  whether you can sign it yourself.
+                  This waiver may only be signed by someone{" "}
+                  {waiver.minSigningAge} or over. Add your date of birth to your
+                  profile so we can tell whether you can sign it yourself.
                 </p>
               )}
               {needsGuardian && (

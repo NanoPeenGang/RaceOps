@@ -70,7 +70,9 @@ export default function ApplyPage() {
                 <Card key={option} className="h-full">
                   <CardContent className="space-y-3 p-4">
                     <div>
-                      <p className="font-medium">{ACCESS_KIND_LABELS[option]}</p>
+                      <p className="font-medium">
+                        {ACCESS_KIND_LABELS[option]}
+                      </p>
                       <p className="mt-1 text-sm text-brand-black/60">
                         {ACCESS_KIND_DESCRIPTIONS[option]}
                       </p>
@@ -83,9 +85,9 @@ export default function ApplyPage() {
                     </p>
                     {createsAnEntity(option) && (
                       <p className="text-xs text-brand-black/50">
-                        An approval covers one {ACCESS_KIND_LABELS[
-                          option
-                        ].toLowerCase()}. Apply again for another.
+                        An approval covers one{" "}
+                        {ACCESS_KIND_LABELS[option].toLowerCase()}. Apply again
+                        for another.
                       </p>
                     )}
                     <Button
@@ -144,6 +146,10 @@ function ApplyForm({
   const [experience, setExperience] = useState("");
 
   const apply = api.access.submit.useMutation({
+    meta: {
+      silenceError: true,
+      successMessage: "Application sent. We will come back to you.",
+    },
     onSuccess: async () => {
       await utils.access.mine.invalidate();
       onDone();
@@ -239,7 +245,8 @@ function ApplyForm({
   );
 }
 
-type MyRequest = inferRouterOutputs<AppRouter>["access"]["mine"]["requests"][number];
+type MyRequest =
+  inferRouterOutputs<AppRouter>["access"]["mine"]["requests"][number];
 
 function RequestRow({ request }: { request: MyRequest }) {
   const utils = api.useUtils();

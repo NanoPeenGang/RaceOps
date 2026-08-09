@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Header } from "@/components/header";
 import { TRPCProvider } from "@/lib/trpc/provider";
+import { ToastProvider } from "@/components/ui/toast";
 import { OfflineProvider } from "@/components/offline-provider";
 import { OfflineIndicator } from "@/components/offline-indicator";
 import { ServiceWorkerRegistration } from "@/components/service-worker";
@@ -45,14 +46,18 @@ export default function RootLayout({
     <html lang="en">
       <body className="min-h-screen antialiased">
         <ClerkProvider>
-          <TRPCProvider>
-            <OfflineProvider>
-              <Header />
-              {children}
-              <OfflineIndicator />
-              <ServiceWorkerRegistration />
-            </OfflineProvider>
-          </TRPCProvider>
+          {/* Outside the tRPC provider, which reads it to report every failed
+              mutation — so the toast context has to exist first. */}
+          <ToastProvider>
+            <TRPCProvider>
+              <OfflineProvider>
+                <Header />
+                {children}
+                <OfflineIndicator />
+                <ServiceWorkerRegistration />
+              </OfflineProvider>
+            </TRPCProvider>
+          </ToastProvider>
         </ClerkProvider>
       </body>
     </html>

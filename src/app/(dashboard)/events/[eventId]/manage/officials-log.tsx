@@ -29,6 +29,7 @@ export function OfficialsLogPanel({ eventId }: { eventId: string }) {
   const refresh = () => utils.log.forEvent.invalidate({ eventId });
   const setPublished = api.log.setPublished.useMutation({ onSuccess: refresh });
   const publishAll = api.log.publishBulletin.useMutation({
+    meta: { silenceError: true },
     onSuccess: refresh,
   });
 
@@ -153,7 +154,10 @@ function AddEntryForm({
   const [detail, setDetail] = useState("");
   const [published, setPublished] = useState(false);
 
-  const add = api.log.add.useMutation({ onSuccess: onSaved });
+  const add = api.log.add.useMutation({
+    meta: { successMessage: "Logged." },
+    onSuccess: onSaved,
+  });
 
   return (
     <Card>
@@ -220,7 +224,9 @@ function AddEntryForm({
           />
           Put this in the public bulletin
         </label>
-        {add.error && <p className="text-sm text-brand-red">{add.error.message}</p>}
+        {add.error && (
+          <p className="text-sm text-brand-red">{add.error.message}</p>
+        )}
         <Button
           size="sm"
           variant="primary"

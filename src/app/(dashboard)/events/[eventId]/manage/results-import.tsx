@@ -28,6 +28,7 @@ export function ResultsImportPanel({ eventId }: { eventId: string }) {
   );
 
   const runImport = api.event.importResults.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       setPayload("");
       setSubmitted(null);
@@ -113,7 +114,9 @@ export function ResultsImportPanel({ eventId }: { eventId: string }) {
               <Button
                 variant="primary"
                 disabled={runImport.isPending}
-                onClick={() => runImport.mutate({ eventId, payload: submitted! })}
+                onClick={() =>
+                  runImport.mutate({ eventId, payload: submitted! })
+                }
               >
                 {runImport.isPending
                   ? "Importing…"
@@ -220,7 +223,9 @@ export function ResultsImportPanel({ eventId }: { eventId: string }) {
                             )}
                           </td>
                           <td className="p-2">{row.status}</td>
-                          <td className="p-2 text-right">{row.lapsCompleted}</td>
+                          <td className="p-2 text-right">
+                            {row.lapsCompleted}
+                          </td>
                           <td className="p-2 text-right font-mono text-xs">
                             {formatLapTime(row.bestLapMs)}
                           </td>

@@ -108,7 +108,9 @@ function FilterChip({
 }
 
 function ApplyButton({ opportunityId }: { opportunityId: string }) {
-  const apply = api.opportunity.submitApplication.useMutation();
+  const apply = api.opportunity.submitApplication.useMutation({
+    meta: { silenceError: true },
+  });
   return (
     <div>
       <Button

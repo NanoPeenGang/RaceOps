@@ -38,7 +38,10 @@ export function EligibilityPanel({ eventId }: { eventId: string }) {
     utils.eligibility.forEvent.invalidate({ eventId });
     utils.eligibility.forRegistration.invalidate();
   };
-  const decide = api.eligibility.decide.useMutation({ onSuccess: refresh });
+  const decide = api.eligibility.decide.useMutation({
+    meta: { silenceError: true },
+    onSuccess: refresh,
+  });
   const clear = api.eligibility.clearDecision.useMutation({
     onSuccess: refresh,
   });
@@ -123,9 +126,7 @@ export function EligibilityPanel({ eventId }: { eventId: string }) {
                               : ""}
                           </span>
                         </p>
-                        <p
-                          className={`text-xs ${STATE_STYLES[finding.state]}`}
-                        >
+                        <p className={`text-xs ${STATE_STYLES[finding.state]}`}>
                           {STATE_LABELS[finding.state]} — {finding.detail}
                         </p>
                       </div>

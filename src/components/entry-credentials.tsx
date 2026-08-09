@@ -32,6 +32,7 @@ export function EntryCredentials({
     utils.paddock.credentialsForRegistration.invalidate({ registrationId });
 
   const request = api.paddock.requestCredential.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       refresh();
       setHolderName("");
@@ -62,7 +63,8 @@ export function EntryCredentials({
         <div>
           <p className="text-sm font-medium">Your place</p>
           <p className="text-sm text-brand-black/60">
-            {place ?? "Not allocated yet — organizers publish this before the event."}
+            {place ??
+              "Not allocated yet — organizers publish this before the event."}
           </p>
           {allocation?.notes && (
             <p className="mt-1 text-xs text-brand-black/60">

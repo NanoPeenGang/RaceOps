@@ -31,6 +31,7 @@ export function DirectThread({ threadId }: { threadId: string }) {
     },
   });
   const send = api.message.send.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       setBody("");
       utils.message.thread.invalidate({ threadId });

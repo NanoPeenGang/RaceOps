@@ -155,7 +155,10 @@ function FileRow({
   canWrite: boolean;
   onChanged: () => void;
 }) {
-  const remove = api.garage.removeFile.useMutation({ onSuccess: onChanged });
+  const remove = api.garage.removeFile.useMutation({
+    meta: { silenceError: true },
+    onSuccess: onChanged,
+  });
   const lap = formatLapTime(file.bestLapMs);
 
   return (

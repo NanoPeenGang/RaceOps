@@ -26,6 +26,7 @@ export default function NewOpportunityPage() {
   const [teamId, setTeamId] = useState("");
 
   const create = api.opportunity.create.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => router.push("/opportunities/mine"),
   });
 

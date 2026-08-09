@@ -97,7 +97,9 @@ export function GaragePanel({ team }: { team: TeamDashboard }) {
                     car.classLabel,
                     car.engine,
                     car.chassisNumber ? `Chassis ${car.chassisNumber}` : null,
-                    car.homologation ? `Homologation ${car.homologation}` : null,
+                    car.homologation
+                      ? `Homologation ${car.homologation}`
+                      : null,
                     `${car._count.registrations} entr${car._count.registrations === 1 ? "y" : "ies"}`,
                   ]
                     .filter(Boolean)
@@ -106,9 +108,7 @@ export function GaragePanel({ team }: { team: TeamDashboard }) {
               </div>
               <div className="flex items-center gap-2">
                 {!car.active && <Badge variant="outline">Retired</Badge>}
-                {canManage && (
-                  <RetireButton car={car} onSaved={refresh} />
-                )}
+                {canManage && <RetireButton car={car} onSaved={refresh} />}
               </div>
             </CardContent>
           </Card>
@@ -172,7 +172,10 @@ function AddCarForm({
   const [homologation, setHomologation] = useState("");
   const [classLabel, setClassLabel] = useState("");
 
-  const create = api.car.create.useMutation({ onSuccess: onSaved });
+  const create = api.car.create.useMutation({
+    meta: { silenceError: true },
+    onSuccess: onSaved,
+  });
 
   return (
     <Card>
@@ -293,9 +296,9 @@ function AddTransponderForm({
     <Card>
       <CardContent className="space-y-3 p-4">
         <p className="text-xs text-brand-black/60">
-          The number printed on the unit. Timing systems key on this rather
-          than on the entry, so registering it is what lets a live feed be
-          reconciled to the grid.
+          The number printed on the unit. Timing systems key on this rather than
+          on the entry, so registering it is what lets a live feed be reconciled
+          to the grid.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm font-medium">

@@ -48,6 +48,7 @@ export function PaddockChat({
 
   const refresh = () => utils.chat.forRoom.invalidate({ scope });
   const send = api.chat.send.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       setBody("");
       refresh();
@@ -106,9 +107,7 @@ export function PaddockChat({
                         type="button"
                         className="text-xs text-brand-black/40 hover:text-brand-red"
                         disabled={remove.isPending}
-                        onClick={() =>
-                          remove.mutate({ messageId: message.id })
-                        }
+                        onClick={() => remove.mutate({ messageId: message.id })}
                       >
                         Delete
                       </button>
@@ -128,28 +127,28 @@ export function PaddockChat({
                 "This room is archived. It can be read but not posted to."}
             </p>
           ) : (
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (body.trim()) send.mutate({ scope, body: body.trim() });
-            }}
-          >
-            <input
-              className="flex-1 rounded-md border border-brand-black/20 px-3 py-2 text-sm"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder={placeholder}
-              maxLength={2000}
-            />
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={send.isPending || body.trim().length === 0}
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (body.trim()) send.mutate({ scope, body: body.trim() });
+              }}
             >
-              Send
-            </Button>
-          </form>
+              <input
+                className="flex-1 rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder={placeholder}
+                maxLength={2000}
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={send.isPending || body.trim().length === 0}
+              >
+                Send
+              </Button>
+            </form>
           )}
           {send.error && (
             <p className="text-sm text-brand-red">{send.error.message}</p>

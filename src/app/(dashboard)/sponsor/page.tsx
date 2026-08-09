@@ -189,6 +189,10 @@ function DealCard({
   const [reason, setReason] = useState("");
   const [confirming, setConfirming] = useState(false);
   const withdraw = api.sponsor.withdrawOffer.useMutation({
+    meta: {
+      silenceError: true,
+      successMessage: "Offer withdrawn and the team told.",
+    },
     onSuccess: async () => {
       await utils.sponsor.dashboard.invalidate();
       setConfirming(false);
@@ -200,11 +204,7 @@ function DealCard({
       <CardContent className="space-y-3 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <Avatar
-              src={deal.team.logoUrl}
-              name={deal.team.name}
-              size="sm"
-            />
+            <Avatar src={deal.team.logoUrl} name={deal.team.name} size="sm" />
             <div className="min-w-0">
               <Link
                 href={`/teams/${deal.team.slug}`}
@@ -225,7 +225,9 @@ function DealCard({
             </p>
             <Badge
               variant={
-                deal.status === SponsorshipStatus.ACTIVE ? "verified" : "default"
+                deal.status === SponsorshipStatus.ACTIVE
+                  ? "verified"
+                  : "default"
               }
             >
               {SPONSOR_STATUS_LABELS[deal.status]}
@@ -278,7 +280,10 @@ function DealCard({
                   >
                     Withdraw the offer
                   </Button>
-                  <Button variant="outline" onClick={() => setConfirming(false)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setConfirming(false)}
+                  >
                     Keep it open
                   </Button>
                 </div>

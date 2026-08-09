@@ -40,6 +40,7 @@ export function CredentialGenerator({
     { enabled: open },
   );
   const generate = api.paddock.generateCredentials.useMutation({
+    meta: { silenceError: true, successMessage: "Passes generated." },
     onSuccess: async () => {
       await utils.paddock.previewCredentialSweep.invalidate({ eventId });
       onChanged();
@@ -94,7 +95,9 @@ export function CredentialGenerator({
                     {AUDIENCE_LABELS[type.autoIssueTo as CredentialAudience]}
                   </span>{" "}
                   → {type.name}
-                  {zoneSummary(type.zones) ? ` (${zoneSummary(type.zones)})` : ""}
+                  {zoneSummary(type.zones)
+                    ? ` (${zoneSummary(type.zones)})`
+                    : ""}
                 </span>
               ))}
             </p>
@@ -131,7 +134,9 @@ export function CredentialGenerator({
                           </span>
                         )}
                       </span>
-                      <Badge variant="outline">{entry.credentialTypeName}</Badge>
+                      <Badge variant="outline">
+                        {entry.credentialTypeName}
+                      </Badge>
                     </li>
                   ))}
                 </ul>
@@ -140,7 +145,9 @@ export function CredentialGenerator({
               {plan.unmatched.length > 0 && (
                 <div className="rounded border border-brand-red/30 bg-brand-red/5 p-3 text-xs">
                   <p className="font-medium text-brand-red">
-                    {plan.unmatched.length} {plan.unmatched.length === 1 ? "person" : "people"} would get nothing
+                    {plan.unmatched.length}{" "}
+                    {plan.unmatched.length === 1 ? "person" : "people"} would
+                    get nothing
                   </p>
                   <p className="mt-0.5 text-brand-black/70">
                     No pass type is set to be generated for{" "}
@@ -155,8 +162,11 @@ export function CredentialGenerator({
                   </p>
                   <ul className="mt-1.5 space-y-0.5 text-brand-black/60">
                     {plan.unmatched.slice(0, 6).map((candidate, index) => (
-                      <li key={`${candidate.userId ?? candidate.name}-${index}`}>
-                        {candidate.name} — {AUDIENCE_DESCRIPTIONS[candidate.audience]}
+                      <li
+                        key={`${candidate.userId ?? candidate.name}-${index}`}
+                      >
+                        {candidate.name} —{" "}
+                        {AUDIENCE_DESCRIPTIONS[candidate.audience]}
                       </li>
                     ))}
                     {plan.unmatched.length > 6 && (

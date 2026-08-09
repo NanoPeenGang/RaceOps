@@ -38,8 +38,12 @@ export function ClassesPanel({
       refresh();
     },
   });
-  const updateClass = api.series.updateClass.useMutation({ onSuccess: refresh });
-  const deleteClass = api.series.deleteClass.useMutation({ onSuccess: refresh });
+  const updateClass = api.series.updateClass.useMutation({
+    onSuccess: refresh,
+  });
+  const deleteClass = api.series.deleteClass.useMutation({
+    onSuccess: refresh,
+  });
 
   const rows = classes.data ?? [];
   const error = createClass.error ?? updateClass.error ?? deleteClass.error;
@@ -193,6 +197,7 @@ function ChampionshipRulesForm({ seriesId }: { seriesId: string }) {
   const [minStarts, setMinStarts] = useState("");
 
   const setRules = api.series.setChampionshipRules.useMutation({
+    meta: { silenceError: true, successMessage: "Championship rules saved." },
     onSuccess: () => {
       setOpen(false);
       utils.series.standings.invalidate({ seriesId });

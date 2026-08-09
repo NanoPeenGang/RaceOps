@@ -31,6 +31,7 @@ export function StaffPanel({ organizationId }: { organizationId: string }) {
 
   const refresh = () => utils.organization.staff.invalidate({ organizationId });
   const assign = api.organization.assignRole.useMutation({
+    meta: { silenceError: true },
     onSuccess: refresh,
   });
   const unassign = api.organization.unassignRole.useMutation({
@@ -41,7 +42,8 @@ export function StaffPanel({ organizationId }: { organizationId: string }) {
   });
 
   if (staff.isLoading) return <p className="text-brand-black/60">Loading…</p>;
-  if (staff.error) return <p className="text-brand-red">{staff.error.message}</p>;
+  if (staff.error)
+    return <p className="text-brand-red">{staff.error.message}</p>;
   const { members, roles } = staff.data!;
 
   return (
@@ -315,7 +317,9 @@ function AddMemberForm({
             placeholder="Clerk of the Course"
           />
         </label>
-        {add.error && <p className="text-sm text-brand-red">{add.error.message}</p>}
+        {add.error && (
+          <p className="text-sm text-brand-red">{add.error.message}</p>
+        )}
         <Button
           size="sm"
           variant="primary"
@@ -347,7 +351,9 @@ function RoleForm({
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("#D91E1E");
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  const create = api.organization.createRole.useMutation({ onSuccess: onSaved });
+  const create = api.organization.createRole.useMutation({
+    onSuccess: onSaved,
+  });
 
   const toggle = (permission: Permission) =>
     setPermissions((current) =>

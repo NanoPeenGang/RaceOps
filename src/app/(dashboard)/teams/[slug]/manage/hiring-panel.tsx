@@ -13,11 +13,7 @@ import {
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/trpc/root";
 import { api } from "@/lib/trpc/client";
-import {
-  APPLICATION_STATUS_LABELS,
-  daysWaiting,
-  isStale,
-} from "@/lib/hiring";
+import { APPLICATION_STATUS_LABELS, daysWaiting, isStale } from "@/lib/hiring";
 import {
   INTERVIEW_KIND_LABELS,
   INTERVIEW_STATUS_LABELS,
@@ -73,9 +69,10 @@ export function HiringPanel({ teamId }: { teamId: string }) {
   }
 
   const data = inbox.data!;
-  const open = [...data.pipeline.flatMap((stage) => stage.applications), ...data.closed].find(
-    (application) => application.id === openId,
-  );
+  const open = [
+    ...data.pipeline.flatMap((stage) => stage.applications),
+    ...data.closed,
+  ].find((application) => application.id === openId);
 
   return (
     <section className="space-y-4">
@@ -253,6 +250,7 @@ function ApplicationDetail({
   const [offering, setOffering] = useState(false);
 
   const setStatus = api.opportunity.setApplicationStatus.useMutation({
+    meta: { silenceError: true, successMessage: "Applicant told." },
     onSuccess: onChanged,
   });
 
@@ -414,7 +412,9 @@ function InterviewRow({
   interview: Interview;
   onChanged: () => void;
 }) {
-  const update = api.hiring.updateInterview.useMutation({ onSuccess: onChanged });
+  const update = api.hiring.updateInterview.useMutation({
+    onSuccess: onChanged,
+  });
   const chosen = chosenSlot(interview.slots);
 
   return (
@@ -508,7 +508,10 @@ function OfferRow({
   offer: Offer;
   onChanged: () => void;
 }) {
-  const send = api.hiring.sendOffer.useMutation({ onSuccess: onChanged });
+  const send = api.hiring.sendOffer.useMutation({
+    meta: { successMessage: "Offer sent." },
+    onSuccess: onChanged,
+  });
   const withdraw = api.hiring.withdrawOffer.useMutation({
     onSuccess: onChanged,
   });
@@ -525,7 +528,9 @@ function OfferRow({
           )}
         </span>
         <Badge
-          variant={offer.status === OfferStatus.ACCEPTED ? "verified" : "outline"}
+          variant={
+            offer.status === OfferStatus.ACCEPTED ? "verified" : "outline"
+          }
         >
           {OFFER_STATUS_LABELS[offer.status]}
         </Badge>

@@ -3,11 +3,7 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/trpc/client";
-import {
-  relativeTime,
-  sortInbox,
-  threadTitle,
-} from "@/lib/direct-messages";
+import { relativeTime, sortInbox, threadTitle } from "@/lib/direct-messages";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/ui/page";
@@ -33,10 +29,7 @@ function Inbox() {
   // Deep link from a "Message" button elsewhere: the thread is already open by
   // the time the inbox loads, which is the whole point of pressing it.
   const requested = useSearchParams().get("thread");
-  const inbox = api.message.inbox.useQuery(
-    {},
-    { refetchInterval: 30_000 },
-  );
+  const inbox = api.message.inbox.useQuery({}, { refetchInterval: 30_000 });
   const [picked, setPicked] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const openId = picked ?? requested;
@@ -144,17 +137,14 @@ function Inbox() {
  * impossible to message the person you have not met yet — which is most of the
  * reason this feature exists.
  */
-function NewMessage({
-  onOpened,
-}: {
-  onOpened: (threadId: string) => void;
-}) {
+function NewMessage({ onOpened }: { onOpened: (threadId: string) => void }) {
   const [query, setQuery] = useState("");
   const candidates = api.search.profiles.useQuery(
     { query, limit: 8 },
     { enabled: query.trim().length >= 2 },
   );
   const open = api.message.openWith.useMutation({
+    meta: { silenceError: true },
     onSuccess: (result) => onOpened(result.threadId),
   });
 

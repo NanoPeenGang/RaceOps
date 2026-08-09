@@ -127,7 +127,10 @@ function CreateSeriesForm({ onCreated }: { onCreated: () => void }) {
   const [season, setSeason] = useState("");
   const [description, setDescription] = useState("");
 
-  const create = api.series.create.useMutation({ onSuccess: onCreated });
+  const create = api.series.create.useMutation({
+    meta: { silenceError: true },
+    onSuccess: onCreated,
+  });
 
   return (
     <Card className="max-w-2xl">

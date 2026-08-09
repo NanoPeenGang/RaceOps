@@ -39,15 +39,16 @@ export function MediaPanel({
   const [showForm, setShowForm] = useState(false);
   const [url, setUrl] = useState("");
   const [mediaTitle, setMediaTitle] = useState("");
-  const [kind, setKind] = useState<"image" | "video" | "telemetry" | "document">(
-    "image",
-  );
+  const [kind, setKind] = useState<
+    "image" | "video" | "telemetry" | "document"
+  >("image");
   const [visibility, setVisibility] = useState<MediaVisibility>(
     MediaVisibility.PUBLIC,
   );
 
   const invalidate = () => utils.media.forScope.invalidate(scope);
   const attach = api.media.attach.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       setUrl("");
       setMediaTitle("");
@@ -103,9 +104,7 @@ export function MediaPanel({
                 <select
                   className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
                   value={kind}
-                  onChange={(e) =>
-                    setKind(e.target.value as typeof kind)
-                  }
+                  onChange={(e) => setKind(e.target.value as typeof kind)}
                 >
                   <option value="image">Image</option>
                   <option value="video">Video</option>

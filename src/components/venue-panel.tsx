@@ -23,6 +23,7 @@ export function VenuePanel({ eventId }: { eventId: string }) {
   const [picking, setPicking] = useState(false);
 
   const update = api.event.update.useMutation({
+    meta: { silenceError: true },
     onSuccess: async () => {
       await utils.event.byId.invalidate({ eventId });
       setPicking(false);

@@ -44,7 +44,10 @@ export function TrackGallery({
   description: string;
 }) {
   const [adding, setAdding] = useState(false);
-  const move = api.track.moveImage.useMutation({ onSuccess: onChanged });
+  const move = api.track.moveImage.useMutation({
+    meta: { silenceError: true },
+    onSuccess: onChanged,
+  });
   const remove = api.track.deleteImage.useMutation({ onSuccess: onChanged });
 
   return (
@@ -60,7 +63,11 @@ export function TrackGallery({
             variant={images.length === 0 ? "primary" : "outline"}
             onClick={() => setAdding((open) => !open)}
           >
-            {adding ? "Cancel" : images.length === 0 ? "Add a photo" : "Add another"}
+            {adding
+              ? "Cancel"
+              : images.length === 0
+                ? "Add a photo"
+                : "Add another"}
           </Button>
         )}
       </div>
@@ -104,7 +111,9 @@ export function TrackGallery({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">{TRACK_IMAGE_LABELS[image.kind]}</Badge>
+                <Badge variant="outline">
+                  {TRACK_IMAGE_LABELS[image.kind]}
+                </Badge>
                 {image.caption && (
                   <span className="text-xs text-brand-black/75">
                     {image.caption}
@@ -119,7 +128,10 @@ export function TrackGallery({
                   <span className="italic">No credit given</span>
                 )}
                 {image.uploadedBy?.profile?.displayName && (
-                  <span> · added by {image.uploadedBy.profile.displayName}</span>
+                  <span>
+                    {" "}
+                    · added by {image.uploadedBy.profile.displayName}
+                  </span>
                 )}
               </p>
 
@@ -256,7 +268,9 @@ function ImageForm({
           means it renders as one.
         </p>
       )}
-      {add.error && <p className="text-sm text-brand-red">{add.error.message}</p>}
+      {add.error && (
+        <p className="text-sm text-brand-red">{add.error.message}</p>
+      )}
 
       <Button
         size="sm"

@@ -85,9 +85,7 @@ export default function IncidentsPage({
       )}
 
       {incidents.length === 0 && (
-        <p className="text-brand-black/60">
-          Nothing reported yet.
-        </p>
+        <p className="text-brand-black/60">Nothing reported yet.</p>
       )}
 
       <div className="space-y-2">
@@ -117,7 +115,10 @@ function IncidentRow({
   onChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const setStatus = api.incident.setStatus.useMutation({ onSuccess: onChanged });
+  const setStatus = api.incident.setStatus.useMutation({
+    meta: { silenceError: true },
+    onSuccess: onChanged,
+  });
   const withdraw = api.incident.withdraw.useMutation({ onSuccess: onChanged });
   const [notes, setNotes] = useState("");
   const [showPenalty, setShowPenalty] = useState(false);
@@ -130,7 +131,8 @@ function IncidentRow({
   return (
     <Card
       className={
-        incident.source === IncidentSource.PROTEST && isIncidentOpen(incident.status)
+        incident.source === IncidentSource.PROTEST &&
+        isIncidentOpen(incident.status)
           ? "border-brand-red/40"
           : undefined
       }
@@ -162,7 +164,11 @@ function IncidentRow({
             >
               {INCIDENT_STATUS_LABELS[incident.status]}
             </Badge>
-            <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setOpen((v) => !v)}
+            >
               {open ? "Close" : "Open"}
             </Button>
           </div>
@@ -380,7 +386,10 @@ function ReportForm({
   const [location, setLocation] = useState("");
   const [turnId, setTurnId] = useState("");
 
-  const file = api.incident.file.useMutation({ onSuccess: onFiled });
+  const file = api.incident.file.useMutation({
+    meta: { successMessage: "Incident filed with the stewards." },
+    onSuccess: onFiled,
+  });
   // Marshal posts are exactly where signal fails, and a report written on
   // paper at the post is a report that arrives an hour late or not at all.
   const offlineFile = useOfflineMutation(
@@ -472,7 +481,9 @@ function ReportForm({
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder={
-                turns.length > 0 ? "pit exit · recovery road" : "Turn 5 · pit exit"
+                turns.length > 0
+                  ? "pit exit · recovery road"
+                  : "Turn 5 · pit exit"
               }
             />
           </label>
@@ -500,28 +511,30 @@ function ReportForm({
         )}
         {!online && (
           <p className="text-sm text-brand-black/70">
-            No signal. This report will be held and sent as soon as you are
-            back in coverage — the time you filed it is what gets recorded.
+            No signal. This report will be held and sent as soon as you are back
+            in coverage — the time you filed it is what gets recorded.
           </p>
         )}
         <Button
           variant="primary"
           disabled={file.isPending || summary.trim().length < 5}
           onClick={() =>
-            void offlineFile.run({
-              eventId,
-              source,
-              subjectRegistrationId: subjectId || undefined,
-              summary: summary.trim(),
-              description: description.trim() || undefined,
-              lapNumber: lapNumber.trim() ? Number(lapNumber) : undefined,
-              location: location.trim() || undefined,
-              turnId: turnId || undefined,
-              // The moment it happened, not the moment it was delivered.
-              occurredAt: new Date(),
-            }).then(({ queued }) => {
-              if (queued) onFiled();
-            })
+            void offlineFile
+              .run({
+                eventId,
+                source,
+                subjectRegistrationId: subjectId || undefined,
+                summary: summary.trim(),
+                description: description.trim() || undefined,
+                lapNumber: lapNumber.trim() ? Number(lapNumber) : undefined,
+                location: location.trim() || undefined,
+                turnId: turnId || undefined,
+                // The moment it happened, not the moment it was delivered.
+                occurredAt: new Date(),
+              })
+              .then(({ queued }) => {
+                if (queued) onFiled();
+              })
           }
         >
           {file.isPending ? "Filing…" : online ? "File report" : "Hold report"}

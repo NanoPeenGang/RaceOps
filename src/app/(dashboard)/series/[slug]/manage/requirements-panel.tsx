@@ -3,10 +3,7 @@
 import { useState } from "react";
 import { RequirementEnforcement, RequirementKind } from "@prisma/client";
 import { api } from "@/lib/trpc/client";
-import {
-  ENFORCEMENT_LABELS,
-  REQUIREMENT_KIND_LABELS,
-} from "@/lib/eligibility";
+import { ENFORCEMENT_LABELS, REQUIREMENT_KIND_LABELS } from "@/lib/eligibility";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,6 +42,7 @@ export function RequirementsPanel({
     utils.eligibility.forEvent.invalidate();
   };
   const create = api.eligibility.create.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       setShowForm(false);
       setLabel("");

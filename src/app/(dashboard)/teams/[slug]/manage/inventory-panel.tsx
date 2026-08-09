@@ -271,6 +271,7 @@ function ItemRow({
 function MoveForm({ item, onSaved }: { item: StockItem; onSaved: () => void }) {
   const [amount, setAmount] = useState("1");
   const record = api.garage.recordMovement.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       setAmount("1");
       onSaved();
@@ -382,8 +383,7 @@ function ItemForm({
             />
           </label>
           <label className="block text-sm font-medium">
-            Part number{" "}
-            <span className="text-brand-black/50">(optional)</span>
+            Part number <span className="text-brand-black/50">(optional)</span>
             <input
               className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
               value={partNumber}
@@ -548,7 +548,9 @@ function UnitsPanel({
                   type="button"
                   className="text-xs text-brand-black/50 hover:text-brand-red"
                   disabled={update.isPending}
-                  onClick={() => update.mutate({ unitId: unit.id, retire: true })}
+                  onClick={() =>
+                    update.mutate({ unitId: unit.id, retire: true })
+                  }
                 >
                   Retire
                 </button>
@@ -591,7 +593,9 @@ function UnitsPanel({
         </label>
       </div>
 
-      {add.error && <p className="text-xs text-brand-red">{add.error.message}</p>}
+      {add.error && (
+        <p className="text-xs text-brand-red">{add.error.message}</p>
+      )}
       {update.error && (
         <p className="text-xs text-brand-red">{update.error.message}</p>
       )}
@@ -599,7 +603,9 @@ function UnitsPanel({
       <Button
         size="sm"
         variant="outline"
-        disabled={add.isPending || !Number.isInteger(parsedCount) || parsedCount < 1}
+        disabled={
+          add.isPending || !Number.isInteger(parsedCount) || parsedCount < 1
+        }
         onClick={() =>
           add.mutate({
             itemId: item.id,

@@ -37,6 +37,7 @@ export default function SeriesDashboardPage({
     { enabled: Boolean(series.data?.id) && isOwner, retry: false },
   );
   const deleteSeries = api.series.delete.useMutation({
+    meta: { silenceError: true },
     onSuccess: () => {
       utils.series.mine.invalidate();
       utils.series.list.invalidate();
@@ -92,7 +93,10 @@ export default function SeriesDashboardPage({
             <Button variant="outline">Standings</Button>
           </Link>
           {canManage && (
-            <Button variant="primary" onClick={() => setShowEventForm((v) => !v)}>
+            <Button
+              variant="primary"
+              onClick={() => setShowEventForm((v) => !v)}
+            >
               {showEventForm ? "Cancel" : "Add event"}
             </Button>
           )}
@@ -137,79 +141,87 @@ export default function SeriesDashboardPage({
             badge: data.events.length || undefined,
             content: (
               <div className="space-y-8">
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Calendar</h2>
-        {data.events.length === 0 && (
-          <p className="text-brand-black/60">No events scheduled yet.</p>
-        )}
-        <div className="space-y-3">
-          {data.events.map((event) => (
-            <Card key={event.id}>
-              <CardHeader>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle>{event.name}</CardTitle>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant={
-                        event.status === EventStatus.PUBLISHED
-                          ? "verified"
-                          : "default"
-                      }
-                    >
-                      {EVENT_STATUS_LABELS[event.status]}
-                    </Badge>
-                    <span className="text-xs text-brand-black/60">
-                      {new Date(event.date).toLocaleDateString()}
-                    </span>
+                <section className="space-y-3">
+                  <h2 className="text-xl font-semibold">Calendar</h2>
+                  {data.events.length === 0 && (
+                    <p className="text-brand-black/60">
+                      No events scheduled yet.
+                    </p>
+                  )}
+                  <div className="space-y-3">
+                    {data.events.map((event) => (
+                      <Card key={event.id}>
+                        <CardHeader>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <CardTitle>{event.name}</CardTitle>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge
+                                variant={
+                                  event.status === EventStatus.PUBLISHED
+                                    ? "verified"
+                                    : "default"
+                                }
+                              >
+                                {EVENT_STATUS_LABELS[event.status]}
+                              </Badge>
+                              <span className="text-xs text-brand-black/60">
+                                {new Date(event.date).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          <p className="text-xs text-brand-black/60">
+                            {[event.venue, event.platform]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                          <div className="flex flex-wrap gap-4 text-xs text-brand-black/70">
+                            <span>
+                              <strong>{event.confirmedEntries}</strong>{" "}
+                              confirmed
+                              {event.entryCapacity
+                                ? ` / ${event.entryCapacity}`
+                                : ""}
+                            </span>
+                            <span>
+                              <strong>{event._count.registrations}</strong>{" "}
+                              total entries
+                            </span>
+                            {event.volunteerCoverage.needed > 0 && (
+                              <span>
+                                Volunteers{" "}
+                                <strong>
+                                  {event.volunteerCoverage.filled}/
+                                  {event.volunteerCoverage.needed}
+                                </strong>
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            <Link href={`/events/${event.id}`}>
+                              <Button size="sm" variant="outline">
+                                View
+                              </Button>
+                            </Link>
+                            <Link href={`/events/${event.id}/timing`}>
+                              <Button size="sm" variant="outline">
+                                Timing
+                              </Button>
+                            </Link>
+                            {canManage && (
+                              <Link href={`/events/${event.id}/manage`}>
+                                <Button size="sm" variant="primary">
+                                  Manage
+                                </Button>
+                              </Link>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <p className="text-xs text-brand-black/60">
-                  {[event.venue, event.platform].filter(Boolean).join(" · ")}
-                </p>
-                <div className="flex flex-wrap gap-4 text-xs text-brand-black/70">
-                  <span>
-                    <strong>{event.confirmedEntries}</strong> confirmed
-                    {event.entryCapacity ? ` / ${event.entryCapacity}` : ""}
-                  </span>
-                  <span>
-                    <strong>{event._count.registrations}</strong> total entries
-                  </span>
-                  {event.volunteerCoverage.needed > 0 && (
-                    <span>
-                      Volunteers{" "}
-                      <strong>
-                        {event.volunteerCoverage.filled}/
-                        {event.volunteerCoverage.needed}
-                      </strong>
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <Link href={`/events/${event.id}`}>
-                    <Button size="sm" variant="outline">
-                      View
-                    </Button>
-                  </Link>
-                  <Link href={`/events/${event.id}/timing`}>
-                    <Button size="sm" variant="outline">
-                      Timing
-                    </Button>
-                  </Link>
-                  {canManage && (
-                    <Link href={`/events/${event.id}/manage`}>
-                      <Button size="sm" variant="primary">
-                        Manage
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
+                </section>
               </div>
             ),
           },
@@ -295,13 +307,7 @@ export default function SeriesDashboardPage({
   );
 }
 
-function StatCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
+function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
     <Card>
       <CardContent className="p-5">

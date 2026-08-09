@@ -135,7 +135,9 @@ function SignatureList({
   }
   if (!signatures.data) return <p className="text-sm">Loading…</p>;
   if (signatures.data.items.length === 0) {
-    return <p className="text-sm text-brand-black/60">Nobody has signed yet.</p>;
+    return (
+      <p className="text-sm text-brand-black/60">Nobody has signed yet.</p>
+    );
   }
 
   return (
@@ -189,7 +191,10 @@ function WaiverForm({
   const [required, setRequired] = useState(true);
   const [minSigningAge, setMinSigningAge] = useState("18");
 
-  const create = api.waiver.create.useMutation({ onSuccess: onSaved });
+  const create = api.waiver.create.useMutation({
+    meta: { silenceError: true },
+    onSuccess: onSaved,
+  });
 
   return (
     <Card>
@@ -215,8 +220,8 @@ function WaiverForm({
         </label>
         <p className="text-xs text-brand-black/60">
           This exact text is what people sign. Changing it later reissues the
-          waiver as a new version and every existing signature stops covering
-          it — so get the wording from whoever writes your regulations.
+          waiver as a new version and every existing signature stops covering it
+          — so get the wording from whoever writes your regulations.
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block text-sm font-medium sm:col-span-2">
@@ -265,7 +270,9 @@ function WaiverForm({
           size="sm"
           variant="primary"
           disabled={
-            create.isPending || title.trim().length < 3 || body.trim().length < 20
+            create.isPending ||
+            title.trim().length < 3 ||
+            body.trim().length < 20
           }
           onClick={() =>
             create.mutate({
