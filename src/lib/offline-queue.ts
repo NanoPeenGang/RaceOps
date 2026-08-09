@@ -33,6 +33,24 @@ export const QUEUEABLE_PROCEDURES = [
   "session.pushTiming",
   "log.add",
   "car.allocateTireSet",
+  /*
+   * Scanning a part in or out passes both tests above. It records what
+   * somebody did at a shelf, which is still true an hour later, and replaying
+   * it cannot contradict a decision — stock is arithmetic, not a ruling.
+   *
+   * It is also the single strongest case for the outbox in the whole app: a
+   * trailer at a circuit has no signal, and loading one is exactly when
+   * somebody is scanning twenty things in a row. The scan carries its own
+   * timestamp so the ledger says when the shelf actually emptied rather than
+   * when the phone found a bar of signal on the drive home.
+   *
+   * A replay that would take stock below zero is rejected and stays in the
+   * outbox as failed rather than being written anyway. That is the honest
+   * outcome: a team that scanned out more than the system thought it had has a
+   * missing receipt, and burying it would turn a findable discrepancy into a
+   * count nobody can reconcile.
+   */
+  "garage.scanPart",
 ] as const;
 
 export type QueueableProcedure = (typeof QUEUEABLE_PROCEDURES)[number];

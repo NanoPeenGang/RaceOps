@@ -119,7 +119,7 @@ export default function TeamManagePage({
         <div className="space-y-10">
           <GaragePanel team={data} />
           <ServicePanel teamId={data.id} />
-          <InventoryPanel teamId={data.id} />
+          <InventoryPanel teamId={data.id} teamSlug={slug} />
           <FilesPanel teamId={data.id} />
         </div>
       ),

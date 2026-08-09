@@ -11,6 +11,19 @@ import { ACCOUNT_LINKS, ADMIN_LINKS, NAV_LINKS } from "@/lib/nav";
  */
 const DASHBOARD_DIR = join(process.cwd(), "src/app/(dashboard)");
 
+/**
+ * Routes reached by scanning something, not by navigating.
+ *
+ * A part label's QR opens /parts/<kind>/<token> in whatever browser the phone's
+ * camera hands it to. There is no menu entry to put it behind — nobody types
+ * one of these, and a nav item reading "Parts" that opened a blank token page
+ * would be worse than no entry at all.
+ *
+ * Kept as an explicit list rather than a pattern so adding one is a decision
+ * somebody makes on purpose, which is the whole point of this test.
+ */
+const SCAN_TARGETS = new Set(["/parts"]);
+
 function topLevelRoutes(): string[] {
   return readdirSync(DASHBOARD_DIR, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -30,6 +43,7 @@ describe("navigation coverage", () => {
 
   it("exposes every top-level dashboard route in the shared nav", () => {
     const missing = topLevelRoutes().filter((route) => {
+      if (SCAN_TARGETS.has(route)) return false;
       // A route counts as reachable if it, or a child page of it, is linked.
       return ![...reachable].some(
         (href) => href === route || href.startsWith(`${route}/`),
@@ -42,6 +56,14 @@ describe("navigation coverage", () => {
     // Fails loudly if the directory layout moves and the scan silently
     // starts covering nothing.
     expect(topLevelRoutes().length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("does not carry an exemption for a route that no longer exists", () => {
+    // A stale entry here would silently exempt a future route that happened to
+    // reuse the name — which is exactly the regression this file exists to
+    // catch, reintroduced through its own escape hatch.
+    const routes = new Set(topLevelRoutes());
+    for (const target of SCAN_TARGETS) expect(routes.has(target)).toBe(true);
   });
 
   it("uses absolute, non-duplicated hrefs", () => {

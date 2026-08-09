@@ -887,6 +887,55 @@ results feed the championship standings immediately.
 > Realtime is optional. With Pusher credentials set, boards and chat update
 > instantly; without them everything polls and still works.
 
+**Parts get labels, and labels get scanned (done):** the garage stock ledger
+now prints QR labels and takes them back in through the camera. A crew loading
+a trailer sets the direction once — *taking out* or *putting back* — and then
+scans; every part logs itself, no form, no confirm. Getting one wrong is one
+tap of Undo, which writes a reversal rather than deleting the row, because a
+ledger whose entries can vanish is not an answer to "who took the last set".
+
+There are **two kinds of label**, and the distinction is the design:
+
+- A **bin label** identifies the stock line. Scan it and the count moves. This
+  is the right thing for consumables — printing eight identical labels for
+  eight sets of pads would be theatre, since scanning any one of them means
+  exactly what scanning the shelf means.
+- A **part label** identifies one physical thing, with its own serial and its
+  own expiry date. Scanning *is* the quantity, so there is no keypad. This
+  earns its place where the part has an identity worth following: a gearbox, a
+  fire bottle with a date on it, a set of wheels that comes back from a weekend
+  bent. Turning it on for a line takes the quantity keypad away, because two
+  ways to change one count is two counts.
+
+Details that matter more than they look:
+
+- **The same code is ignored for ten seconds.** A camera decodes eight times a
+  second; without this, holding a phone over a label books the same gearbox
+  out forty times and the count is wrong by a margin nobody can rebuild.
+- **Scanning something out that is already out is not an error** — it usually
+  means two people scanned the same box — but it writes no second movement.
+- **Scans queue offline.** This is the strongest case for the trackside outbox
+  in the whole platform: a trailer at a circuit has no signal, and loading one
+  is exactly when somebody scans twenty things in a row. Each scan carries the
+  time it happened, so the ledger does not say the shelf emptied on the drive
+  home. A replay that would take stock below zero is rejected and stays in the
+  outbox rather than being written anyway — a team that scanned out more than
+  the system thought it had has a missing receipt, and burying it would turn a
+  findable discrepancy into a count nobody can reconcile.
+- **A label scanned by somebody outside the team reads as "not found"**, not
+  as "forbidden". Labels get photographed in paddocks and left on benches at
+  circuits, and a refusal that says "this is somebody's, just not yours"
+  confirms the code is live and worth trying elsewhere.
+- **The code is never printed smaller than 92px (~24mm).** That floor came
+  from rasterising and decoding at print size in `tests/qr.test.ts`, not from
+  guessing, and shrinking it to fit more on a page is the one change that looks
+  like an improvement and quietly stops the labels working in a dim trailer.
+- **Tokens are minted from crypto randomness, never backfilled in SQL.**
+  Postgres' `random()` is not a CSPRNG, and a token predictable from a
+  neighbouring one would let anybody who photographed one bin walk the team's
+  whole parts list. Lines that predate labels get one the first time they are
+  printed.
+
 **Publishing needs approving (done):** anyone can sign up, keep a profile,
 drive, crew, apply for seats and message people with no gate at all. Four
 things need a human first — a **team**, an **organization**, a **championship**

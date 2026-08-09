@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import jsQR from "jsqr";
-import { credentialUrl, qrSvg } from "@/server/services/qr";
+import { credentialUrl, partLabelUrl, qrSvg } from "@/server/services/qr";
+import { MIN_LABEL_QR_PX } from "@/lib/part-labels";
 
 /**
  * The one assertion that matters about a badge: it scans.
@@ -68,6 +69,73 @@ describe("credential QR codes", () => {
           // one part no amount of error correction can replace.
           top: 200,
           left: 200,
+        },
+      ])
+      .png()
+      .toBuffer();
+
+    const { data, info } = await sharp(rendered)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    expect(
+      jsQR(new Uint8ClampedArray(data), info.width, info.height)?.data,
+    ).toBe(url);
+  });
+});
+
+describe("part labels", () => {
+  /*
+   * Same treatment as a badge, because the failure mode is the same and the
+   * conditions are worse: a bin label lives in a trailer, gets oil on it, and
+   * is read by a phone in flat grey light by somebody holding a gearbox.
+   */
+
+  it("round-trips a bin label at the size it is printed", async () => {
+    const url = partLabelUrl("line", "xQ7_mA3pLn2ZbK9dR4tS8vWy");
+    expect(
+      await decode(await qrSvg(url, { size: MIN_LABEL_QR_PX }), MIN_LABEL_QR_PX * 2),
+    ).toBe(url);
+  });
+
+  it("round-trips a part label at the size it is printed", async () => {
+    const url = partLabelUrl("unit", "a-b_c-d_efghijklmnopqrst");
+    expect(
+      await decode(await qrSvg(url, { size: MIN_LABEL_QR_PX }), MIN_LABEL_QR_PX * 2),
+    ).toBe(url);
+  });
+
+  it("keeps the two kinds apart in what it encodes", () => {
+    // The kind is in the path so a scan is resolvable from its text alone,
+    // without a database round trip to work out which table to look in.
+    expect(partLabelUrl("line", "tok")).toContain("/parts/i/tok");
+    expect(partLabelUrl("unit", "tok")).toContain("/parts/u/tok");
+  });
+
+  it("still scans with a thumbprint of oil across it", async () => {
+    /*
+     * Error correction M, the same level as a badge. A label on a parts bin is
+     * handled with dirty gloves, and a code that stops reading the first time
+     * somebody touches it is a code nobody trusts.
+     */
+    const url = partLabelUrl("unit", "xQ7_mA3pLn2ZbK9dR4tS8vWy");
+    const rendered = await sharp(Buffer.from(await qrSvg(url)))
+      .resize(400, 400, { kernel: "nearest" })
+      .ensureAlpha()
+      .composite([
+        {
+          input: {
+            create: {
+              width: 40,
+              height: 40,
+              channels: 4,
+              background: { r: 255, g: 255, b: 255, alpha: 1 },
+            },
+          },
+          // Away from the finder patterns, which no amount of error correction
+          // can replace.
+          top: 210,
+          left: 190,
         },
       ])
       .png()

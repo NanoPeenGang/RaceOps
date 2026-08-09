@@ -1,7 +1,7 @@
 import QRCode from "qrcode";
 
 /**
- * QR codes for accreditation passes.
+ * QR codes for accreditation passes and part labels.
  *
  * Rendered on the server as inline SVG rather than as a PNG data URI: a pass
  * sheet is printed, and vector stays sharp at whatever size a laser printer
@@ -55,4 +55,22 @@ export async function qrSvg(
 export function credentialUrl(token: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "");
   return base ? `${base}/pass/${token}` : `/pass/${token}`;
+}
+
+/**
+ * The URL a part label's QR code resolves to.
+ *
+ * Absolute for the same reason a pass URL is: the phone reading it has no idea
+ * what origin the label was printed from, and a label outlives the laptop it
+ * was printed on.
+ *
+ * The kind is in the path rather than in a query string so a bin label and a
+ * part label are distinguishable from the scanned text alone, without a
+ * database round trip to find out which table to look in. `i` for the stock
+ * line, `u` for one physical unit.
+ */
+export function partLabelUrl(kind: "line" | "unit", token: string): string {
+  const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "");
+  const path = `/parts/${kind === "unit" ? "u" : "i"}/${token}`;
+  return base ? `${base}${path}` : path;
 }

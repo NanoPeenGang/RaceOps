@@ -1,10 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { PartCategory, StockMoveKind } from "@prisma/client";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/trpc/root";
 import { api } from "@/lib/trpc/client";
+import {
+  expiryState,
+  EXPIRY_STATE_LABELS,
+  UNIT_STATUS_LABELS,
+} from "@/lib/part-labels";
 import {
   PART_CATEGORY_LABELS,
   PART_CATEGORY_ORDER,
@@ -26,7 +32,13 @@ import { Card, CardContent } from "@/components/ui/card";
  * shelf, and what needs buying before the next event. The reorder list leads,
  * since it is the part somebody has to act on.
  */
-export function InventoryPanel({ teamId }: { teamId: string }) {
+export function InventoryPanel({
+  teamId,
+  teamSlug,
+}: {
+  teamId: string;
+  teamSlug: string;
+}) {
   const utils = api.useUtils();
   const stock = api.garage.inventory.useQuery({ teamId });
   const [adding, setAdding] = useState(false);
@@ -57,13 +69,29 @@ export function InventoryPanel({ teamId }: { teamId: string }) {
           </p>
         </div>
         {canWrite && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setAdding((open) => !open)}
-          >
-            {adding ? "Cancel" : "Add a part"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {/* First, and as a filled button: scanning is the fast path, and
+                the keypad below is what you fall back to when the phone is
+                flat. Burying it behind the console's tabs would make the
+                labels ornamental. */}
+            <Link href={`/teams/${teamSlug}/scan`}>
+              <Button size="sm" variant="primary">
+                Scan parts
+              </Button>
+            </Link>
+            <Link href={`/teams/${teamSlug}/labels`}>
+              <Button size="sm" variant="outline">
+                Print labels
+              </Button>
+            </Link>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAdding((open) => !open)}
+            >
+              {adding ? "Cancel" : "Add a part"}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -202,17 +230,32 @@ function ItemRow({
         </div>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-brand-black/50">
-          {canWrite && <MoveForm item={item} onSaved={onChanged} />}
+          {/* A unit-tracked line has no keypad on purpose: its count is the
+              number of labelled parts on the shelf, and letting somebody type
+              over it would let the two drift apart invisibly. */}
+          {canWrite && !item.trackUnits && (
+            <MoveForm item={item} onSaved={onChanged} />
+          )}
+          {item.trackUnits && (
+            <span className="rounded-full bg-brand-black/5 px-2 py-0.5">
+              Labelled part by part
+            </span>
+          )}
           <button
             type="button"
             className="hover:text-brand-black"
             onClick={onToggle}
           >
-            {open ? "Hide history" : `History (${item._count.movements})`}
+            {open ? "Hide details" : `History (${item._count.movements})`}
           </button>
         </div>
 
-        {open && <Ledger itemId={item.id} />}
+        {open && (
+          <div className="space-y-4">
+            {canWrite && <UnitsPanel item={item} onChanged={onChanged} />}
+            <Ledger itemId={item.id} />
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -431,5 +474,143 @@ function ItemForm({
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The labelled parts behind one line.
+ *
+ * Hidden until somebody opens the line, because most stock never needs this.
+ * Labelling every set of pads individually would be work with no payoff — the
+ * count already answers "how many". This earns its place on the things with an
+ * identity worth following: a gearbox, a fire bottle with a date on it, a set
+ * of wheels that comes back from a weekend bent.
+ */
+function UnitsPanel({
+  item,
+  onChanged,
+}: {
+  item: StockItem;
+  onChanged: () => void;
+}) {
+  const utils = api.useUtils();
+  const [count, setCount] = useState("1");
+  const [serials, setSerials] = useState("");
+  const [expiresOn, setExpiresOn] = useState("");
+  const units = api.garage.units.useQuery({ itemId: item.id });
+
+  const refresh = async () => {
+    await utils.garage.units.invalidate({ itemId: item.id });
+    onChanged();
+  };
+  const add = api.garage.addUnits.useMutation({
+    onSuccess: async () => {
+      setSerials("");
+      setCount("1");
+      await refresh();
+    },
+  });
+  const update = api.garage.updateUnit.useMutation({ onSuccess: refresh });
+
+  const listed = serials
+    .split(/[\n,]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const parsedCount = listed.length > 0 ? listed.length : Number(count);
+
+  return (
+    <div className="space-y-3 rounded-md border border-brand-black/10 p-3">
+      <div>
+        <p className="text-sm font-semibold">Individual labels</p>
+        <p className="text-xs text-brand-black/60">
+          One QR per physical part. Worth it where you need to know{" "}
+          <em>which</em> one — a serial, an expiry, or which went out last
+          weekend. Adding any switches this line to counting by label.
+        </p>
+      </div>
+
+      {units.data && units.data.units.length > 0 && (
+        <ul className="divide-y divide-brand-black/5 text-sm">
+          {units.data.units.map((unit) => {
+            const expiry = expiryState(unit);
+            return (
+              <li key={unit.id} className="flex flex-wrap gap-2 py-2">
+                <span className="min-w-0 flex-1">
+                  <span className="font-medium">
+                    {unit.serial ?? "Unmarked"}
+                  </span>
+                  <span className="ml-2 text-xs text-brand-black/55">
+                    {UNIT_STATUS_LABELS[unit.status]}
+                    {expiry !== "none" && ` · ${EXPIRY_STATE_LABELS[expiry]}`}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="text-xs text-brand-black/50 hover:text-brand-red"
+                  disabled={update.isPending}
+                  onClick={() => update.mutate({ unitId: unit.id, retire: true })}
+                >
+                  Retire
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        <label className="text-xs font-medium">
+          How many
+          <input
+            type="number"
+            min={1}
+            className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1 text-sm"
+            value={listed.length > 0 ? String(listed.length) : count}
+            disabled={listed.length > 0}
+            onChange={(event) => setCount(event.target.value)}
+          />
+        </label>
+        <label className="text-xs font-medium sm:col-span-2">
+          Serials (optional, one per line)
+          <textarea
+            rows={2}
+            className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1 text-sm"
+            value={serials}
+            placeholder="Gearbox A&#10;Gearbox B"
+            onChange={(event) => setSerials(event.target.value)}
+          />
+        </label>
+        <label className="text-xs font-medium">
+          Expires (optional)
+          <input
+            type="date"
+            className="mt-1 w-full rounded-md border border-brand-black/20 px-2 py-1 text-sm"
+            value={expiresOn}
+            onChange={(event) => setExpiresOn(event.target.value)}
+          />
+        </label>
+      </div>
+
+      {add.error && <p className="text-xs text-brand-red">{add.error.message}</p>}
+      {update.error && (
+        <p className="text-xs text-brand-red">{update.error.message}</p>
+      )}
+
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={add.isPending || !Number.isInteger(parsedCount) || parsedCount < 1}
+        onClick={() =>
+          add.mutate({
+            itemId: item.id,
+            count: parsedCount,
+            serials: listed.length > 0 ? listed : undefined,
+            expiresOn: expiresOn ? new Date(`${expiresOn}T00:00:00`) : null,
+          })
+        }
+      >
+        {add.isPending ? "Making labels…" : `Make ${parsedCount || 0} label(s)`}
+      </Button>
+    </div>
   );
 }

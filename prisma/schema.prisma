@@ -111,7 +111,6 @@ model User {
   /**
    * Standing on the platform itself. Almost everybody is a MEMBER; the review
    * queue for access requests is the only thing the others unlock.
-   *
    * The bootstrap admin comes from `PLATFORM_ADMIN_EMAILS` rather than this
    * column, so a fresh deployment always has somebody who can approve the
    * first request and nobody can lock themselves out of their own instance.
@@ -180,6 +179,7 @@ model User {
   channelsCreated        ChatChannel[]            @relation("ChannelCreator")
   threadsCreated         DirectThread[]           @relation("ThreadCreator")
   threadParticipations   DirectParticipant[]      @relation("ThreadParticipant")
+  inventoryUnits         InventoryUnit[]          @relation("InventoryUnitCreator")
   accessRequests         AccessRequest[]          @relation("AccessRequester")
   accessReviews          AccessRequest[]          @relation("AccessReviewer")
   interviewsCreated      Interview[]              @relation("InterviewCreator")
@@ -452,7 +452,6 @@ model Opportunity {
 
 /**
  * Where an application has got to.
- *
  * Two routes reach ACCEPTED and both are legitimate. A team can simply say
  * yes — most club hiring is a conversation and a handshake — or it can run the
  * pipeline: review, interview, offer, and let the applicant answer. Forcing
@@ -610,7 +609,6 @@ model Series {
    * a published calendar and rule set, seeded so somebody can look up when
    * and where a series runs and what it requires before they have any account
    * relationship with it.
-   *
    * Unlike a reference *track*, this is not open to correction by anyone. A
    * circuit's length is a fact; a championship's regulations are that
    * organizer's to state, and a wiki-editable rule book would be worse than
@@ -644,7 +642,6 @@ model Series {
 
 /**
  * What part of a rule book a regulation belongs to.
- *
  * Grouped the way a competitor reads them rather than the way a rule book is
  * numbered: the first question is always "can my car run", and the last is
  * always "what happens if I get it wrong".
@@ -669,12 +666,10 @@ enum SeriesRuleKind {
 
 /**
  * One regulation a championship imposes.
- *
  * Structured rather than a PDF because the questions people actually ask —
  * "how many drivers do I need for a 14-hour race", "what is the points cap" —
  * are answerable from a field, and are not answerable from a link to a
  * 90-page document somebody has to search.
- *
  * The PDF still matters, which is what `sourceUrl` and `citation` are for: a
  * summary that cannot be checked against the rule book is a summary nobody
  * should build a car to. `verifiedOn` exists because rule books are revised
@@ -940,11 +935,11 @@ model RegistrationDriver {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  registration  EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  stints        Stint[]
-  pitStopsIn    PitStopPlan[]     @relation("PitStopDriverIn")
-  pitStopsOut   PitStopPlan[]     @relation("PitStopDriverOut")
+  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stints       Stint[]
+  pitStopsIn   PitStopPlan[]     @relation("PitStopDriverIn")
+  pitStopsOut  PitStopPlan[]     @relation("PitStopDriverOut")
 
   @@unique([registrationId, userId])
   @@index([userId])
@@ -1161,7 +1156,6 @@ model Announcement {
  */
 /**
  * One message, in exactly one room. A CHECK enforces the "exactly one".
- *
  * Four scopes rather than one polymorphic room id, because the access rule is
  * genuinely different in each and a single nullable `roomId` would make the
  * authorization code guess which. `eventId` and `teamId` are the original
@@ -1850,7 +1844,6 @@ model Track {
 
 /**
  * What a facility restricts, as distinct from what a series regulates.
- *
  * A club can write its own sporting regulations but cannot negotiate away the
  * county ordinance that caps noise at 90 dBA, and a driver turned away at
  * scrutineering for a loud exhaust is not helped by the series rule book. The
@@ -1876,7 +1869,6 @@ enum TrackRuleKind {
 
 /**
  * One rule or ordinance a facility operates under.
- *
  * Sourced rather than asserted: `source` and `sourceUrl` exist because "90
  * dBA" from an anonymous edit is worth nothing to a competitor deciding
  * whether to fit a quieter exhaust, and `verifiedOn` exists because facility
@@ -1906,7 +1898,6 @@ model TrackRule {
 
 /**
  * Plan shape of an oval, precise enough to draw and no more.
- *
  * Only shapes whose outline follows from figures we actually hold are listed.
  * There is no ROAD member on purpose: a road course's outline is survey data,
  * not something derivable from its length and turn count, so those get a real
@@ -1947,7 +1938,6 @@ model TrackLayout {
   elevationMeters Int?
   /**
    * How many corners the layout has, as the circuit counts them.
-   *
    * Deliberately not `turns.length`: the headline number is known for every
    * circuit ("14 turns"), whereas the `turns` relation only fills up once
    * somebody types in the corner names, and most never will. Storing the count
@@ -1984,7 +1974,6 @@ model TrackLayout {
 
 /**
  * What a picture of a circuit is showing.
- *
  * Worth distinguishing because they answer different questions and are wanted
  * at different moments: a driver studying a layout wants the map, a crew chief
  * arriving on Thursday wants the paddock plan, and neither is served by
@@ -2003,16 +1992,13 @@ enum TrackImageKind {
 
 /**
  * A photograph or diagram of a track.
- *
  * A gallery rather than one slot per layout, because a venue genuinely has
  * several pictures worth keeping and they are not interchangeable: the
  * official map, an aerial that shows the elevation the map flattens, and the
  * paddock plan that tells a transporter which gate to use.
- *
  * `layoutId` is nullable and that nullability is the design: a paddock plan
  * and a site photograph belong to the facility, not to one configuration,
  * whereas a layout map is meaningless detached from the layout it draws.
- *
  * `credit` is not decoration. Most circuit maps belong to the circuit, and a
  * platform that hosts them without a visible attribution is a platform whose
  * users are quietly republishing someone else's work.
@@ -2335,7 +2321,6 @@ model PaddockAllocation {
  */
 /**
  * An area a pass opens.
- *
  * Zones rather than a single numeric "level" because access is not a ladder:
  * a photographer belongs trackside and in the media centre but not in race
  * control, and a team owner is the other way round. A number would force one
@@ -2357,7 +2342,6 @@ enum AccessZone {
 
 /**
  * Who a pass type is generated for when credentials are swept for an event.
- *
  * Set on the type rather than chosen at generation time, so "generate the
  * credentials" is one button that does the same thing every time rather than a
  * form somebody fills in differently each round.
@@ -2374,16 +2358,16 @@ enum CredentialAudience {
 }
 
 model CredentialType {
-  id                String  @id @default(cuid())
+  id                String              @id @default(cuid())
   eventId           String
   name              String
   description       String?
   /// Passes of this type each entry gets before asking for more.
-  allowancePerEntry Int     @default(0)
+  allowancePerEntry Int                 @default(0)
   /// Total the event has to give out; null when there is no hard cap.
   totalAvailable    Int?
   /// Display order on the collection sheet.
-  sortOrder         Int     @default(0)
+  sortOrder         Int                 @default(0)
   /// Areas this pass opens. Empty means the pass says nothing about access.
   zones             AccessZone[]
   /// Whose passes are created by the generator. Null excludes it entirely.
@@ -2431,7 +2415,6 @@ model Credential {
   serial           String?
   /**
    * What the QR code on the pass encodes.
-   *
    * Unguessable and separate from the row id: the id turns up in URLs and in
    * organizer tooling, and a pass whose code could be derived from it would be
    * forgeable by anyone who had seen one. Rotating this invalidates a lost
@@ -2460,7 +2443,6 @@ model Credential {
 
 /**
  * What a gate decided about one scan.
- *
  * Four outcomes, not two, because "no" has three different causes and a
  * marshal has to do something different about each: send them to the right
  * gate, send them to accreditation, or call race control.
@@ -2478,13 +2460,11 @@ enum ScanResult {
 
 /**
  * One scan at a gate.
- *
  * Recorded for every scan including the refusals, because the refusals are the
  * ones anybody asks about afterwards: who was turned away, from where, and
  * whether the same unknown code was tried at four gates in a row. It is also
  * the only record of who was inside the fence when something happened, which
  * is the first thing an insurer asks for.
- *
  * `credentialId` is nullable — an unknown code has no pass to point at, and
  * dropping those scans would erase exactly the ones worth investigating. The
  * raw `token` is kept for the same reason.
@@ -2941,7 +2921,6 @@ enum PartCategory {
 
 /**
  * One line of a team's parts stock.
- *
  * `quantity` is a cached balance, not the source of truth: every change goes
  * through an `InventoryMovement` and the balance is recomputed from the
  * movement. A count that can be typed over directly loses the answer to "who
@@ -2949,27 +2928,49 @@ enum PartCategory {
  * actually asks.
  */
 model InventoryItem {
-  id         String       @id @default(cuid())
-  teamId     String
-  name       String
-  partNumber String?
-  category   PartCategory @default(OTHER)
+  id            String       @id @default(cuid())
+  teamId        String
+  name          String
+  partNumber    String?
+  category      PartCategory @default(OTHER)
   /// Where it lives: "Trailer shelf 3", "Shop rack B".
-  location   String?
+  location      String?
   /// Current stock. Maintained through movements; see src/lib/inventory.ts.
-  quantity   Int          @default(0)
+  quantity      Int          @default(0)
   /// Warn below this. Null means this item is never worth a reorder warning.
-  minQuantity Int?
+  minQuantity   Int?
   /// "each", "set", "litre", "metre" — teams stock all four.
-  unit       String       @default("each")
+  unit          String       @default("each")
   unitCostMinor Int?
-  currency   String       @default("USD")
-  supplier   String?
-  notes      String?      @db.Text
+  currency      String       @default("USD")
+  supplier      String?
+  notes         String?      @db.Text
   /// Fits only this car. Null means it fits anything the team runs.
-  carId      String?
+  carId         String?
   /// Retired lines stay for the history but drop out of the pick lists.
-  active     Boolean      @default(true)
+  active        Boolean      @default(true)
+
+  /**
+   * What this line's printed label encodes.
+   * Unguessable and separate from the row id for the same reason a pass token
+   * is: a label gets photographed, left on a bench and thrown in a skip on the
+   * side of a box, and an id that could be guessed from a neighbouring one
+   * would let anybody walk a team's whole parts list.
+   */
+  qrToken String? @unique
+
+  /**
+   * Whether this line is labelled part by part rather than by the bin.
+   * Off for consumables, and that is the common case: printing eight
+   * identical labels for eight sets of pads is theatre, because scanning any
+   * one of them means exactly what scanning the shelf means. On for things
+   * with an identity worth following — a gearbox, a fire bottle with a date
+   * on it, a set of wheels that comes back from a weekend bent.
+   * When on, `quantity` is maintained as the number of units in stock rather
+   * than typed, and the quantity keypad refuses the line so the two counts
+   * cannot drift apart.
+   */
+  trackUnits Boolean @default(false)
 
   createdById String?
   createdAt   DateTime @default(now())
@@ -2979,9 +2980,65 @@ model InventoryItem {
   car       Car?                @relation(fields: [carId], references: [id], onDelete: SetNull)
   createdBy User?               @relation("InventoryCreator", fields: [createdById], references: [id], onDelete: SetNull)
   movements InventoryMovement[]
+  units     InventoryUnit[]
 
   @@index([teamId, active, category])
   @@index([carId])
+  @@index([createdById])
+}
+
+/// Where a labelled part is right now.
+enum InventoryUnitStatus {
+  /// On the shelf.
+  IN_STOCK
+  /// Signed out — fitted, at the track, or lent to somebody.
+  OUT
+  /// Life-expired, scrapped or sold. Kept for the history, never scanned in.
+  RETIRED
+}
+
+/**
+ * One physical part, with its own label.
+ * Only exists for lines with `trackUnits` on. The point is not a finer count —
+ * the line's quantity already gives that — but identity: which fire bottle is
+ * out of date, which gearbox came back from Sebring, which set of wheels has
+ * been through three weekends.
+ */
+model InventoryUnit {
+  id     String              @id @default(cuid())
+  itemId String
+  status InventoryUnitStatus @default(IN_STOCK)
+
+  /// What this unit's own label encodes. Unguessable, as above.
+  qrToken String @unique
+
+  /**
+   * The team's own marking: a casting number, an etched serial, "Gearbox B".
+   * Free text and optional, because a team's existing way of telling two
+   * things apart is better than one this platform invents, and a label with
+   * nothing written on it is still perfectly scannable.
+   */
+  serial String?
+
+  /**
+   * When this part's life runs out.
+   * Belts, extinguishers, fuel cells and seats all expire on a date rather
+   * than on use, and a scrutineer turning one down at the gate is the worst
+   * possible time to find out.
+   */
+  expiresOn DateTime?
+
+  notes String? @db.Text
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  item      InventoryItem       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  createdBy User?               @relation("InventoryUnitCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  movements InventoryMovement[]
+
+  @@index([itemId, status])
   @@index([createdById])
 }
 
@@ -2999,33 +3056,54 @@ enum StockMoveKind {
 
 /**
  * One change to a stock line, and the balance it produced.
- *
  * The balance is stored rather than derived on read so the ledger stays
  * readable after somebody corrects an old row: "we were at 4 when this was
  * written" is a fact about that moment, and recomputing it from the current
  * item would rewrite history every time the stock changed.
  */
 model InventoryMovement {
-  id      String        @id @default(cuid())
-  itemId  String
-  kind    StockMoveKind
+  id           String        @id @default(cuid())
+  itemId       String
+  kind         StockMoveKind
   /// Signed change applied to the item. Negative for CONSUMED.
-  delta   Int
+  delta        Int
   /// The item's quantity immediately after this movement.
-  balance Int
-  reason  String?
+  balance      Int
+  reason       String?
+  /// The labelled part this moved, when the movement came from a unit scan.
+  unitId       String?
+  /**
+   * The movement that took this one back, when somebody scanned by mistake.
+   * A reversal rather than a delete. The ledger's whole job is to answer "who
+   * took the last set and when", and a row that can vanish makes it an answer
+   * nobody can rely on — so a mis-scan is recorded as a mis-scan and corrected,
+   * exactly as an accounting reversal is. Also stops one scan being undone
+   * twice, which would take the count down by two.
+   */
+  reversedById String?       @unique
   /// Where it went, when it went somewhere.
-  eventId   String?
-  serviceId String?
-  userId    String?
-  createdAt DateTime @default(now())
+  eventId      String?
+  serviceId    String?
+  userId       String?
+  /**
+   * When the person actually scanned it, which is not when this row was
+   * written. A trailer at a circuit has no signal, so scans queue in the
+   * outbox and land minutes or hours later; without this the ledger would say
+   * the shelf emptied on the drive home.
+   */
+  scannedAt    DateTime?
+  createdAt    DateTime      @default(now())
 
-  item    InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  event   RaceEvent?    @relation(fields: [eventId], references: [id], onDelete: SetNull)
-  service CarService?   @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  user    User?         @relation("StockMover", fields: [userId], references: [id], onDelete: SetNull)
+  item       InventoryItem       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  unit       InventoryUnit?      @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  reversedBy InventoryMovement?  @relation("StockReversal", fields: [reversedById], references: [id], onDelete: SetNull)
+  reverses   InventoryMovement[] @relation("StockReversal")
+  event      RaceEvent?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  service    CarService?         @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  user       User?               @relation("StockMover", fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([itemId, createdAt])
+  @@index([unitId])
   @@index([eventId])
   @@index([serviceId])
   @@index([userId])
@@ -3048,16 +3126,15 @@ enum GarageFileKind {
 
 /**
  * A file a team keeps against a car.
- *
  * Held as a record with metadata rather than a folder of blobs, because the
  * useful query is never "list the files" — it is "the setup we ran at Sebring
  * in the damp, and the lap that came out of it".
  */
 model GarageFile {
-  id     String         @id @default(cuid())
-  teamId String
-  kind   GarageFileKind
-  name   String
+  id          String         @id @default(cuid())
+  teamId      String
+  kind        GarageFileKind
+  name        String
   /// Where the bytes are. Object storage when configured, else a link.
   url         String
   fileName    String?
@@ -3075,7 +3152,7 @@ model GarageFile {
   /// Best lap in this file, in milliseconds. What makes a setup findable
   /// later: "the quickest we have been here" is the reason to reopen one.
   bestLapMs     Int?
-  notes         String? @db.Text
+  notes         String?  @db.Text
   tags          String[]
 
   uploadedById String?
@@ -3123,20 +3200,19 @@ enum ServiceStatus {
 
 /**
  * A job on a car: what was done, when, by whom, and when it comes round again.
- *
  * `nextDueOn` and `nextDueHours` are both optional and both meaningful. Some
  * jobs come round on the calendar (an annual logbook inspection) and some on
  * running hours (an engine rebuild), and a team that tracks hours wants the
  * second without inventing a date for it.
  */
 model CarService {
-  id        String        @id @default(cuid())
-  carId     String
-  kind      ServiceKind   @default(SCHEDULED)
-  status    ServiceStatus @default(PLANNED)
+  id          String        @id @default(cuid())
+  carId       String
+  kind        ServiceKind   @default(SCHEDULED)
+  status      ServiceStatus @default(PLANNED)
   /// What was worked on: "Left front upright", "Gearbox", "Fire system".
-  component String
-  description String? @db.Text
+  component   String
+  description String?       @db.Text
 
   /// Running hours on the car when the work was done.
   hoursAtService Float?
@@ -3150,7 +3226,7 @@ model CarService {
   nextDueOn    DateTime?
   nextDueHours Float?
 
-  notes       String? @db.Text
+  notes       String?  @db.Text
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -3187,7 +3263,6 @@ enum PitStopStatus {
 
 /**
  * A pit stop a team intends to make, and what actually happened.
- *
  * Planned against an entry rather than a car, because the plan belongs to the
  * weekend: the same car in two events has two independent stop sequences.
  * Both `targetLap` and `targetAt` are optional — a sprint plans by lap, an
@@ -3217,7 +3292,7 @@ model PitStopPlan {
   actualAt       DateTime?
   actualSeconds  Int?
 
-  notes       String? @db.Text
+  notes       String?  @db.Text
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -3254,13 +3329,11 @@ enum ChannelKind {
 
 /**
  * A chat room narrower than its scope.
- *
  * Membership is *derived*, never stored: you are in a department channel while
  * you hold one of its roles, and you are out of it the moment you do not. A
  * stored member list would leave a departed engineer reading the engineers'
  * channel until somebody remembered to prune it, which is exactly the failure
  * a private channel exists to prevent.
- *
  * Exactly one scope is set; a CHECK enforces it. The scope decides which role
  * list applies — `teamRoles` for a team, `seriesRoles` for a series or event,
  * `orgRoles` for an organization — and `staffRoleId` narrows an organization
@@ -3287,7 +3360,6 @@ model ChatChannel {
 
   /**
    * Whether entrants' team roles count on an event channel.
-   *
    * An event channel scoped by `teamRoles` is the cross-paddock department
    * room: every engineer entered in the meeting, from every team. Off, the
    * roles are read against the series' own staff instead.
@@ -3320,17 +3392,16 @@ model ChatChannel {
 
 /**
  * A private conversation between people, independent of any team or event.
- *
  * `pairKey` is set only on two-person threads: the two user ids sorted and
  * joined, so "message this person" finds the existing thread instead of
  * opening a second one beside it. Group threads leave it null, because three
  * people can reasonably want two different group conversations.
  */
 model DirectThread {
-  id      String  @id @default(cuid())
-  pairKey String? @unique
+  id            String    @id @default(cuid())
+  pairKey       String?   @unique
   /// Optional name, for group threads that want one.
-  subject String?
+  subject       String?
   /// Bumped on every message so an inbox sorts without touching messages.
   lastMessageAt DateTime?
   createdById   String?
@@ -3346,11 +3417,11 @@ model DirectThread {
 }
 
 model DirectParticipant {
-  id       String @id @default(cuid())
-  threadId String
-  userId   String
+  id        String    @id @default(cuid())
+  threadId  String
+  userId    String
   /// When this person last opened the thread. Drives the unread count.
-  readAt   DateTime?
+  readAt    DateTime?
   /**
    * Leaving hides the thread from this person without destroying anyone
    * else's copy of the conversation. A message from the other side clears it,
@@ -3396,12 +3467,10 @@ enum InterviewStatus {
 
 /**
  * An interview against one application.
- *
  * Times are *proposed* rather than dictated. The friction this feature exists
  * to remove is the email thread where a team suggests one slot, the applicant
  * is at work, and four days go by — so a team offers several and the applicant
  * picks, which is one round trip instead of five.
- *
  * `scheduledAt` is null until a slot is chosen, and is then a copy of that
  * slot's time so everything downstream can read one field.
  */
@@ -3424,7 +3493,6 @@ model Interview {
   outcome         String?   @db.Text
   /**
    * What the applicant said when they answered.
-   *
    * Matters most on a decline: "none of those work, I'm at Sebring that
    * weekend" is the difference between a team proposing three new times and
    * writing somebody off as unresponsive.
@@ -3446,7 +3514,6 @@ model Interview {
 
 /**
  * One time on offer for an interview.
- *
  * Stored in UTC and rendered in whoever is looking at it's own zone. A team in
  * Charlotte interviewing a driver in Munich is the ordinary case here, and a
  * naive local time would put somebody on a call at 3am.
@@ -3468,7 +3535,6 @@ model InterviewSlot {
 
 /**
  * What somebody is being paid, and on what footing.
- *
  * `UNPAID` is a first-class option rather than a zero rate. Most club crew are
  * volunteers and a great many seats are paid by the driver, so a form that
  * insists on a number would have people typing 0 into a field the platform
@@ -3499,13 +3565,11 @@ enum OfferStatus {
 
 /**
  * A formal offer against an application.
- *
  * Separate from simply marking an application accepted, because the two are
  * genuinely different acts: "you're in" is a decision the team makes alone,
  * and an offer is a proposition the applicant answers. Both routes end with
  * somebody on the roster, and a team that does not want paperwork never has to
  * make one.
- *
  * Accepting an offer is what puts the person on the roster, at the role and
  * rate the offer named — which is the whole point of the record. Hiring
  * somebody and then separately typing them into the roster and again into the
@@ -3537,12 +3601,12 @@ model Offer {
   terms     String?   @db.Text
 
   /// After this, an unanswered offer expires rather than hanging forever.
-  expiresAt     DateTime?
-  sentAt        DateTime?
-  respondedAt   DateTime?
+  expiresAt    DateTime?
+  sentAt       DateTime?
+  respondedAt  DateTime?
   /// The applicant's reply in their own words.
-  responseNote  String?   @db.Text
-  withdrawnAt   DateTime?
+  responseNote String?   @db.Text
+  withdrawnAt  DateTime?
 
   createdById String?
   createdAt   DateTime @default(now())
@@ -3563,7 +3627,6 @@ model Offer {
 
 /**
  * What a team pays one person, standing.
- *
  * Kept apart from the offer that set it because a rate outlives the offer:
  * people get raises, move from per-event to a season deal, and stay on the
  * team for years. The offer records what was agreed once; this records what is
@@ -3574,11 +3637,11 @@ model PayRate {
   teamId String
   userId String
 
-  basis       PayBasis @default(PER_EVENT)
-  amountMinor Int?
-  currency    String   @default("USD")
+  basis         PayBasis  @default(PER_EVENT)
+  amountMinor   Int?
+  currency      String    @default("USD")
   /// What this rate is for, where somebody does two jobs.
-  label       String?
+  label         String?
   effectiveFrom DateTime  @default(now())
   /// Set when a rate is superseded. History is kept rather than overwritten —
   /// a pay run from March has to stay explicable in December.
@@ -3611,7 +3674,6 @@ enum PayRunStatus {
 
 /**
  * One period's pay for a team.
- *
  * **This is not a payroll processor.** It does not withhold tax, file
  * anything, or move money. It works out what is owed, records what was paid,
  * and exports the figures for whoever actually runs the payroll — an
@@ -3654,20 +3716,18 @@ model PayRun {
 
 /**
  * One person's pay on one run.
- *
  * `amountMinor` is stored rather than derived on read, and that is deliberate:
  * a run approved in March must still show the same figure in December, even
  * after the person's standing rate has changed twice. The rate is a starting
  * point, not a formula the line keeps referring back to.
- *
  * `payeeName` exists for the mechanic who does two weekends a year and has no
  * account. Excluding them would push a chunk of a real team's costs back onto
  * the spreadsheet this is meant to replace.
  */
 model PayrollLine {
-  id       String  @id @default(cuid())
-  payRunId String
-  userId   String?
+  id        String  @id @default(cuid())
+  payRunId  String
+  userId    String?
   /// Used when there is no account behind the person.
   payeeName String?
 
@@ -3715,7 +3775,6 @@ model PayrollLine {
 
 /**
  * Standing on the platform itself, as distinct from any team or series.
- *
  * Almost everybody is a MEMBER. The other two exist so somebody can review
  * access requests and keep spam off the platform, which is a job that belongs
  * to whoever runs the deployment rather than to any organizer.
@@ -3747,12 +3806,10 @@ enum AccessRequestStatus {
 
 /**
  * An application to create something on the platform.
- *
  * Anyone can sign up, keep a profile, drive, crew and apply for seats. What
  * needs approval is *publishing*: a team, an organization, a championship or a
  * sponsor account. Those are the surfaces spam actually uses, and each one of
  * them puts a name in front of everybody else on the platform.
- *
  * An approval is **consumed by one creation**, not a standing licence. The
  * request names what is going to be created and `fulfilledEntityId` records
  * what came of it — so an approved request cannot be spent twice, and somebody
@@ -3767,14 +3824,14 @@ model AccessRequest {
 
   /// What they want to call it. Not reserved — two pending requests may name
   /// the same thing, and whoever creates it first takes the slug.
-  proposedName  String
+  proposedName String
   /// Why this should exist, in their words. The main thing a reviewer reads.
-  summary       String  @db.Text
+  summary      String  @db.Text
   /// Somewhere to check them: a club site, a results page, a social account.
-  websiteUrl    String?
+  websiteUrl   String?
   /// What they have done before. Optional — a first-time organizer is not
   /// disqualified, they just have less to point at.
-  experience    String? @db.Text
+  experience   String? @db.Text
 
   reviewedById String?
   reviewedAt   DateTime?
