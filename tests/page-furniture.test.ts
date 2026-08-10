@@ -33,6 +33,9 @@ const DELIBERATELY_BARE = [
   "events/[eventId]/print/[document]/page.tsx",
   "teams/[slug]/scan/page.tsx",
   "teams/[slug]/labels/page.tsx",
+  // A document that gets printed or saved to PDF and emailed to a customer.
+  // Console breadcrumbs on somebody's invoice would be as wrong as they sound.
+  "teams/[slug]/invoices/[invoiceId]/page.tsx",
   "parts/[kind]/[token]/page.tsx",
   "passes/[credentialId]/page.tsx",
   // A branded public landing page: it renders the team's own colours and logo

@@ -31,6 +31,8 @@ export interface TeamAttention {
   payRunsToPay: number;
   /** Stock lines at or below their reorder level, including out of stock. */
   lowStock: number;
+  /** Issued invoices past their date with money still outstanding. */
+  overdueInvoices: number;
 }
 
 export const EMPTY_ATTENTION: Omit<
@@ -44,6 +46,7 @@ export const EMPTY_ATTENTION: Omit<
   payRunsToApprove: 0,
   payRunsToPay: 0,
   lowStock: 0,
+  overdueInvoices: 0,
 };
 
 /**
@@ -80,6 +83,7 @@ export const ATTENTION_TAB = {
   payRunsToApprove: "money",
   payRunsToPay: "money",
   lowStock: "garage",
+  overdueInvoices: "garage",
 } as const satisfies Record<
   keyof Omit<TeamAttention, "teamId" | "teamName" | "teamSlug">,
   string
@@ -104,6 +108,18 @@ export function attentionItems(attention: TeamAttention): AttentionItem[] {
       label: plural(attention.payRunsToPay, "pay run") + " part-paid",
       tone: "urgent",
       href: `${base}?tab=${ATTENTION_TAB.payRunsToPay}`,
+    },
+    {
+      /*
+       * First among the urgent ones. Money the team is owed and has not
+       * chased is the item on this list with a deadline somebody else set,
+       * and the only one that gets harder to fix the longer it sits.
+       */
+      key: "overdueInvoices",
+      count: attention.overdueInvoices,
+      label: plural(attention.overdueInvoices, "invoice") + " overdue",
+      tone: "urgent",
+      href: `${base}?tab=${ATTENTION_TAB.overdueInvoices}`,
     },
     {
       key: "overdueServices",
@@ -187,12 +203,10 @@ export function tabBadge(
 export function sortByAttention(
   teams: readonly TeamAttention[],
 ): TeamAttention[] {
-  return teams
-    .filter(needsAttention)
-    .sort((a, b) => {
-      const urgentA = attentionItems(a).filter((i) => i.tone === "urgent").length;
-      const urgentB = attentionItems(b).filter((i) => i.tone === "urgent").length;
-      if (urgentA !== urgentB) return urgentB - urgentA;
-      return attentionCount(b) - attentionCount(a);
-    });
+  return teams.filter(needsAttention).sort((a, b) => {
+    const urgentA = attentionItems(a).filter((i) => i.tone === "urgent").length;
+    const urgentB = attentionItems(b).filter((i) => i.tone === "urgent").length;
+    if (urgentA !== urgentB) return urgentB - urgentA;
+    return attentionCount(b) - attentionCount(a);
+  });
 }

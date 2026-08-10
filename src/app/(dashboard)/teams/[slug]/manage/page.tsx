@@ -17,6 +17,7 @@ import { GaragePanel } from "./garage-panel";
 import { InventoryPanel } from "./inventory-panel";
 import { FilesPanel } from "./files-panel";
 import { ServicePanel } from "./service-panel";
+import { InvoicesPanel } from "./invoices-panel";
 import { SeatTimePanel } from "./seat-time-panel";
 import { HiringPanel } from "./hiring-panel";
 import { PayrollPanel } from "./payroll-panel";
@@ -125,6 +126,10 @@ export default function TeamManagePage({
           <GaragePanel team={data} />
           <ServicePanel teamId={data.id} />
           <InventoryPanel teamId={data.id} teamSlug={slug} />
+          {/* After the work and the parts, because that is the order somebody
+              raises an invoice in: what was done, what went into it, what it
+              comes to. */}
+          <InvoicesPanel teamId={data.id} teamSlug={slug} />
           <FilesPanel teamId={data.id} />
         </div>
       ),

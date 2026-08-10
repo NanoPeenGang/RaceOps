@@ -189,6 +189,8 @@ model User {
   payRunsCreated         PayRun[]                 @relation("PayRunCreator")
   payRunsApproved        PayRun[]                 @relation("PayRunApprover")
   payrollLines           PayrollLine[]            @relation("PayrollPayee")
+  invoices               Invoice[]                @relation("InvoiceCreator")
+  invoicePayments        InvoicePayment[]         @relation("InvoicePaymentRecorder")
 
   @@index([verificationStatus])
 }
@@ -329,6 +331,7 @@ model Team {
   offers         Offer[]
   payRates       PayRate[]
   payRuns        PayRun[]
+  invoices       Invoice[]
   transponders   Transponder[]
   organizationId String?
   organization   Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
@@ -841,6 +844,7 @@ model RaceEvent {
   waivers          Waiver[]
   branding         Branding?
   staffAssignments StaffAssignment[]
+  invoices         Invoice[]
 
   @@index([seriesLabel, date])
   @@index([seriesId, date])
@@ -2177,6 +2181,7 @@ model Car {
   inventory     InventoryItem[]
   garageFiles   GarageFile[]
   services      CarService[]
+  invoices      Invoice[]
 
   @@index([teamId, active])
   @@index([ownerUserId, active])
@@ -2976,11 +2981,12 @@ model InventoryItem {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  team      Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  car       Car?                @relation(fields: [carId], references: [id], onDelete: SetNull)
-  createdBy User?               @relation("InventoryCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  movements InventoryMovement[]
-  units     InventoryUnit[]
+  team         Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  car          Car?                @relation(fields: [carId], references: [id], onDelete: SetNull)
+  createdBy    User?               @relation("InventoryCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  movements    InventoryMovement[]
+  units        InventoryUnit[]
+  invoiceLines InvoiceLine[]
 
   @@index([teamId, active, category])
   @@index([carId])
@@ -3231,11 +3237,12 @@ model CarService {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  car         Car                 @relation(fields: [carId], references: [id], onDelete: Cascade)
-  event       RaceEvent?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
-  performedBy User?               @relation("ServicePerformer", fields: [performedById], references: [id], onDelete: SetNull)
-  createdBy   User?               @relation("ServiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  partsUsed   InventoryMovement[]
+  car          Car                 @relation(fields: [carId], references: [id], onDelete: Cascade)
+  event        RaceEvent?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  performedBy  User?               @relation("ServicePerformer", fields: [performedById], references: [id], onDelete: SetNull)
+  createdBy    User?               @relation("ServiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  partsUsed    InventoryMovement[]
+  invoiceLines InvoiceLine[]
 
   @@index([carId, status])
   @@index([eventId])
@@ -3852,4 +3859,171 @@ model AccessRequest {
   @@index([status, kind, createdAt])
   @@index([requestedById, status])
   @@index([reviewedById])
+}
+
+/// Where an invoice is in its life. Settlement is derived, not stored here.
+enum InvoiceStatus {
+  /// Being written. Nothing is numbered and nothing is owed yet.
+  DRAFT
+  /// Numbered, dated and given to the customer. Amounts are frozen.
+  ISSUED
+  /// Cancelled after issue. Keeps its number for ever; see the model comment.
+  VOID
+}
+
+/**
+ * Work a team did for somebody else.
+ * Race teams take in third-party work — a corner rebuild for the team in the
+ * next garage, fabrication for a customer car, a data engineer lent out for a
+ * weekend — and it is invoiced on a laptop in a hotel the week after, from
+ * notes. Everything needed to raise the invoice is already on this platform:
+ * the service record, the parts consumed, the hours.
+ * **This records and prints an invoice. It is not an accounting system and it
+ * does not move money.** No ledger, no VAT return, no card processing, and no
+ * opinion on whether the tax rate typed in is the right one — the platform
+ * does the arithmetic it is given and says so on the panel. A team's
+ * accountant does the rest, from a document this can print.
+ */
+model Invoice {
+  id     String        @id @default(cuid())
+  teamId String
+  status InvoiceStatus @default(DRAFT)
+
+  /**
+   * The invoice number, per team, assigned when it is issued.
+   * Null while it is a draft, and that is the whole point. Numbering on
+   * creation means an abandoned draft leaves a hole in the sequence, and a
+   * gap in an invoice run is exactly what an auditor asks about. Numbering on
+   * issue makes the issued sequence gapless, which is the sequence that
+   * matters. A voided invoice keeps its number and is never reused, for the
+   * same reason: the gap would be worse than the void.
+   */
+  number Int?
+
+  /**
+   * Who the work was for.
+   * Free text rather than a link to a platform account. The customer is
+   * usually a business that has never heard of this platform, and requiring
+   * them to have an account before they can be billed would mean the invoice
+   * gets written in a spreadsheet instead.
+   */
+  customerName    String
+  customerContact String?
+  customerEmail   String?
+  customerAddress String? @db.Text
+  /// Their reference: a purchase order number, a job number, a car number.
+  customerRef     String?
+
+  issuedOn DateTime?
+  dueOn    DateTime?
+
+  currency String @default("USD")
+
+  /**
+   * Tax as basis points, so 20% is 2000 and nothing is a float.
+   * One rate for the invoice, with a per-line flag for what it applies to.
+   * That covers the case teams actually have — tax on labour and parts, none
+   * on a disbursement passed through at cost — without this becoming a tax
+   * engine that would be wrong in most of the countries it ran in.
+   */
+  taxRateBasisPoints Int     @default(0)
+  /// What to call it on the printed invoice: "VAT", "GST", "Sales tax".
+  taxLabel           String?
+  /// The team's own registration number, printed under the tax line.
+  taxRegistration    String?
+
+  /// Payment terms, printed as written: "Net 30", "On collection".
+  terms String?
+  notes String? @db.Text
+
+  /// The car the work was done on, where it is one the team already tracks.
+  carId   String?
+  /// The meeting it was done at, for work invoiced at a race.
+  eventId String?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  team      Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  car       Car?             @relation(fields: [carId], references: [id], onDelete: SetNull)
+  event     RaceEvent?       @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  createdBy User?            @relation("InvoiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  lines     InvoiceLine[]
+  payments  InvoicePayment[]
+
+  @@unique([teamId, number])
+  @@index([teamId, status, issuedOn])
+  @@index([carId])
+  @@index([eventId])
+  @@index([createdById])
+}
+
+/// One billable line. Amounts are frozen at issue and never recomputed.
+model InvoiceLine {
+  id          String @id @default(cuid())
+  invoiceId   String
+  description String
+
+  /// Hours, units, days — whatever the line is counting.
+  quantity    Float   @default(1)
+  /// What one of them costs, in minor units. Negative for a discount line.
+  unitMinor   Int     @default(0)
+  /**
+   * quantity x unitMinor, rounded once and stored.
+   * Stored rather than derived because an issued invoice is a statement of
+   * what was charged. Recomputing it later means a rounding change, or a
+   * corrected rate, silently rewrites a document somebody has already paid.
+   */
+  amountMinor Int     @default(0)
+  /// Whether the invoice's tax rate applies to this line.
+  taxable     Boolean @default(true)
+  unit        String?
+
+  sortOrder Int @default(0)
+
+  /// The garage job this line bills for, where there is one.
+  serviceId       String?
+  /// The stock line the parts came off, where they came off one.
+  inventoryItemId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoice   Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  service   CarService?    @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  inventory InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId, sortOrder])
+  @@index([serviceId])
+  @@index([inventoryItemId])
+}
+
+/**
+ * Money received against an invoice.
+ * Its own rows rather than a paid flag, because a deposit and a balance is the
+ * normal shape of an eight-thousand-pound fabrication job, and a boolean
+ * cannot say "half". What is outstanding is then arithmetic over these, which
+ * means the status and the payments can never disagree.
+ * The platform does not take the money. `method` and `reference` are free text
+ * on purpose — bank transfer, cheque number, "cash at collection" — because
+ * pretending to know how the money moved would be a lie with a schema.
+ */
+model InvoicePayment {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  amountMinor Int
+  receivedOn  DateTime
+  method      String?
+  reference   String?
+  note        String?
+
+  recordedById String?
+  createdAt    DateTime @default(now())
+
+  invoice    Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  recordedBy User?   @relation("InvoicePaymentRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId, receivedOn])
+  @@index([recordedById])
 }

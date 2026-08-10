@@ -4,7 +4,9 @@ import { TRPCError } from "@trpc/server";
 import {
   GarageFileKind,
   InventoryUnitStatus,
+  InvoiceStatus,
   PartCategory,
+  Prisma as PrismaNs,
   ServiceKind,
   ServiceStatus,
   StockMoveKind,
@@ -14,6 +16,15 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc/trpc";
 import { TEAM_MANAGER_ROLES } from "@/lib/teams";
 import { balanceAfter, checkMovement, deltaFor } from "@/lib/inventory";
+import {
+  canRecordPayment,
+  canVoid,
+  checkLine,
+  invoiceTotals,
+  isEditable,
+  lineAmountMinor,
+  settlementOf,
+} from "@/lib/invoices";
 import {
   parseLabel,
   SCAN_MODE_KIND,
@@ -105,7 +116,6 @@ async function teamForCar(db: PrismaClient, carId: string): Promise<string> {
   }
   return car.teamId;
 }
-
 
 /**
  * A label token: 24 bytes of CSPRNG in base64url.
@@ -209,7 +219,6 @@ async function resolveLabel(
   });
   return item ? { kind: "line", item } : null;
 }
-
 
 /**
  * Keeps a client-sent scan time honest.
@@ -332,6 +341,79 @@ async function scanOneUnit(
   };
 }
 
+/**
+ * Who may see and raise invoices.
+ *
+ * Managers, not the whole roster — deliberately narrower than the rest of the
+ * garage. What a team charged the outfit in the next garage is commercial, and
+ * the same reasoning that keeps sponsorship terms off the roster applies here.
+ */
+async function assertInvoiceAccess(
+  db: PrismaClient,
+  teamId: string,
+  userId: string,
+): Promise<void> {
+  const membership = await db.teamMembership.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+    select: { role: true, endDate: true },
+  });
+  if (
+    !membership ||
+    membership.endDate !== null ||
+    !TEAM_MANAGER_ROLES.includes(membership.role)
+  ) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message:
+        "Invoices are the team's commercial record — owners and managers only.",
+    });
+  }
+}
+
+const INVOICE_INCLUDE = {
+  lines: { orderBy: { sortOrder: "asc" } },
+  payments: { orderBy: { receivedOn: "asc" } },
+  car: { select: { id: true, name: true } },
+  event: { select: { id: true, name: true } },
+} satisfies PrismaNs.InvoiceInclude;
+
+async function loadInvoice(db: PrismaClient, invoiceId: string) {
+  const invoice = await db.invoice.findUnique({
+    where: { id: invoiceId },
+    include: INVOICE_INCLUDE,
+  });
+  if (!invoice) throw new TRPCError({ code: "NOT_FOUND" });
+  return invoice;
+}
+
+/** Editing anything after issue would rewrite a document already sent. */
+function assertDraft(status: InvoiceStatus): void {
+  if (isEditable(status)) return;
+  throw new TRPCError({
+    code: "PRECONDITION_FAILED",
+    message:
+      status === InvoiceStatus.VOID
+        ? "That invoice is void."
+        : "This invoice has been issued. Void it and raise a new one rather than changing what the customer already has.",
+  });
+}
+
+/** The foot of the invoice and what is still owed, worked out once. */
+function withTotals<
+  T extends {
+    taxRateBasisPoints: number;
+    lines: { amountMinor: number; taxable: boolean }[];
+    payments: { amountMinor: number }[];
+  },
+>(invoice: T) {
+  const totals = invoiceTotals(invoice.lines, invoice.taxRateBasisPoints);
+  return {
+    ...invoice,
+    totals,
+    settlement: settlementOf(totals.totalMinor, invoice.payments),
+  };
+}
+
 const moneySchema = z.number().int().min(0).max(100_000_000).nullish();
 
 export const garageRouter = createTRPCRouter({
@@ -345,7 +427,11 @@ export const garageRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const standing = await assertGarageRead(ctx.db, input.teamId, ctx.user.id);
+      const standing = await assertGarageRead(
+        ctx.db,
+        input.teamId,
+        ctx.user.id,
+      );
       const items = await ctx.db.inventoryItem.findMany({
         where: {
           teamId: input.teamId,
@@ -388,7 +474,12 @@ export const garageRouter = createTRPCRouter({
         const item = await tx.inventoryItem.create({
           // Labelled from the moment it exists: a line somebody has to go back
           // and "enable labels" on is a line that never gets one.
-          data: { ...rest, quantity, qrToken: mintToken(), createdById: ctx.user.id },
+          data: {
+            ...rest,
+            quantity,
+            qrToken: mintToken(),
+            createdById: ctx.user.id,
+          },
         });
         if (quantity > 0) {
           await tx.inventoryMovement.create({
@@ -490,7 +581,10 @@ export const garageRouter = createTRPCRouter({
       const delta = deltaFor(input.kind, input.amount, item.quantity);
       const rejection = checkMovement(item, delta);
       if (rejection) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: rejection.message });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: rejection.message,
+        });
       }
       const balance = balanceAfter(item, delta);
 
@@ -515,6 +609,368 @@ export const garageRouter = createTRPCRouter({
       });
     }),
 
+  // -- Invoicing third-party work ------------------------------------------
+
+  /**
+   * Every invoice on the team's books, newest first.
+   *
+   * Manager-scoped rather than roster-scoped. What a team charged the garage
+   * next door is commercial, and the same reasoning that keeps sponsorship
+   * terms off the roster applies here.
+   */
+  invoices: protectedProcedure
+    .input(
+      z.object({
+        teamId: z.string().cuid(),
+        status: z.nativeEnum(InvoiceStatus).optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      await assertInvoiceAccess(ctx.db, input.teamId, ctx.user.id);
+      const invoices = await ctx.db.invoice.findMany({
+        where: {
+          teamId: input.teamId,
+          ...(input.status ? { status: input.status } : {}),
+        },
+        orderBy: [{ issuedOn: "desc" }, { createdAt: "desc" }],
+        include: {
+          lines: { orderBy: { sortOrder: "asc" } },
+          payments: { orderBy: { receivedOn: "asc" } },
+          car: { select: { id: true, name: true } },
+          event: { select: { id: true, name: true } },
+        },
+      });
+      return { invoices: invoices.map(withTotals) };
+    }),
+
+  invoice: protectedProcedure
+    .input(z.object({ invoiceId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      const invoice = await loadInvoice(ctx.db, input.invoiceId);
+      await assertInvoiceAccess(ctx.db, invoice.teamId, ctx.user.id);
+      return withTotals(invoice);
+    }),
+
+  createInvoice: protectedProcedure
+    .input(
+      z.object({
+        teamId: z.string().cuid(),
+        customerName: z.string().trim().min(1).max(200),
+        customerContact: z.string().trim().max(200).nullish(),
+        customerEmail: z.string().email().max(200).nullish(),
+        customerAddress: z.string().max(2000).nullish(),
+        customerRef: z.string().trim().max(120).nullish(),
+        currency: z.string().length(3).toUpperCase().default("USD"),
+        taxRateBasisPoints: z.number().int().min(0).max(10_000).default(0),
+        taxLabel: z.string().trim().max(40).nullish(),
+        taxRegistration: z.string().trim().max(80).nullish(),
+        terms: z.string().trim().max(200).nullish(),
+        notes: z.string().max(4000).nullish(),
+        dueOn: z.date().nullish(),
+        carId: z.string().cuid().nullish(),
+        eventId: z.string().cuid().nullish(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertInvoiceAccess(ctx.db, input.teamId, ctx.user.id);
+      const { teamId, ...rest } = input;
+      // No number and no issue date: a draft is not in circulation yet, and
+      // numbering it would put a hole in the sequence if it is abandoned.
+      return ctx.db.invoice.create({
+        data: { ...rest, teamId, createdById: ctx.user.id },
+      });
+    }),
+
+  updateInvoice: protectedProcedure
+    .input(
+      z.object({
+        invoiceId: z.string().cuid(),
+        customerName: z.string().trim().min(1).max(200).optional(),
+        customerContact: z.string().trim().max(200).nullish(),
+        customerEmail: z.string().email().max(200).nullish(),
+        customerAddress: z.string().max(2000).nullish(),
+        customerRef: z.string().trim().max(120).nullish(),
+        currency: z.string().length(3).toUpperCase().optional(),
+        taxRateBasisPoints: z.number().int().min(0).max(10_000).optional(),
+        taxLabel: z.string().trim().max(40).nullish(),
+        taxRegistration: z.string().trim().max(80).nullish(),
+        terms: z.string().trim().max(200).nullish(),
+        notes: z.string().max(4000).nullish(),
+        dueOn: z.date().nullish(),
+        carId: z.string().cuid().nullish(),
+        eventId: z.string().cuid().nullish(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { invoiceId, ...data } = input;
+      const invoice = await loadInvoice(ctx.db, invoiceId);
+      await assertInvoiceAccess(ctx.db, invoice.teamId, ctx.user.id);
+      assertDraft(invoice.status);
+      return ctx.db.invoice.update({ where: { id: invoiceId }, data });
+    }),
+
+  addInvoiceLine: protectedProcedure
+    .input(
+      z.object({
+        invoiceId: z.string().cuid(),
+        description: z.string().trim().min(1).max(300),
+        quantity: z.number().positive().max(1_000_000),
+        /// Negative for a discount line, which prints as one.
+        unitMinor: z.number().int().min(-100_000_000).max(100_000_000),
+        unit: z.string().trim().max(24).nullish(),
+        taxable: z.boolean().default(true),
+        serviceId: z.string().cuid().nullish(),
+        inventoryItemId: z.string().cuid().nullish(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const invoice = await loadInvoice(ctx.db, input.invoiceId);
+      await assertInvoiceAccess(ctx.db, invoice.teamId, ctx.user.id);
+      assertDraft(invoice.status);
+
+      const problem = checkLine(input);
+      if (problem) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: problem.message });
+      }
+
+      const last = await ctx.db.invoiceLine.aggregate({
+        where: { invoiceId: input.invoiceId },
+        _max: { sortOrder: true },
+      });
+      const { invoiceId, ...rest } = input;
+      return ctx.db.invoiceLine.create({
+        data: {
+          ...rest,
+          invoiceId,
+          // Frozen here rather than computed on read: an issued invoice is a
+          // statement of what was charged, and recomputing it later lets a
+          // rounding change rewrite a document somebody has already paid.
+          amountMinor: lineAmountMinor(input),
+          sortOrder: (last._max.sortOrder ?? 0) + 1,
+        },
+      });
+    }),
+
+  updateInvoiceLine: protectedProcedure
+    .input(
+      z.object({
+        lineId: z.string().cuid(),
+        description: z.string().trim().min(1).max(300).optional(),
+        quantity: z.number().positive().max(1_000_000).optional(),
+        unitMinor: z
+          .number()
+          .int()
+          .min(-100_000_000)
+          .max(100_000_000)
+          .optional(),
+        unit: z.string().trim().max(24).nullish(),
+        taxable: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const line = await ctx.db.invoiceLine.findUnique({
+        where: { id: input.lineId },
+        include: { invoice: { select: { teamId: true, status: true } } },
+      });
+      if (!line) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertInvoiceAccess(ctx.db, line.invoice.teamId, ctx.user.id);
+      assertDraft(line.invoice.status);
+
+      const { lineId, ...data } = input;
+      const merged = {
+        description: data.description ?? line.description,
+        quantity: data.quantity ?? line.quantity,
+        unitMinor: data.unitMinor ?? line.unitMinor,
+      };
+      const problem = checkLine(merged);
+      if (problem) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: problem.message });
+      }
+
+      return ctx.db.invoiceLine.update({
+        where: { id: lineId },
+        data: { ...data, amountMinor: lineAmountMinor(merged) },
+      });
+    }),
+
+  removeInvoiceLine: protectedProcedure
+    .input(z.object({ lineId: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const line = await ctx.db.invoiceLine.findUnique({
+        where: { id: input.lineId },
+        include: { invoice: { select: { teamId: true, status: true } } },
+      });
+      if (!line) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertInvoiceAccess(ctx.db, line.invoice.teamId, ctx.user.id);
+      assertDraft(line.invoice.status);
+      await ctx.db.invoiceLine.delete({ where: { id: input.lineId } });
+      return { removed: true };
+    }),
+
+  /**
+   * Number it, date it and freeze it.
+   *
+   * The number is taken inside the transaction and guarded by a unique index
+   * on (team, number) rather than trusted from a read. Two people issuing at
+   * once is not hypothetical on a team where a manager and an engineer both
+   * have the console open, and a duplicated invoice number is the one mistake
+   * here that an accountant cannot unpick afterwards.
+   */
+  issueInvoice: protectedProcedure
+    .input(
+      z.object({
+        invoiceId: z.string().cuid(),
+        issuedOn: z.date().optional(),
+        dueOn: z.date().nullish(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const invoice = await loadInvoice(ctx.db, input.invoiceId);
+      await assertInvoiceAccess(ctx.db, invoice.teamId, ctx.user.id);
+      assertDraft(invoice.status);
+
+      if (invoice.lines.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "An invoice with no lines on it is not an invoice.",
+        });
+      }
+
+      const issuedOn = input.issuedOn ?? new Date();
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const next = await ctx.db.invoice.aggregate({
+          where: { teamId: invoice.teamId },
+          _max: { number: true },
+        });
+        try {
+          return await ctx.db.invoice.update({
+            where: { id: input.invoiceId },
+            data: {
+              status: InvoiceStatus.ISSUED,
+              number: (next._max.number ?? 0) + 1,
+              issuedOn,
+              dueOn: input.dueOn ?? invoice.dueOn,
+            },
+          });
+        } catch (error) {
+          const clash =
+            error instanceof PrismaNs.PrismaClientKnownRequestError &&
+            error.code === "P2002";
+          // Somebody else took that number in between. Read the top of the
+          // sequence again rather than guessing at it.
+          if (!clash) throw error;
+        }
+      }
+      throw new TRPCError({
+        code: "CONFLICT",
+        message:
+          "Somebody else is issuing invoices at the same moment. Try again.",
+      });
+    }),
+
+  /**
+   * Cancel an issued invoice, keeping its number.
+   *
+   * Never deleted. A missing number in a run is the first thing an auditor
+   * asks about, and a void that is visibly a void answers it before it is
+   * asked. Refunds are a credit note, not a negative payment.
+   */
+  voidInvoice: protectedProcedure
+    .input(
+      z.object({
+        invoiceId: z.string().cuid(),
+        reason: z.string().trim().min(1).max(500),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const invoice = await loadInvoice(ctx.db, input.invoiceId);
+      await assertInvoiceAccess(ctx.db, invoice.teamId, ctx.user.id);
+      if (!canVoid(invoice.status)) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            invoice.status === InvoiceStatus.DRAFT
+              ? "A draft is not in circulation — delete it instead."
+              : "That invoice is already void.",
+        });
+      }
+      if (invoice.payments.length > 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Money has been recorded against this one. Voiding it would leave the payment pointing at nothing — raise a credit note instead.",
+        });
+      }
+      return ctx.db.invoice.update({
+        where: { id: input.invoiceId },
+        data: {
+          status: InvoiceStatus.VOID,
+          notes: [invoice.notes, `Voided: ${input.reason}`]
+            .filter(Boolean)
+            .join("\n\n"),
+        },
+      });
+    }),
+
+  /** Deletes a draft outright. Only ever a draft — see `voidInvoice`. */
+  deleteInvoice: protectedProcedure
+    .input(z.object({ invoiceId: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const invoice = await loadInvoice(ctx.db, input.invoiceId);
+      await assertInvoiceAccess(ctx.db, invoice.teamId, ctx.user.id);
+      assertDraft(invoice.status);
+      await ctx.db.invoice.delete({ where: { id: input.invoiceId } });
+      return { deleted: true };
+    }),
+
+  /**
+   * Record money in.
+   *
+   * Its own row rather than a paid flag: a deposit and a balance is the normal
+   * shape of a large job, and a boolean cannot say "half". The platform does
+   * not take the money, so how it arrived is free text.
+   */
+  recordInvoicePayment: protectedProcedure
+    .input(
+      z.object({
+        invoiceId: z.string().cuid(),
+        amountMinor: z.number().int().positive().max(1_000_000_000),
+        receivedOn: z.date(),
+        method: z.string().trim().max(80).nullish(),
+        reference: z.string().trim().max(120).nullish(),
+        note: z.string().trim().max(500).nullish(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const invoice = await loadInvoice(ctx.db, input.invoiceId);
+      await assertInvoiceAccess(ctx.db, invoice.teamId, ctx.user.id);
+      if (!canRecordPayment(invoice.status)) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            invoice.status === InvoiceStatus.DRAFT
+              ? "Issue the invoice before recording what came in against it."
+              : "That invoice is void.",
+        });
+      }
+      const { invoiceId, ...rest } = input;
+      return ctx.db.invoicePayment.create({
+        data: { ...rest, invoiceId, recordedById: ctx.user.id },
+      });
+    }),
+
+  removeInvoicePayment: protectedProcedure
+    .input(z.object({ paymentId: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const payment = await ctx.db.invoicePayment.findUnique({
+        where: { id: input.paymentId },
+        include: { invoice: { select: { teamId: true } } },
+      });
+      if (!payment) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertInvoiceAccess(ctx.db, payment.invoice.teamId, ctx.user.id);
+      await ctx.db.invoicePayment.delete({ where: { id: input.paymentId } });
+      return { removed: true };
+    }),
 
   // -- Part labels and scanning --------------------------------------------
 
@@ -621,7 +1077,10 @@ export const garageRouter = createTRPCRouter({
       const delta = deltaFor(kind, input.amount, resolved.item.quantity);
       const rejection = checkMovement(resolved.item, delta);
       if (rejection) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: rejection.message });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: rejection.message,
+        });
       }
       const balance = balanceAfter(resolved.item, delta);
 
@@ -701,7 +1160,12 @@ export const garageRouter = createTRPCRouter({
             ? {
                 where: { status: { not: InventoryUnitStatus.RETIRED } },
                 orderBy: [{ serial: "asc" }, { createdAt: "asc" }],
-                select: { id: true, qrToken: true, serial: true, expiresOn: true },
+                select: {
+                  id: true,
+                  qrToken: true,
+                  serial: true,
+                  expiresOn: true,
+                },
               }
             : false,
         },
@@ -755,7 +1219,9 @@ export const garageRouter = createTRPCRouter({
           delta: true,
           unitId: true,
           reversedById: true,
-          item: { select: { id: true, teamId: true, quantity: true, name: true } },
+          item: {
+            select: { id: true, teamId: true, quantity: true, name: true },
+          },
           unit: { select: { id: true, status: true } },
         },
       });
@@ -1033,7 +1499,11 @@ export const garageRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const standing = await assertGarageRead(ctx.db, input.teamId, ctx.user.id);
+      const standing = await assertGarageRead(
+        ctx.db,
+        input.teamId,
+        ctx.user.id,
+      );
       const files = await ctx.db.garageFile.findMany({
         where: {
           teamId: input.teamId,
@@ -1138,7 +1608,8 @@ export const garageRouter = createTRPCRouter({
       if (!standing.canManage && file.uploadedById !== ctx.user.id) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Only the person who uploaded it or a manager can remove it.",
+          message:
+            "Only the person who uploaded it or a manager can remove it.",
         });
       }
       await ctx.db.garageFile.delete({ where: { id: input.fileId } });
@@ -1157,7 +1628,11 @@ export const garageRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const standing = await assertGarageRead(ctx.db, input.teamId, ctx.user.id);
+      const standing = await assertGarageRead(
+        ctx.db,
+        input.teamId,
+        ctx.user.id,
+      );
       const cars = await ctx.db.car.findMany({
         where: {
           teamId: input.teamId,
@@ -1173,7 +1648,10 @@ export const garageRouter = createTRPCRouter({
             include: {
               event: { select: { id: true, name: true, date: true } },
               performedBy: {
-                select: { id: true, profile: { select: { displayName: true } } },
+                select: {
+                  id: true,
+                  profile: { select: { displayName: true } },
+                },
               },
               _count: { select: { partsUsed: true } },
             },

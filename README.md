@@ -923,6 +923,53 @@ Alongside it, four things that were missing rather than inconsistent:
   The nav test had passed throughout, because it asked whether a route was
   *listed*, not whether anything rendered it at every width.
 
+**Invoicing third-party work (done):** teams take in outside jobs — a corner
+rebuild for the garage next door, fabrication for a customer car, an engineer
+lent out for a weekend — and then invoice it a week later from notes, in a
+spreadsheet, because the platform holding the service record and the parts used
+could not produce a document. The garage tab now raises, numbers, prints and
+chases one.
+
+**What it is not.** It writes and prints an invoice and records what came in
+against it. There is no ledger, no tax return, no card processing, and no
+opinion on whether the rate somebody typed is right for where they trade — the
+platform does the arithmetic it is given. That boundary is printed on the panel
+rather than buried in a tooltip, because a team that believes otherwise finds
+out at the worst possible moment. Same discipline as payroll.
+
+The decisions that carry weight:
+
+- **Numbers are assigned on issue, not on creation.** Numbering a draft means
+  an abandoned one leaves a hole, and a gap in an invoice run is the first
+  thing an auditor asks about. The number is taken inside a retry loop guarded
+  by a unique index on (team, number), because two people issuing at once is
+  not hypothetical when a manager and an engineer both have the console open.
+- **A void keeps its number for ever.** Deleting it would reopen the gap the
+  numbering scheme exists to avoid; a void that is visibly a void answers the
+  question before it is asked. Voiding is refused outright once money has been
+  recorded — that is a credit note, not a deletion.
+- **Amounts are frozen at issue.** Line totals are stored rather than
+  recomputed, so a rounding change or a corrected rate cannot silently rewrite
+  a document somebody has already paid.
+- **Tax is worked out on the taxable subtotal in one go**, not per line and
+  summed. Per-line rounding drifts from the figure a customer gets by applying
+  the rate to the total themselves, which is the first thing they do and the
+  first thing they query.
+- **Settlement is derived from the payments**, never stored as a flag, so the
+  status and the money cannot disagree. Payments are their own rows because a
+  deposit and a balance is the normal shape of a large job and a boolean cannot
+  say "half".
+- **Overdue invoices join the attention rollup**, first among the urgent items:
+  money the team is owed and has not chased is the only thing on that list with
+  a deadline somebody else set. Still one batched query — seven for any number
+  of teams, not seven per team.
+
+Invoices are manager-scoped rather than roster-scoped, on the same reasoning
+that keeps sponsorship terms off the roster. The printed document at
+`/teams/[slug]/invoices/[invoiceId]` carries the team's own branding, because
+an invoice arriving from a name the customer does not recognise is an invoice
+that gets queried.
+
 **Parts get labels, and labels get scanned (done):** the garage stock ledger
 now prints QR labels and takes them back in through the camera. A crew loading
 a trailer sets the direction once — *taking out* or *putting back* — and then

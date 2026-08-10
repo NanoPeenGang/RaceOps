@@ -1,6 +1,7 @@
 import {
   ApplicationStatus,
   InterviewStatus,
+  InvoiceStatus,
   PayRunStatus,
   ServiceStatus,
 } from "@prisma/client";
@@ -8,6 +9,7 @@ import type { PrismaClient } from "@prisma/client";
 import { EMPTY_ATTENTION, type TeamAttention } from "@/lib/attention";
 import { STALE_AFTER_DAYS } from "@/lib/hiring";
 import { stockLevel } from "@/lib/inventory";
+import { invoiceTotals, settlementOf } from "@/lib/invoices";
 import { upcomingServices } from "@/lib/service";
 
 /**
@@ -16,9 +18,9 @@ import { upcomingServices } from "@/lib/service";
  * Batched across every team in one call rather than looped, because the home
  * dashboard asks this for every team somebody manages and a query per team
  * would put the N+1 straight back after last week's work removing three of
- * them. Six queries, whether that is one team or twenty.
+ * them. Seven queries, whether that is one team or twenty.
  *
- * Two of the counts cannot be expressed in SQL and are finished in JS on a
+ * Three of the counts cannot be expressed in SQL and are finished in JS on a
  * deliberately small result set:
  *
  * - **Overdue services** depend on `assessDue`, which compares either a date
@@ -28,6 +30,10 @@ import { upcomingServices } from "@/lib/service";
  *   minQuantity`) that Prisma cannot express, so the rows with a threshold set
  *   are fetched and compared. Only items *with* a threshold are loaded, which
  *   is a fraction of a stock list.
+ * - **Overdue invoices** need the total against the payments, and the total is
+ *   a sum over lines with a tax rate applied to part of it. Only issued
+ *   invoices already past their date are loaded, which on a healthy team is
+ *   none.
  */
 export async function teamAttention(
   db: PrismaClient,
@@ -48,51 +54,69 @@ export async function teamAttention(
   if (teams.length === 0) return result;
 
   const teamIds = teams.map((team) => team.id);
-  const staleBefore = new Date(
-    now.getTime() - STALE_AFTER_DAYS * 86_400_000,
-  );
+  const staleBefore = new Date(now.getTime() - STALE_AFTER_DAYS * 86_400_000);
 
-  const [postings, payRuns, unpaidLines, services, stock] = await Promise.all([
-    // Applications hang off an opportunity, so the team comes through the
-    // posting. Fetched as ids first so the counts below can be grouped.
-    db.opportunity.findMany({
-      where: { postedByTeamId: { in: teamIds } },
-      select: { id: true, postedByTeamId: true },
-    }),
-    db.payRun.groupBy({
-      by: ["teamId", "status"],
-      where: { teamId: { in: teamIds } },
-      _count: { _all: true },
-    }),
-    db.payrollLine.findMany({
-      where: {
-        paidAt: null,
-        payRun: { teamId: { in: teamIds }, status: PayRunStatus.APPROVED },
-      },
-      select: { payRun: { select: { id: true, teamId: true } } },
-    }),
-    db.carService.findMany({
-      where: {
-        status: { in: [ServiceStatus.PLANNED, ServiceStatus.IN_PROGRESS] },
-        car: { teamId: { in: teamIds } },
-      },
-      select: {
-        id: true,
-        status: true,
-        nextDueOn: true,
-        nextDueHours: true,
-        car: { select: { teamId: true, runningHours: true } },
-      },
-    }),
-    db.inventoryItem.findMany({
-      where: {
-        teamId: { in: teamIds },
-        active: true,
-        minQuantity: { not: null },
-      },
-      select: { teamId: true, quantity: true, minQuantity: true },
-    }),
-  ]);
+  const [postings, payRuns, unpaidLines, services, stock, lateInvoices] =
+    await Promise.all([
+      // Applications hang off an opportunity, so the team comes through the
+      // posting. Fetched as ids first so the counts below can be grouped.
+      db.opportunity.findMany({
+        where: { postedByTeamId: { in: teamIds } },
+        select: { id: true, postedByTeamId: true },
+      }),
+      db.payRun.groupBy({
+        by: ["teamId", "status"],
+        where: { teamId: { in: teamIds } },
+        _count: { _all: true },
+      }),
+      db.payrollLine.findMany({
+        where: {
+          paidAt: null,
+          payRun: { teamId: { in: teamIds }, status: PayRunStatus.APPROVED },
+        },
+        select: { payRun: { select: { id: true, teamId: true } } },
+      }),
+      db.carService.findMany({
+        where: {
+          status: { in: [ServiceStatus.PLANNED, ServiceStatus.IN_PROGRESS] },
+          car: { teamId: { in: teamIds } },
+        },
+        select: {
+          id: true,
+          status: true,
+          nextDueOn: true,
+          nextDueHours: true,
+          car: { select: { teamId: true, runningHours: true } },
+        },
+      }),
+      db.inventoryItem.findMany({
+        where: {
+          teamId: { in: teamIds },
+          active: true,
+          minQuantity: { not: null },
+        },
+        select: { teamId: true, quantity: true, minQuantity: true },
+      }),
+      /*
+       * Narrowed in SQL to the only invoices that could possibly qualify —
+       * issued, and already past their date. Whether one is *actually* overdue
+       * needs the arithmetic below, but a team with its billing in order loads
+       * nothing here at all.
+       */
+      db.invoice.findMany({
+        where: {
+          teamId: { in: teamIds },
+          status: InvoiceStatus.ISSUED,
+          dueOn: { lt: now },
+        },
+        select: {
+          teamId: true,
+          taxRateBasisPoints: true,
+          lines: { select: { amountMinor: true, taxable: true } },
+          payments: { select: { amountMinor: true } },
+        },
+      }),
+    ]);
 
   const teamForPosting = new Map(
     postings.map((posting) => [posting.id, posting.postedByTeamId]),
@@ -209,6 +233,16 @@ export async function teamAttention(
   for (const item of stock) {
     const level = stockLevel(item);
     if (level === "low" || level === "out") bump(item.teamId, "lowStock");
+  }
+
+  // Past the date is not the same as owed: a deposit against a large job can
+  // leave a balance, and an invoice paid late is finished rather than overdue.
+  for (const invoice of lateInvoices) {
+    const totals = invoiceTotals(invoice.lines, invoice.taxRateBasisPoints);
+    const settlement = settlementOf(totals.totalMinor, invoice.payments);
+    if (settlement.outstandingMinor > 0) {
+      bump(invoice.teamId, "overdueInvoices");
+    }
   }
 
   return result;
