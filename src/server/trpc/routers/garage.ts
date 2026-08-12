@@ -15,11 +15,13 @@ import {
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc/trpc";
 import { TEAM_MANAGER_ROLES } from "@/lib/teams";
+import { brandingForTeam } from "@/server/services/branding";
 import { balanceAfter, checkMovement, deltaFor } from "@/lib/inventory";
 import {
   canRecordPayment,
   canVoid,
   checkLine,
+  formatInvoiceNumber,
   invoiceTotals,
   isEditable,
   lineAmountMinor,
@@ -398,6 +400,36 @@ function assertDraft(status: InvoiceStatus): void {
   });
 }
 
+/**
+ * Who the invoice is *from*.
+ *
+ * Returned with the invoice rather than fetched alongside it by the page. An
+ * invoice arriving from a name the customer does not recognise is an invoice
+ * that gets queried, so the issuer is part of the document rather than page
+ * decoration — and one query means the header cannot render half-populated
+ * because a second call was slower or failed.
+ *
+ * The logo comes through the branding resolver, so a team that set a logo on
+ * its profile and never opened the branding editor still gets one; a team
+ * inside an organization inherits that organization's mark.
+ */
+async function issuerFor(db: PrismaClient, teamId: string) {
+  const [team, branding] = await Promise.all([
+    db.team.findUniqueOrThrow({
+      where: { id: teamId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        homeBase: true,
+        websiteUrl: true,
+      },
+    }),
+    brandingForTeam(db, teamId),
+  ]);
+  return { ...team, logoUrl: branding.logoUrl, tagline: branding.tagline };
+}
+
 /** The foot of the invoice and what is still owed, worked out once. */
 function withTotals<
   T extends {
@@ -648,7 +680,8 @@ export const garageRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const invoice = await loadInvoice(ctx.db, input.invoiceId);
       await assertInvoiceAccess(ctx.db, invoice.teamId, ctx.user.id);
-      return withTotals(invoice);
+      const issuer = await issuerFor(ctx.db, invoice.teamId);
+      return { ...withTotals(invoice), issuer };
     }),
 
   createInvoice: protectedProcedure
@@ -810,11 +843,14 @@ export const garageRouter = createTRPCRouter({
   /**
    * Number it, date it and freeze it.
    *
-   * The number is taken inside the transaction and guarded by a unique index
-   * on (team, number) rather than trusted from a read. Two people issuing at
-   * once is not hypothetical on a team where a manager and an engineer both
-   * have the console open, and a duplicated invoice number is the one mistake
-   * here that an accountant cannot unpick afterwards.
+   * The number comes off the team's own counter, incremented atomically in the
+   * same transaction as the write. Two things fall out of that. Two people
+   * issuing at once — not hypothetical when a manager and an engineer both
+   * have the console open — get different numbers without a retry loop. And a
+   * number that has been issued is never handed out again, even if that
+   * invoice is later deleted: reusing one that was in circulation would put
+   * two different documents under a single reference, which is worse than the
+   * gap.
    */
   issueInvoice: protectedProcedure
     .input(
@@ -837,34 +873,23 @@ export const garageRouter = createTRPCRouter({
       }
 
       const issuedOn = input.issuedOn ?? new Date();
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        const next = await ctx.db.invoice.aggregate({
-          where: { teamId: invoice.teamId },
-          _max: { number: true },
+      return ctx.db.$transaction(async (tx) => {
+        // `increment` is a single UPDATE, so concurrent callers serialise on
+        // the row rather than racing a read.
+        const team = await tx.team.update({
+          where: { id: invoice.teamId },
+          data: { nextInvoiceNumber: { increment: 1 } },
+          select: { nextInvoiceNumber: true },
         });
-        try {
-          return await ctx.db.invoice.update({
-            where: { id: input.invoiceId },
-            data: {
-              status: InvoiceStatus.ISSUED,
-              number: (next._max.number ?? 0) + 1,
-              issuedOn,
-              dueOn: input.dueOn ?? invoice.dueOn,
-            },
-          });
-        } catch (error) {
-          const clash =
-            error instanceof PrismaNs.PrismaClientKnownRequestError &&
-            error.code === "P2002";
-          // Somebody else took that number in between. Read the top of the
-          // sequence again rather than guessing at it.
-          if (!clash) throw error;
-        }
-      }
-      throw new TRPCError({
-        code: "CONFLICT",
-        message:
-          "Somebody else is issuing invoices at the same moment. Try again.",
+        return tx.invoice.update({
+          where: { id: input.invoiceId },
+          data: {
+            status: InvoiceStatus.ISSUED,
+            number: team.nextInvoiceNumber - 1,
+            issuedOn,
+            dueOn: input.dueOn ?? invoice.dueOn,
+          },
+        });
       });
     }),
 
@@ -912,15 +937,54 @@ export const garageRouter = createTRPCRouter({
       });
     }),
 
-  /** Deletes a draft outright. Only ever a draft — see `voidInvoice`. */
+  /**
+   * Removes an invoice and everything on it.
+   *
+   * A draft goes without ceremony — nothing was ever in circulation. Deleting
+   * one that *was* issued is a different act: the number goes with it, so the
+   * team's numbering gains a gap, and any payments recorded against it are
+   * gone too. That is a legitimate thing to want — an invoice raised against
+   * the wrong customer entirely is better erased than left on file as a void —
+   * but it is not something to discover afterwards, so the caller has to say
+   * it means an issued one.
+   *
+   * `voidInvoice` remains the better answer where the work was real and the
+   * invoice simply is not being collected: it keeps the number and leaves the
+   * run intact.
+   */
   deleteInvoice: protectedProcedure
-    .input(z.object({ invoiceId: z.string().cuid() }))
+    .input(
+      z.object({
+        invoiceId: z.string().cuid(),
+        /**
+         * Required to delete anything already issued.
+         *
+         * Not a nag. The panel spells out what goes and what it does to the
+         * numbering; this is what stops a mis-wired button doing it silently.
+         */
+        deleteIssued: z.boolean().default(false),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       const invoice = await loadInvoice(ctx.db, input.invoiceId);
       await assertInvoiceAccess(ctx.db, invoice.teamId, ctx.user.id);
-      assertDraft(invoice.status);
+
+      if (invoice.status !== InvoiceStatus.DRAFT && !input.deleteIssued) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `${formatInvoiceNumber(invoice.number)} has been issued. Deleting it takes its number out of your sequence for good — confirm that, or void it instead to keep the run intact.`,
+        });
+      }
+
+      // Lines and payments cascade from the row; nothing is left pointing at
+      // an invoice that is gone.
       await ctx.db.invoice.delete({ where: { id: input.invoiceId } });
-      return { deleted: true };
+      return {
+        deleted: true,
+        number: invoice.number,
+        wasIssued: invoice.status !== InvoiceStatus.DRAFT,
+        paymentsRemoved: invoice.payments.length,
+      };
     }),
 
   /**

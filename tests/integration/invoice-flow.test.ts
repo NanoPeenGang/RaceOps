@@ -273,10 +273,154 @@ describe.skipIf(!ENABLED)("invoicing (integration)", () => {
     expect(after.number).toBe(issued.number! + 1);
   });
 
-  it("refuses to delete an issued invoice outright", async () => {
+  it("does not delete an issued invoice by accident", async () => {
+    // The bare call is the one a mis-wired button makes. It has to say it
+    // means an issued invoice before the number leaves the sequence.
     await expect(
       manager.caller.garage.deleteInvoice({ invoiceId }),
     ).rejects.toThrow(/issued/i);
+  });
+
+  it("deletes an issued invoice, its lines and its payments, when told to", async () => {
+    const draft = await manager.caller.garage.createInvoice({
+      teamId,
+      customerName: `Wrong customer ${run}`,
+    });
+    await manager.caller.garage.addInvoiceLine({
+      invoiceId: draft.id,
+      description: "Billed to entirely the wrong outfit",
+      quantity: 1,
+      unitMinor: 40000,
+    });
+    const issued = await manager.caller.garage.issueInvoice({
+      invoiceId: draft.id,
+    });
+    await manager.caller.garage.recordInvoicePayment({
+      invoiceId: draft.id,
+      amountMinor: 40000,
+      receivedOn: new Date(),
+    });
+
+    const result = await manager.caller.garage.deleteInvoice({
+      invoiceId: draft.id,
+      deleteIssued: true,
+    });
+    expect(result.wasIssued).toBe(true);
+    expect(result.number).toBe(issued.number);
+    expect(result.paymentsRemoved).toBe(1);
+
+    // Nothing is left pointing at an invoice that is gone.
+    expect(
+      await db.invoice.findUnique({ where: { id: draft.id } }),
+    ).toBeNull();
+    expect(
+      await db.invoiceLine.count({ where: { invoiceId: draft.id } }),
+    ).toBe(0);
+    expect(
+      await db.invoicePayment.count({ where: { invoiceId: draft.id } }),
+    ).toBe(0);
+  });
+
+  it("keeps the gap where a deleted invoice was", async () => {
+    /*
+     * The consequence the panel spells out before anybody confirms. The next
+     * invoice takes the number after the deleted one rather than reusing it,
+     * because reissuing a number that was in circulation is worse than a gap:
+     * two different documents would exist under one reference.
+     */
+    const before = await db.invoice.aggregate({
+      where: { teamId },
+      _max: { number: true },
+    });
+
+    const draft = await manager.caller.garage.createInvoice({
+      teamId,
+      customerName: `Doomed ${run}`,
+    });
+    await manager.caller.garage.addInvoiceLine({
+      invoiceId: draft.id,
+      description: "Bench time",
+      quantity: 1,
+      unitMinor: 1000,
+    });
+    const doomed = await manager.caller.garage.issueInvoice({
+      invoiceId: draft.id,
+    });
+    // Ahead of everything on the books — and not merely max + 1, because an
+    // earlier deletion already burnt a number that is never coming back.
+    expect(doomed.number!).toBeGreaterThan(before._max.number ?? 0);
+
+    await manager.caller.garage.deleteInvoice({
+      invoiceId: draft.id,
+      deleteIssued: true,
+    });
+
+    const next = await manager.caller.garage.createInvoice({
+      teamId,
+      customerName: `After the deletion ${run}`,
+    });
+    await manager.caller.garage.addInvoiceLine({
+      invoiceId: next.id,
+      description: "Bench time",
+      quantity: 1,
+      unitMinor: 1000,
+    });
+    const after = await manager.caller.garage.issueInvoice({
+      invoiceId: next.id,
+    });
+    expect(after.number).toBe(doomed.number! + 1);
+  });
+
+  it("lets a draft go without ceremony", async () => {
+    const draft = await manager.caller.garage.createInvoice({
+      teamId,
+      customerName: `Abandoned ${run}`,
+    });
+    const result = await manager.caller.garage.deleteInvoice({
+      invoiceId: draft.id,
+    });
+    expect(result.wasIssued).toBe(false);
+    // Nothing was ever in circulation, so there is no number to account for.
+    expect(result.number).toBeNull();
+  });
+
+  it("will not let crew delete an invoice", async () => {
+    const draft = await manager.caller.garage.createInvoice({
+      teamId,
+      customerName: `Guarded ${run}`,
+    });
+    await expect(
+      crew.caller.garage.deleteInvoice({ invoiceId: draft.id }),
+    ).rejects.toThrow(/owners and managers/i);
+    await manager.caller.garage.deleteInvoice({ invoiceId: draft.id });
+  });
+
+  it("puts the team's name and logo on the document itself", async () => {
+    /*
+     * Carried by the invoice rather than fetched beside it, so the masthead
+     * cannot render half-populated because a second call was slower. An
+     * invoice arriving from a name the customer does not recognise is one that
+     * gets queried rather than paid.
+     */
+    await db.team.update({
+      where: { id: teamId },
+      data: { logoUrl: "https://example.test/logo.png", homeBase: "Brackley" },
+    });
+
+    const invoice = await manager.caller.garage.invoice({ invoiceId });
+    expect(invoice.issuer.name).toBe(`Invoice Team ${run}`);
+    expect(invoice.issuer.logoUrl).toBe("https://example.test/logo.png");
+    expect(invoice.issuer.homeBase).toBe("Brackley");
+  });
+
+  it("finds a logo set on the profile even with no branding row", async () => {
+    // A team that uploaded a logo and never opened the branding editor still
+    // has one; requiring both would leave most invoices unbranded.
+    expect(
+      await db.branding.findFirst({ where: { teamId } }),
+    ).toBeNull();
+    const invoice = await manager.caller.garage.invoice({ invoiceId });
+    expect(invoice.issuer.logoUrl).toBeTruthy();
   });
 
   it("puts an overdue invoice in front of the manager", async () => {

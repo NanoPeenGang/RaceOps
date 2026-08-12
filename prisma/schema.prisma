@@ -317,25 +317,37 @@ model Team {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  roster         TeamMembership[]
-  opportunities  Opportunity[]       @relation("OpportunityPostedByTeam")
-  registrations  EventRegistration[]
-  strategyPlans  StrategyPlan[]
-  media          Media[]
-  sponsorships   Sponsorship[]
-  chatMessages   ChatMessage[]
-  channels       ChatChannel[]
-  cars           Car[]
-  inventory      InventoryItem[]
-  garageFiles    GarageFile[]
-  offers         Offer[]
-  payRates       PayRate[]
-  payRuns        PayRun[]
-  invoices       Invoice[]
-  transponders   Transponder[]
-  organizationId String?
-  organization   Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  branding       Branding?
+  roster        TeamMembership[]
+  opportunities Opportunity[]       @relation("OpportunityPostedByTeam")
+  registrations EventRegistration[]
+  strategyPlans StrategyPlan[]
+  media         Media[]
+  sponsorships  Sponsorship[]
+  chatMessages  ChatMessage[]
+  channels      ChatChannel[]
+  cars          Car[]
+  inventory     InventoryItem[]
+  garageFiles   GarageFile[]
+  offers        Offer[]
+  payRates      PayRate[]
+  payRuns       PayRun[]
+  invoices      Invoice[]
+
+  /**
+   * The next invoice number this team will issue.
+   * A counter that only ever goes up, rather than `MAX(number) + 1` over the
+   * invoices themselves. The max is wrong the moment an invoice is deleted:
+   * the highest number drops back and the next invoice reuses one that was
+   * already in circulation, so two different documents exist under a single
+   * reference — worse than the gap it was trying to avoid.
+   * Incremented atomically, which also removes the retry loop the max-scan
+   * needed to survive two people issuing at the same moment.
+   */
+  nextInvoiceNumber Int           @default(1)
+  transponders      Transponder[]
+  organizationId    String?
+  organization      Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  branding          Branding?
 }
 
 enum SponsorshipStatus {

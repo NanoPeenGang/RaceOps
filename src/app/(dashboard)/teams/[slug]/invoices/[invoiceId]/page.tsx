@@ -67,12 +67,10 @@ export default async function InvoicePage({
     throw error;
   }
 
-  const team = await api.team.bySlug({ slug });
-  if (!team) notFound();
-
-  // The team's own mark on the document. An invoice arriving from a name
-  // the customer does not recognise is an invoice that gets queried.
-  const branding = await api.branding.resolved({ teamId: team.id });
+  // The issuer travels with the invoice rather than being fetched alongside
+  // it, so the masthead cannot render half-populated because a second call was
+  // slower or failed.
+  const { issuer } = invoice;
   const overdue = isOverdue(invoice, invoice.settlement);
   const currency = invoice.currency;
 
@@ -83,7 +81,7 @@ export default async function InvoicePage({
           href={`/teams/${slug}/manage?tab=garage`}
           className="text-sm text-brand-red hover:underline"
         >
-          ← {team.name} garage
+          ← {issuer.name} garage
         </Link>
         <PrintButton />
       </div>
@@ -96,20 +94,27 @@ export default async function InvoicePage({
       )}
 
       <article className="space-y-6 rounded-lg border border-brand-black/15 p-6 print:border-0 print:p-0">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            {branding?.logoUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={branding.logoUrl}
-                alt=""
-                className="h-14 w-14 object-contain"
-              />
-            )}
-            <div>
-              <p className="text-xl font-bold">{team.name}</p>
-              {team.homeBase && (
-                <p className="text-sm text-brand-black/60">{team.homeBase}</p>
+        {/*
+          Who it is from, first and largest. An invoice arriving from a name
+          the customer does not recognise is an invoice that gets queried
+          rather than paid, so the issuer is the document's own masthead — not
+          a line of small print under the total.
+        */}
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-brand-black/15 pb-4">
+          <div className="flex items-start gap-4">
+            <IssuerLogo url={issuer.logoUrl} name={issuer.name} />
+            <div className="min-w-0">
+              <p className="text-2xl font-bold leading-tight">{issuer.name}</p>
+              {issuer.tagline && (
+                <p className="text-sm text-brand-black/70">{issuer.tagline}</p>
+              )}
+              {issuer.homeBase && (
+                <p className="text-sm text-brand-black/60">{issuer.homeBase}</p>
+              )}
+              {issuer.websiteUrl && (
+                <p className="text-xs text-brand-black/60">
+                  {issuer.websiteUrl.replace(/^https?:\/\//, "")}
+                </p>
               )}
               {invoice.taxRegistration && (
                 <p className="text-xs text-brand-black/60">
@@ -152,7 +157,10 @@ export default async function InvoicePage({
           </div>
           <dl className="space-y-1 text-sm sm:text-right">
             {invoice.issuedOn && (
-              <Field label="Issued" value={invoice.issuedOn.toLocaleDateString()} />
+              <Field
+                label="Issued"
+                value={invoice.issuedOn.toLocaleDateString()}
+              />
             )}
             {invoice.dueOn && (
               <Field label="Due" value={invoice.dueOn.toLocaleDateString()} />
@@ -160,7 +168,9 @@ export default async function InvoicePage({
             {invoice.customerRef && (
               <Field label="Your reference" value={invoice.customerRef} />
             )}
-            {invoice.car?.name && <Field label="Car" value={invoice.car.name} />}
+            {invoice.car?.name && (
+              <Field label="Car" value={invoice.car.name} />
+            )}
             {invoice.event?.name && (
               <Field label="Event" value={invoice.event.name} />
             )}
@@ -201,7 +211,11 @@ export default async function InvoicePage({
             ))}
           </tbody>
           <tfoot>
-            <Total label="Subtotal" value={invoice.totals.subtotalMinor} currency={currency} />
+            <Total
+              label="Subtotal"
+              value={invoice.totals.subtotalMinor}
+              currency={currency}
+            />
             {invoice.taxRateBasisPoints > 0 && (
               <Total
                 label={`${invoice.taxLabel ?? "Tax"} at ${formatTaxRate(invoice.taxRateBasisPoints)}`}
@@ -248,6 +262,29 @@ export default async function InvoicePage({
         )}
       </article>
     </div>
+  );
+}
+
+/**
+ * The team's mark at the top of the document.
+ *
+ * A plain `img` rather than `next/image`, on purpose. This page is printed and
+ * saved to PDF, and an optimised, lazily-loaded element is a blank square on
+ * the sheet the customer actually receives — the one place an image absolutely
+ * has to be there when the page is painted.
+ *
+ * Fixed box with `object-contain` so a wide wordmark and a square badge both
+ * sit on the same baseline as the name beside them.
+ */
+function IssuerLogo({ url, name }: { url: string | null; name: string }) {
+  if (!url) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt={`${name} logo`}
+      className="h-16 w-16 shrink-0 object-contain print:h-14 print:w-14"
+    />
   );
 }
 

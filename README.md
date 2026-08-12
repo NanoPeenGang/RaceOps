@@ -944,10 +944,19 @@ The decisions that carry weight:
   thing an auditor asks about. The number is taken inside a retry loop guarded
   by a unique index on (team, number), because two people issuing at once is
   not hypothetical when a manager and an engineer both have the console open.
-- **A void keeps its number for ever.** Deleting it would reopen the gap the
-  numbering scheme exists to avoid; a void that is visibly a void answers the
-  question before it is asked. Voiding is refused outright once money has been
-  recorded — that is a credit note, not a deletion.
+- **Numbers come off a counter on the team, not `MAX(number) + 1`.** The max
+  is wrong the moment an invoice is deleted: the highest number drops back and
+  the next invoice reuses one that was already in circulation, so two different
+  documents exist under a single reference. The counter only goes up, and
+  incrementing it atomically also removes the retry loop the max-scan needed to
+  survive two people issuing at once.
+- **A void keeps its number and its record**; a deletion takes both away.
+  Both are offered, because there is a real case for each — an invoice for work
+  that was genuinely done but will not be collected is a void, while one raised
+  against the wrong customer entirely is better erased than left on file. What
+  matters is that the difference is on screen at the moment of choosing:
+  deleting an issued invoice needs an explicit confirmation that spells out the
+  lines and payments going with it and the gap left in the run.
 - **Amounts are frozen at issue.** Line totals are stored rather than
   recomputed, so a rounding change or a corrected rate cannot silently rewrite
   a document somebody has already paid.

@@ -118,10 +118,7 @@ export function InvoicesPanel({
       )}
 
       {creating && (
-        <NewInvoice
-          teamId={teamId}
-          onCreated={() => setCreating(false)}
-        />
+        <NewInvoice teamId={teamId} onCreated={() => setCreating(false)} />
       )}
 
       {invoices.length === 0 ? (
@@ -331,7 +328,9 @@ function InvoiceRow({
                 invoice.issuedOn
                   ? `Issued ${invoice.issuedOn.toLocaleDateString()}`
                   : "Not issued",
-                invoice.dueOn ? `Due ${invoice.dueOn.toLocaleDateString()}` : null,
+                invoice.dueOn
+                  ? `Due ${invoice.dueOn.toLocaleDateString()}`
+                  : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -372,9 +371,7 @@ function InvoiceRow({
           )}
         </div>
 
-        {open && (
-          <InvoiceDetail invoice={invoice} teamId={teamId} />
-        )}
+        {open && <InvoiceDetail invoice={invoice} teamId={teamId} />}
       </CardContent>
     </Card>
   );
@@ -425,7 +422,10 @@ function InvoiceDetail({
             <td colSpan={2} className="pt-2 text-right text-brand-black/60">
               Subtotal
             </td>
-            <td className="pt-2 text-right tabular-nums" colSpan={editable ? 2 : 1}>
+            <td
+              className="pt-2 text-right tabular-nums"
+              colSpan={editable ? 2 : 1}
+            >
               {formatMoney(invoice.totals.subtotalMinor, invoice.currency)}
             </td>
           </tr>
@@ -435,7 +435,10 @@ function InvoiceDetail({
                 {invoice.taxLabel ?? "Tax"} at{" "}
                 {formatTaxRate(invoice.taxRateBasisPoints)}
               </td>
-              <td className="text-right tabular-nums" colSpan={editable ? 2 : 1}>
+              <td
+                className="text-right tabular-nums"
+                colSpan={editable ? 2 : 1}
+              >
                 {formatMoney(invoice.totals.taxMinor, invoice.currency)}
               </td>
             </tr>
@@ -475,9 +478,14 @@ function InvoiceDetail({
           <RecordPayment invoice={invoice} onDone={refresh} />
         )}
 
-      {canVoid(invoice.status) && invoice.payments.length === 0 && (
-        <VoidInvoice invoiceId={invoice.id} onDone={refresh} />
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {canVoid(invoice.status) && invoice.payments.length === 0 && (
+          <VoidInvoice invoiceId={invoice.id} onDone={refresh} />
+        )}
+        {invoice.status !== InvoiceStatus.DRAFT && (
+          <DeleteInvoice invoice={invoice} onDone={refresh} />
+        )}
+      </div>
     </div>
   );
 }
@@ -489,7 +497,9 @@ function RemoveLine({
   lineId: string;
   onDone: () => void;
 }) {
-  const remove = api.garage.removeInvoiceLine.useMutation({ onSuccess: onDone });
+  const remove = api.garage.removeInvoiceLine.useMutation({
+    onSuccess: onDone,
+  });
   return (
     <button
       type="button"
@@ -591,7 +601,12 @@ function AddLine({
           />
           Tax applies to this line
         </label>
-        <Button type="submit" size="sm" variant="outline" disabled={!valid || add.isPending}>
+        <Button
+          type="submit"
+          size="sm"
+          variant="outline"
+          disabled={!valid || add.isPending}
+        >
           Add line
         </Button>
         {add.error && (
@@ -610,7 +625,10 @@ function IssueControls({
   onDone: () => void;
 }) {
   const issue = api.garage.issueInvoice.useMutation({
-    meta: { silenceError: true, successMessage: "Invoice issued and numbered." },
+    meta: {
+      silenceError: true,
+      successMessage: "Invoice issued and numbered.",
+    },
     onSuccess: onDone,
   });
   const remove = api.garage.deleteInvoice.useMutation({ onSuccess: onDone });
@@ -636,6 +654,9 @@ function IssueControls({
       <span className="text-xs text-brand-black/50">
         Issuing gives it its number and freezes the figures.
       </span>
+      {remove.error && (
+        <span className="text-xs text-brand-red">{remove.error.message}</span>
+      )}
       {issue.error && (
         <span className="text-xs text-brand-red">{issue.error.message}</span>
       )}
@@ -776,7 +797,12 @@ function VoidInvoice({
         placeholder="Why — it stays on the record"
         aria-label="Reason for voiding"
       />
-      <Button type="submit" size="sm" variant="outline" disabled={!reason.trim()}>
+      <Button
+        type="submit"
+        size="sm"
+        variant="outline"
+        disabled={!reason.trim()}
+      >
         Void it
       </Button>
       <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
@@ -786,5 +812,88 @@ function VoidInvoice({
         <span className="text-xs text-brand-red">{voidIt.error.message}</span>
       )}
     </Form>
+  );
+}
+
+/**
+ * Deleting an invoice that has been issued.
+ *
+ * Kept separate from the draft delete and from voiding, because it is a
+ * different act with a different consequence. Voiding keeps the number and
+ * leaves the run gapless; deleting takes the number out of the sequence for
+ * good and takes any recorded payments with it.
+ *
+ * Both are offered rather than one being hidden. There is a real case for each
+ * — an invoice for work that was genuinely done but will not be collected is a
+ * void; one raised against the wrong customer entirely is better erased than
+ * left on file. What matters is that the difference is on screen at the moment
+ * of choosing, not in a help page.
+ */
+function DeleteInvoice({
+  invoice,
+  onDone,
+}: {
+  invoice: Invoice;
+  onDone: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const remove = api.garage.deleteInvoice.useMutation({
+    meta: { silenceError: true, successMessage: "Invoice deleted." },
+    onSuccess: onDone,
+  });
+
+  if (!confirming) {
+    return (
+      <Button variant="ghost" size="sm" onClick={() => setConfirming(true)}>
+        Delete it
+      </Button>
+    );
+  }
+
+  return (
+    <div className="w-full space-y-2 rounded-md border border-brand-red/40 p-3">
+      <p className="text-sm">
+        Delete {formatInvoiceNumber(invoice.number)} for good?
+      </p>
+      <ul className="list-disc space-y-0.5 pl-5 text-xs text-brand-black/70">
+        <li>
+          {invoice.lines.length} line
+          {invoice.lines.length === 1 ? "" : "s"} go with it.
+        </li>
+        {invoice.payments.length > 0 && (
+          <li>
+            {formatMoney(invoice.settlement.paidMinor, invoice.currency)}{" "}
+            recorded as received will no longer be on the books.
+          </li>
+        )}
+        <li>
+          {formatInvoiceNumber(invoice.number)} is never issued again — the next
+          invoice carries on past it, so your run will have a gap where this one
+          was.
+        </li>
+      </ul>
+      <p className="text-xs text-brand-black/60">
+        If the work was real and you simply are not collecting it, void it
+        instead — that keeps the number and the record.
+      </p>
+      {remove.error && (
+        <p className="text-xs text-brand-red">{remove.error.message}</p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={remove.isPending}
+          onClick={() =>
+            remove.mutate({ invoiceId: invoice.id, deleteIssued: true })
+          }
+        >
+          {remove.isPending ? "Deleting…" : "Delete it"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+          Keep it
+        </Button>
+      </div>
+    </div>
   );
 }
