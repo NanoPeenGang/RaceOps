@@ -463,19 +463,34 @@ function InvoiceDetail({
             Received
           </p>
           {invoice.payments.map((payment) => (
-            <p key={payment.id} className="text-sm">
-              {formatMoney(payment.amountMinor, invoice.currency)} on{" "}
-              {payment.receivedOn.toLocaleDateString()}
-              {payment.method ? ` · ${payment.method}` : ""}
-              {payment.reference ? ` · ${payment.reference}` : ""}
-            </p>
+            <div
+              key={payment.id}
+              className="flex flex-wrap items-baseline gap-2 text-sm"
+            >
+              <span className="flex-1">
+                {formatMoney(payment.amountMinor, invoice.currency)} on{" "}
+                {payment.receivedOn.toLocaleDateString()}
+                {payment.method ? ` · ${payment.method}` : ""}
+                {payment.reference ? ` · ${payment.reference}` : ""}
+                {/* Says how it got here. Reconciling a bank statement later
+                    means telling a real receipt from a tick-off, and the two
+                    rows are otherwise identical. */}
+                {payment.note && (
+                  <span className="text-brand-black/50"> · {payment.note}</span>
+                )}
+              </span>
+              <RemovePayment paymentId={payment.id} onDone={refresh} />
+            </div>
           ))}
         </div>
       )}
 
       {canRecordPayment(invoice.status) &&
         invoice.settlement.outstandingMinor > 0 && (
-          <RecordPayment invoice={invoice} onDone={refresh} />
+          <>
+            <MarkPaid invoice={invoice} onDone={refresh} />
+            <RecordPayment invoice={invoice} onDone={refresh} />
+          </>
         )}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -895,5 +910,90 @@ function DeleteInvoice({
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Settling an invoice in one tap.
+ *
+ * Most invoices are paid once, in full, and typing the amount back in when the
+ * platform already knows it is four fields of ceremony. This writes a payment
+ * for exactly what is outstanding, dated today.
+ *
+ * It is a payment rather than a paid flag on purpose. Settlement is derived
+ * from the money recorded against an invoice, so a flag could disagree with it
+ * — a "paid" invoice with nothing against it is the discrepancy nobody finds
+ * until year end. This is the same fact entered faster, not a second source of
+ * truth.
+ */
+function MarkPaid({
+  invoice,
+  onDone,
+}: {
+  invoice: Invoice;
+  onDone: () => void;
+}) {
+  const mark = api.garage.markInvoicePaid.useMutation({
+    meta: { silenceError: true, successMessage: "Marked paid." },
+    onSuccess: onDone,
+  });
+
+  const outstanding = formatMoney(
+    invoice.settlement.outstandingMinor,
+    invoice.currency,
+  );
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        variant="primary"
+        size="sm"
+        disabled={mark.isPending}
+        onClick={() => mark.mutate({ invoiceId: invoice.id })}
+      >
+        {mark.isPending
+          ? "Marking…"
+          : invoice.settlement.partial
+            ? `Mark the remaining ${outstanding} paid`
+            : `Mark ${outstanding} paid`}
+      </Button>
+      <span className="text-xs text-brand-black/50">
+        Records it as received today. Use the fields below for a deposit, a
+        different date, or a reference.
+      </span>
+      {mark.error && (
+        <span className="text-xs text-brand-red">{mark.error.message}</span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Taking a payment back off.
+ *
+ * The other half of marking one paid: a tick-off in the wrong row has to be
+ * correctable, and without this the only way back would be deleting the
+ * invoice — which takes its number with it.
+ */
+function RemovePayment({
+  paymentId,
+  onDone,
+}: {
+  paymentId: string;
+  onDone: () => void;
+}) {
+  const remove = api.garage.removeInvoicePayment.useMutation({
+    meta: { successMessage: "Payment removed." },
+    onSuccess: onDone,
+  });
+  return (
+    <button
+      type="button"
+      className="text-xs text-brand-black/50 hover:text-brand-red"
+      disabled={remove.isPending}
+      onClick={() => remove.mutate({ paymentId })}
+    >
+      Remove
+    </button>
   );
 }

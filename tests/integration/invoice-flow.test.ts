@@ -211,6 +211,151 @@ describe.skipIf(!ENABLED)("invoicing (integration)", () => {
     expect(invoice.settlement.outstandingMinor).toBe(0);
   });
 
+  it("settles an invoice in one action", async () => {
+    const draft = await manager.caller.garage.createInvoice({
+      teamId,
+      customerName: `Paid in full ${run}`,
+    });
+    await manager.caller.garage.addInvoiceLine({
+      invoiceId: draft.id,
+      description: "Corner rebuild",
+      quantity: 1,
+      unitMinor: 80000,
+    });
+    await manager.caller.garage.issueInvoice({ invoiceId: draft.id });
+
+    const payment = await manager.caller.garage.markInvoicePaid({
+      invoiceId: draft.id,
+    });
+    expect(payment.amountMinor).toBe(80000);
+    // A payment row, not a flag: settlement is derived from the money, so a
+    // flag could disagree with it.
+    expect(payment.note).toMatch(/marked paid/i);
+
+    const invoice = await manager.caller.garage.invoice({ invoiceId: draft.id });
+    expect(invoice.settlement.settled).toBe(true);
+    expect(invoice.settlement.outstandingMinor).toBe(0);
+  });
+
+  it("marks only the balance when a deposit is already down", async () => {
+    // The bug this guards: settling against the *total* would double-count the
+    // deposit and leave the invoice showing an overpayment.
+    const draft = await manager.caller.garage.createInvoice({
+      teamId,
+      customerName: `Deposit then balance ${run}`,
+    });
+    await manager.caller.garage.addInvoiceLine({
+      invoiceId: draft.id,
+      description: "Fabrication",
+      quantity: 1,
+      unitMinor: 100000,
+    });
+    await manager.caller.garage.issueInvoice({ invoiceId: draft.id });
+    await manager.caller.garage.recordInvoicePayment({
+      invoiceId: draft.id,
+      amountMinor: 30000,
+      receivedOn: new Date(),
+    });
+
+    const balance = await manager.caller.garage.markInvoicePaid({
+      invoiceId: draft.id,
+    });
+    expect(balance.amountMinor).toBe(70000);
+
+    const invoice = await manager.caller.garage.invoice({ invoiceId: draft.id });
+    expect(invoice.settlement.settled).toBe(true);
+    expect(invoice.settlement.paidMinor).toBe(100000);
+    expect(invoice.settlement.overpaidMinor).toBe(0);
+  });
+
+  it("refuses to mark an already settled invoice paid again", async () => {
+    const draft = await manager.caller.garage.createInvoice({
+      teamId,
+      customerName: `Double tap ${run}`,
+    });
+    await manager.caller.garage.addInvoiceLine({
+      invoiceId: draft.id,
+      description: "Bench time",
+      quantity: 1,
+      unitMinor: 5000,
+    });
+    await manager.caller.garage.issueInvoice({ invoiceId: draft.id });
+    await manager.caller.garage.markInvoicePaid({ invoiceId: draft.id });
+
+    // Two taps on a slow connection must not book the money twice.
+    await expect(
+      manager.caller.garage.markInvoicePaid({ invoiceId: draft.id }),
+    ).rejects.toThrow(/already settled/i);
+  });
+
+  it("takes a mistaken mark back off again", async () => {
+    const draft = await manager.caller.garage.createInvoice({
+      teamId,
+      customerName: `Ticked in error ${run}`,
+    });
+    await manager.caller.garage.addInvoiceLine({
+      invoiceId: draft.id,
+      description: "Bench time",
+      quantity: 1,
+      unitMinor: 5000,
+    });
+    await manager.caller.garage.issueInvoice({ invoiceId: draft.id });
+    const payment = await manager.caller.garage.markInvoicePaid({
+      invoiceId: draft.id,
+    });
+
+    await manager.caller.garage.removeInvoicePayment({
+      paymentId: payment.id,
+    });
+    const invoice = await manager.caller.garage.invoice({ invoiceId: draft.id });
+    expect(invoice.settlement.settled).toBe(false);
+    expect(invoice.settlement.outstandingMinor).toBe(5000);
+  });
+
+  it("will not mark a draft paid", async () => {
+    const draft = await manager.caller.garage.createInvoice({
+      teamId,
+      customerName: `Not sent ${run}`,
+    });
+    await expect(
+      manager.caller.garage.markInvoicePaid({ invoiceId: draft.id }),
+    ).rejects.toThrow(/issue the invoice/i);
+    await manager.caller.garage.deleteInvoice({ invoiceId: draft.id });
+  });
+
+  it("will not let crew mark an invoice paid", async () => {
+    await expect(
+      crew.caller.garage.markInvoicePaid({ invoiceId }),
+    ).rejects.toThrow(/owners and managers/i);
+  });
+
+  it("takes an overdue invoice off the chase list once marked paid", async () => {
+    const draft = await manager.caller.garage.createInvoice({
+      teamId,
+      customerName: `Chased and settled ${run}`,
+      dueOn: new Date(Date.now() - 20 * 86_400_000),
+    });
+    await manager.caller.garage.addInvoiceLine({
+      invoiceId: draft.id,
+      description: "Data engineer, one weekend",
+      quantity: 1,
+      unitMinor: 120000,
+    });
+    await manager.caller.garage.issueInvoice({
+      invoiceId: draft.id,
+      dueOn: new Date(Date.now() - 20 * 86_400_000),
+    });
+
+    const before = await manager.caller.team.dashboard({ teamId });
+    expect(before.attention?.overdueInvoices).toBeGreaterThan(0);
+
+    await manager.caller.garage.markInvoicePaid({ invoiceId: draft.id });
+    const after = await manager.caller.team.dashboard({ teamId });
+    expect(after.attention?.overdueInvoices).toBe(
+      before.attention!.overdueInvoices - 1,
+    );
+  });
+
   it("will not record money against a draft", async () => {
     const draft = await manager.caller.garage.createInvoice({
       teamId,

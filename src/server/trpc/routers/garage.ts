@@ -1023,6 +1023,68 @@ export const garageRouter = createTRPCRouter({
       });
     }),
 
+  /**
+   * Settle an invoice in one action.
+   *
+   * Writes a payment for exactly what is outstanding rather than setting a
+   * paid flag. That is the whole point: settlement is derived from the money
+   * recorded against an invoice, so a flag could disagree with it — a "paid"
+   * invoice with nothing against it is the discrepancy nobody finds until year
+   * end. This is the same fact, entered in one tap instead of four fields.
+   *
+   * The note says how it got there. A team reconciling a bank statement later
+   * needs to tell "£8,240 arrived on the 14th" from "somebody ticked it off",
+   * and the row would otherwise look identical to an itemised one.
+   */
+  markInvoicePaid: protectedProcedure
+    .input(
+      z.object({
+        invoiceId: z.string().cuid(),
+        /// Defaults to today, which is what one tap means.
+        receivedOn: z.date().optional(),
+        method: z.string().trim().max(80).nullish(),
+        reference: z.string().trim().max(120).nullish(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const invoice = await loadInvoice(ctx.db, input.invoiceId);
+      await assertInvoiceAccess(ctx.db, invoice.teamId, ctx.user.id);
+      if (!canRecordPayment(invoice.status)) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            invoice.status === InvoiceStatus.DRAFT
+              ? "Issue the invoice before marking it paid."
+              : "That invoice is void.",
+        });
+      }
+
+      const { totals, settlement } = withTotals(invoice);
+      if (settlement.outstandingMinor <= 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            totals.totalMinor <= 0
+              ? "There is nothing on this invoice to pay."
+              : "That invoice is already settled.",
+        });
+      }
+
+      return ctx.db.invoicePayment.create({
+        data: {
+          invoiceId: input.invoiceId,
+          // The balance, not the total: marking a part-paid invoice settled
+          // should record what is left, not double the deposit.
+          amountMinor: settlement.outstandingMinor,
+          receivedOn: input.receivedOn ?? new Date(),
+          method: input.method ?? null,
+          reference: input.reference ?? null,
+          note: "Marked paid in full",
+          recordedById: ctx.user.id,
+        },
+      });
+    }),
+
   removeInvoicePayment: protectedProcedure
     .input(z.object({ paymentId: z.string().cuid() }))
     .mutation(async ({ ctx, input }) => {

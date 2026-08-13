@@ -967,7 +967,13 @@ The decisions that carry weight:
 - **Settlement is derived from the payments**, never stored as a flag, so the
   status and the money cannot disagree. Payments are their own rows because a
   deposit and a balance is the normal shape of a large job and a boolean cannot
-  say "half".
+  say "half". **Mark paid** is one tap for the common case — it writes a
+  payment for exactly the outstanding balance rather than setting a flag, so
+  it is the same fact entered faster and not a second source of truth. Against
+  a part-paid invoice it records the balance, not the total. The row says it
+  was marked rather than itemised, because reconciling a bank statement later
+  means telling a real receipt from a tick-off, and it can be taken back off
+  again.
 - **Overdue invoices join the attention rollup**, first among the urgent items:
   money the team is owed and has not chased is the only thing on that list with
   a deadline somebody else set. Still one batched query — seven for any number
