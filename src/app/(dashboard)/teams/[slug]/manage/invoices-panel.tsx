@@ -353,23 +353,20 @@ function InvoiceRow({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <button
-            type="button"
-            className="text-brand-black/60 hover:text-brand-black"
-            onClick={() => setOpen((value) => !value)}
-          >
-            {open ? "Hide" : `${invoice.lines.length} line(s)`}
-          </button>
-          {invoice.status !== InvoiceStatus.DRAFT && (
-            <Link
-              href={`/teams/${teamSlug}/invoices/${invoice.id}`}
-              className="text-brand-red hover:underline"
-            >
-              Print / send →
-            </Link>
-          )}
-        </div>
+        {/*
+          The actions live on the row, not behind the toggle.
+          They were inside the expanded detail, reachable only through a grey
+          link reading "3 line(s)" — which says "show me the line items", not
+          "here is how you mark this paid". Nobody found them, and an action
+          nobody can find is an action that does not exist.
+        */}
+        <InvoiceActions
+          invoice={invoice}
+          teamId={teamId}
+          teamSlug={teamSlug}
+          detailOpen={open}
+          onToggleDetail={() => setOpen((value) => !value)}
+        />
 
         {open && <InvoiceDetail invoice={invoice} teamId={teamId} />}
       </CardContent>
@@ -455,7 +452,6 @@ function InvoiceDetail({
       </table>
 
       {editable && <AddLine invoiceId={invoice.id} onDone={refresh} />}
-      {editable && <IssueControls invoice={invoice} onDone={refresh} />}
 
       {invoice.payments.length > 0 && (
         <div className="space-y-1">
@@ -485,22 +481,70 @@ function InvoiceDetail({
         </div>
       )}
 
+      {/* The itemised form only. Marking it paid outright is on the row,
+          because that is the one people reach for. */}
       {canRecordPayment(invoice.status) &&
         invoice.settlement.outstandingMinor > 0 && (
-          <>
-            <MarkPaid invoice={invoice} onDone={refresh} />
-            <RecordPayment invoice={invoice} onDone={refresh} />
-          </>
+          <RecordPayment invoice={invoice} onDone={refresh} />
         )}
+    </div>
+  );
+}
 
+/**
+ * Everything you can do to an invoice, on the row itself.
+ *
+ * Ordered by what somebody actually reaches for: settle it, send it, then the
+ * destructive pair. The confirmations open underneath rather than in a dialog,
+ * so the invoice they refer to stays on screen while you read what will
+ * happen to it.
+ */
+function InvoiceActions({
+  invoice,
+  teamId,
+  teamSlug,
+  detailOpen,
+  onToggleDetail,
+}: {
+  invoice: Invoice;
+  teamId: string;
+  teamSlug: string;
+  detailOpen: boolean;
+  onToggleDetail: () => void;
+}) {
+  const utils = api.useUtils();
+  const refresh = () => utils.garage.invoices.invalidate({ teamId });
+  const draft = invoice.status === InvoiceStatus.DRAFT;
+  const owed =
+    canRecordPayment(invoice.status) && invoice.settlement.outstandingMinor > 0;
+
+  return (
+    <div className="space-y-3 border-t border-brand-black/10 pt-3">
       <div className="flex flex-wrap items-center gap-2">
-        {canVoid(invoice.status) && invoice.payments.length === 0 && (
-          <VoidInvoice invoiceId={invoice.id} onDone={refresh} />
+        {draft && <IssueControls invoice={invoice} onDone={refresh} />}
+        {owed && <MarkPaid invoice={invoice} onDone={refresh} />}
+        {!draft && (
+          <Link href={`/teams/${teamSlug}/invoices/${invoice.id}`}>
+            <Button size="sm" variant="outline">
+              Print / send
+            </Button>
+          </Link>
         )}
-        {invoice.status !== InvoiceStatus.DRAFT && (
-          <DeleteInvoice invoice={invoice} onDone={refresh} />
-        )}
+        <Button size="sm" variant="ghost" onClick={onToggleDetail}>
+          {detailOpen
+            ? "Hide details"
+            : `Details · ${invoice.lines.length} line${invoice.lines.length === 1 ? "" : "s"}`}
+        </Button>
       </div>
+
+      {!draft && (
+        <div className="flex flex-wrap items-center gap-2">
+          {canVoid(invoice.status) && invoice.payments.length === 0 && (
+            <VoidInvoice invoiceId={invoice.id} onDone={refresh} />
+          )}
+          <DeleteInvoice invoice={invoice} onDone={refresh} />
+        </div>
+      )}
     </div>
   );
 }
@@ -667,7 +711,7 @@ function IssueControls({
         Delete draft
       </Button>
       <span className="text-xs text-brand-black/50">
-        Issuing gives it its number and freezes the figures.
+        Issuing numbers it and freezes the figures.
       </span>
       {remove.error && (
         <span className="text-xs text-brand-red">{remove.error.message}</span>
@@ -949,6 +993,8 @@ function MarkPaid({
         variant="primary"
         size="sm"
         disabled={mark.isPending}
+        // The long form lives under Details; this says what one tap will do.
+        title="Records the balance as received today. Open Details for a deposit, a different date or a reference."
         onClick={() => mark.mutate({ invoiceId: invoice.id })}
       >
         {mark.isPending
@@ -957,10 +1003,6 @@ function MarkPaid({
             ? `Mark the remaining ${outstanding} paid`
             : `Mark ${outstanding} paid`}
       </Button>
-      <span className="text-xs text-brand-black/50">
-        Records it as received today. Use the fields below for a deposit, a
-        different date, or a reference.
-      </span>
       {mark.error && (
         <span className="text-xs text-brand-red">{mark.error.message}</span>
       )}
