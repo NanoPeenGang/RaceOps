@@ -6,7 +6,7 @@ import {
   createBillingPortalSession,
   createConnectOnboardingLink,
   createTierCheckoutSession,
-  hasActiveTier,
+  isEntitledTo,
   isStripeConfigured,
 } from "@/server/services/billing";
 
@@ -28,13 +28,20 @@ export const billingRouter = createTRPCRouter({
       stripeConfigured: isStripeConfigured(),
       connectAccountId: ctx.user.stripeConnectAccountId,
       subscriptions,
+      /*
+       * What the caller may actually do, which is what every feature check
+       * asks. On a deployment with no Stripe keys this is true throughout —
+       * there is no checkout to complete, so gating would remove features
+       * rather than sell them. `subscriptions` above stays factual, so the
+       * billing page can still say plainly that nothing is subscribed.
+       */
       entitlements: {
-        recruiter: await hasActiveTier(
+        recruiter: await isEntitledTo(
           ctx.db,
           ctx.user.id,
           SubscriptionTier.RECRUITER,
         ),
-        sponsorDiscovery: await hasActiveTier(
+        sponsorDiscovery: await isEntitledTo(
           ctx.db,
           ctx.user.id,
           SubscriptionTier.SPONSOR_DISCOVERY,

@@ -9,7 +9,7 @@ import {
   SubscriptionTier,
   TeamRole,
 } from "@prisma/client";
-import { hasActiveTier } from "@/server/services/billing";
+import { isEntitledTo } from "@/server/services/billing";
 import { notify } from "@/server/services/notifications";
 import {
   canTeamTransition,
@@ -125,7 +125,7 @@ export const opportunityRouter = createTRPCRouter({
           });
         }
         // Paid tier (spec Section 5): team listings require the recruiter tier.
-        const entitled = await hasActiveTier(
+        const entitled = await isEntitledTo(
           ctx.db,
           ctx.user.id,
           SubscriptionTier.RECRUITER,

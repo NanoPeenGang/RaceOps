@@ -188,6 +188,31 @@ export async function syncSubscriptionFromStripe(
 }
 
 /** Entitlement check used to gate paid features. */
+/**
+ * Whether somebody may use a paid feature.
+ *
+ * Separate from `hasActiveTier`, which answers the narrower and purely factual
+ * question "does this account hold a live subscription" — the billing page
+ * needs that answer to stay honest, so it must not be softened.
+ *
+ * This is the policy, and it has one rule beyond the subscription itself: **a
+ * deployment with no Stripe keys does not have a paywall, it has a wall.**
+ * There is no checkout to complete, no webhook to write the row, and therefore
+ * no path from "upgrade under Billing" to actually being upgraded. Enforcing
+ * the tier there does not protect revenue that could not be collected; it just
+ * removes a feature and points the person at a page that cannot help them.
+ *
+ * So: billing off, everything on. Billing on, the subscription decides.
+ */
+export async function isEntitledTo(
+  prisma: PrismaClient,
+  userId: string,
+  tier: SubscriptionTier,
+): Promise<boolean> {
+  if (!isStripeConfigured()) return true;
+  return hasActiveTier(prisma, userId, tier);
+}
+
 export async function hasActiveTier(
   prisma: PrismaClient,
   userId: string,

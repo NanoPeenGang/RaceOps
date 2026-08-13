@@ -8,7 +8,7 @@ import {
   SubscriptionTier,
 } from "@prisma/client";
 import { createTRPCRouter, publicProcedure } from "@/server/trpc/trpc";
-import { hasActiveTier } from "@/server/services/billing";
+import { isEntitledTo } from "@/server/services/billing";
 
 /**
  * Phase 1 discovery: filterable Postgres search over profiles.
@@ -41,7 +41,7 @@ export const searchRouter = createTRPCRouter({
             })
           : null;
         const entitled = localUser
-          ? await hasActiveTier(
+          ? await isEntitledTo(
               ctx.db,
               localUser.id,
               SubscriptionTier.SPONSOR_DISCOVERY,

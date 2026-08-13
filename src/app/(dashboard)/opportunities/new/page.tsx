@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { OpportunityType } from "@prisma/client";
@@ -18,6 +19,15 @@ const TYPE_LABELS: Record<OpportunityType, string> = {
 export default function NewOpportunityPage() {
   const router = useRouter();
   const teams = api.team.myManagedTeams.useQuery();
+  // Whether posting for a team is actually gated here. On a deployment with no
+  // Stripe keys it is not, and a label announcing a tier nobody can buy is
+  // worse than no label — it reads as "you cannot do this".
+  const billing = api.billing.status.useQuery(undefined, {
+    meta: { silenceError: true },
+  });
+  const teamPostingGated = billing.data
+    ? !billing.data.entitlements.recruiter
+    : false;
 
   const [type, setType] = useState<OpportunityType>(OpportunityType.SEAT);
   const [title, setTitle] = useState("");
@@ -133,10 +143,26 @@ export default function NewOpportunityPage() {
                 <option value="">Myself</option>
                 {teams.data?.map((team) => (
                   <option key={team.id} value={team.id}>
-                    {team.name} (team — requires Recruiter tier)
+                    {team.name}
+                    {teamPostingGated ? " (needs the Recruiter tier)" : ""}
                   </option>
                 ))}
               </select>
+              {teams.data?.length === 0 && (
+                <span className="mt-1 block text-xs font-normal text-brand-black/50">
+                  You are not an owner or manager of any team, so there is
+                  nothing to post on behalf of yet.
+                </span>
+              )}
+              {teamPostingGated && teamId && (
+                <span className="mt-1 block text-xs font-normal text-brand-black/60">
+                  Posting for a team needs the Recruiter subscription.{" "}
+                  <Link href="/billing" className="underline">
+                    See Billing
+                  </Link>
+                  . Posting as yourself is free.
+                </span>
+              )}
             </label>
             {create.error && (
               <p className="text-sm text-brand-red">{create.error.message}</p>

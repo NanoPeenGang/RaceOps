@@ -923,6 +923,19 @@ Alongside it, four things that were missing rather than inconsistent:
   The nav test had passed throughout, because it asked whether a route was
   *listed*, not whether anything rendered it at every width.
 
+**Paywalls only exist where they can be paid (done):** posting a job on behalf
+of a team required an active Recruiter subscription, and the check never asked
+whether the deployment had Stripe keys. Without them there is no checkout to
+complete and no webhook to write the subscription row, so the feature was not
+gated — it was gone, and the error pointed at a Billing page that could not
+help. The same defect applied to sponsor discovery.
+
+`hasActiveTier` stays factual, because the billing page has to keep saying
+plainly what is and is not subscribed. `isEntitledTo` is the policy every
+feature check now asks, and it has one rule on top: billing off, everything on;
+billing on, the subscription decides. Set `STRIPE_SECRET_KEY` and the tiers
+enforce exactly as before.
+
 **Renaming and deleting (done):** a team can be renamed from its Settings tab
 — the slug deliberately stays put, so links already shared, QR codes on printed
 passes and somebody's browser history all keep working. A rename changes the

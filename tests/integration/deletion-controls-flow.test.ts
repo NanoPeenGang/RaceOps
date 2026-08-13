@@ -271,16 +271,11 @@ describe.skipIf(!ENABLED)("renaming and deleting (integration)", () => {
     const doomed = await owner.caller.team.create({
       name: `Hiring Team ${run}`,
     });
-    // Written directly rather than through the router: posting a team listing
-    // needs a Recruiter subscription, and that gate is not what this is about.
-    const posting = await db.opportunity.create({
-      data: {
-        title: "Crew for the season",
-        description: "Weekends away, expenses covered, bring your own gloves.",
-        type: OpportunityType.CREW_JOB,
-        postedByTeamId: doomed.id,
-        postedByUserId: owner.user.id,
-      },
+    const posting = await owner.caller.opportunity.create({
+      title: "Crew for the season",
+      description: "Weekends away, expenses covered, bring your own gloves.",
+      type: OpportunityType.CREW_JOB,
+      teamId: doomed.id,
     });
 
     await owner.caller.team.delete({
