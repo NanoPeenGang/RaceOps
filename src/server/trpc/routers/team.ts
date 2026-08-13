@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { AccessRequestKind, RegistrationStatus, TeamRole } from "@prisma/client";
+import {
+  AccessRequestKind,
+  RegistrationStatus,
+  TeamRole,
+} from "@prisma/client";
 import {
   createTRPCRouter,
   protectedProcedure,
@@ -21,6 +25,34 @@ import {
 import type { TRPCContext } from "@/server/trpc/trpc";
 
 const MANAGER_ROLES: TeamRole[] = TEAM_MANAGER_ROLES;
+
+/**
+ * Only an owner deletes a team.
+ *
+ * Narrower than the manager check used everywhere else on purpose: a manager
+ * runs the team day to day, but ending it is the one act nobody can undo for
+ * them.
+ */
+async function assertTeamOwner(
+  db: TRPCContext["db"],
+  teamId: string,
+  userId: string,
+) {
+  const membership = await db.teamMembership.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+    select: { role: true, endDate: true },
+  });
+  if (
+    !membership ||
+    membership.endDate !== null ||
+    membership.role !== TeamRole.OWNER
+  ) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Only the team's owner can delete it.",
+    });
+  }
+}
 
 async function assertTeamManager(
   db: TRPCContext["db"],
@@ -156,6 +188,7 @@ export const teamRouter = createTRPCRouter({
     .input(
       z.object({
         teamId: z.string().cuid(),
+        name: z.string().trim().min(2).max(120).optional(),
         description: z.string().max(2000).nullish(),
         logoUrl: z.string().url().nullish(),
         websiteUrl: z.string().url().nullish(),
@@ -165,7 +198,139 @@ export const teamRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await assertTeamManager(ctx.db, input.teamId, ctx.user.id);
       const { teamId, ...data } = input;
+
+      if (data.name) {
+        // Team.name is unique, and the raw constraint error is unreadable.
+        const clash = await ctx.db.team.findFirst({
+          where: { name: data.name, id: { not: teamId } },
+          select: { id: true },
+        });
+        if (clash) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Another team already races under that name.",
+          });
+        }
+      }
+
+      /*
+       * The slug is left alone on rename, matching organizations. It is in
+       * links people have already shared, in QR codes on printed passes and in
+       * a browser history somebody is about to use — a rename should change
+       * the name on the door, not break the address.
+       */
       return ctx.db.team.update({ where: { id: teamId }, data });
+    }),
+
+  /**
+   * What deleting a team would destroy.
+   *
+   * Shown before the button unlocks. A team is the busiest thing on this
+   * platform — a roster, a garage, a hiring pipeline, a commercial record —
+   * and the counts are the difference between an informed decision and a
+   * regret. Owner-only, like the delete it precedes.
+   */
+  deletionImpact: protectedProcedure
+    .input(z.object({ teamId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      await assertTeamOwner(ctx.db, input.teamId, ctx.user.id);
+      const team = await ctx.db.team.findUnique({
+        where: { id: input.teamId },
+        select: { name: true },
+      });
+      if (!team) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [
+        roster,
+        cars,
+        inventory,
+        invoices,
+        payRuns,
+        sponsorships,
+        registrations,
+        results,
+        files,
+        postings,
+      ] = await Promise.all([
+        ctx.db.teamMembership.count({ where: { teamId: input.teamId } }),
+        ctx.db.car.count({ where: { teamId: input.teamId } }),
+        ctx.db.inventoryItem.count({ where: { teamId: input.teamId } }),
+        ctx.db.invoice.count({ where: { teamId: input.teamId } }),
+        ctx.db.payRun.count({ where: { teamId: input.teamId } }),
+        ctx.db.sponsorship.count({ where: { teamId: input.teamId } }),
+        ctx.db.eventRegistration.count({ where: { teamId: input.teamId } }),
+        // The count that reaches furthest: these sit in other people's
+        // championships, and they go with the entry they hang off.
+        ctx.db.eventResult.count({
+          where: { registration: { teamId: input.teamId } },
+        }),
+        ctx.db.garageFile.count({ where: { teamId: input.teamId } }),
+        ctx.db.opportunity.count({ where: { postedByTeamId: input.teamId } }),
+      ]);
+
+      return {
+        name: team.name,
+        roster,
+        cars,
+        inventory,
+        invoices,
+        payRuns,
+        sponsorships,
+        registrations,
+        results,
+        files,
+        postings,
+      };
+    }),
+
+  /**
+   * Permanently delete a team and everything under it.
+   *
+   * Owner-only and guarded by retyping the name, matching series and events.
+   *
+   * The blast radius is wider than it looks, and the impact query says so
+   * rather than leaving it to be discovered. Everything hanging off the team
+   * cascades — roster, cars, garage, invoices, pay runs, chat — and so do the
+   * team's **event entries, and the results attached to them**. Those live in
+   * other organizers' events: deleting a team removes its cars from entry
+   * lists it does not own and takes its finishes out of championships it did
+   * not run.
+   *
+   * That is the existing behaviour of the schema rather than a decision taken
+   * here, and it matches what deleting a series already does. It is called out
+   * on the panel because an owner tidying up a defunct team will not otherwise
+   * imagine that a championship somewhere else is about to change.
+   *
+   * Job postings are the exception: `Opportunity.postedByTeamId` is SET NULL,
+   * so an application somebody sent survives with no team attached rather than
+   * vanishing from their own history.
+   */
+  delete: protectedProcedure
+    .input(
+      z.object({
+        teamId: z.string().cuid(),
+        /// Retyped by the operator. Compared server-side, never trusted from
+        /// the client's own idea of what the team is called.
+        confirmName: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertTeamOwner(ctx.db, input.teamId, ctx.user.id);
+      const team = await ctx.db.team.findUnique({
+        where: { id: input.teamId },
+        select: { id: true, name: true },
+      });
+      if (!team) throw new TRPCError({ code: "NOT_FOUND" });
+
+      if (input.confirmName.trim() !== team.name) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "That is not the team's name. Nothing has been deleted.",
+        });
+      }
+
+      await ctx.db.team.delete({ where: { id: team.id } });
+      return { deleted: true, name: team.name };
     }),
 
   join: protectedProcedure
@@ -235,7 +400,13 @@ export const teamRouter = createTRPCRouter({
       await assertTeamManager(ctx.db, input.teamId, ctx.user.id);
       const roster = await ctx.db.teamMembership.findMany({
         where: { teamId: input.teamId },
-        select: { id: true, userId: true, role: true, endDate: true, startDate: true },
+        select: {
+          id: true,
+          userId: true,
+          role: true,
+          endDate: true,
+          startDate: true,
+        },
       });
       const target = roster.find((m) => m.userId === input.userId);
       if (!target) throw new TRPCError({ code: "NOT_FOUND" });
@@ -253,7 +424,9 @@ export const teamRouter = createTRPCRouter({
       }
 
       return ctx.db.teamMembership.update({
-        where: { teamId_userId: { teamId: input.teamId, userId: input.userId } },
+        where: {
+          teamId_userId: { teamId: input.teamId, userId: input.userId },
+        },
         data: { role: input.role },
       });
     }),
@@ -263,14 +436,18 @@ export const teamRouter = createTRPCRouter({
    * deleted so past line-ups stay on the record.
    */
   removeMember: protectedProcedure
-    .input(
-      z.object({ teamId: z.string().cuid(), userId: z.string().cuid() }),
-    )
+    .input(z.object({ teamId: z.string().cuid(), userId: z.string().cuid() }))
     .mutation(async ({ ctx, input }) => {
       await assertTeamManager(ctx.db, input.teamId, ctx.user.id);
       const roster = await ctx.db.teamMembership.findMany({
         where: { teamId: input.teamId },
-        select: { id: true, userId: true, role: true, endDate: true, startDate: true },
+        select: {
+          id: true,
+          userId: true,
+          role: true,
+          endDate: true,
+          startDate: true,
+        },
       });
       const target = roster.find((m) => m.userId === input.userId);
       if (!target || target.endDate !== null) {

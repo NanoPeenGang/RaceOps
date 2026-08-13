@@ -2,6 +2,8 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { TeamRole } from "@prisma/client";
 import { api } from "@/lib/trpc/client";
 import { TEAM_ROLE_LABELS, isTeamManager } from "@/lib/teams";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +25,7 @@ import { HiringPanel } from "./hiring-panel";
 import { PayrollPanel } from "./payroll-panel";
 import { DepartmentChannels } from "@/components/department-channels";
 import { BrandingEditor } from "@/components/branding-editor";
+import { DangerZone } from "@/components/danger-zone";
 import { Tabs, type TabDefinition } from "@/components/ui/tabs";
 import { attentionItems, tabBadge, type TeamAttention } from "@/lib/attention";
 import { PageSkeleton } from "@/components/ui/skeleton";
@@ -175,6 +178,11 @@ export default function TeamManagePage({
         <div className="space-y-10">
           <TeamSettings team={data} onSaved={refresh} defaultOpen />
           <BrandingEditor scope={{ teamId: data.id }} name={data.name} />
+          {/* Owners only, and last on the tab: nobody scrolls past a roster
+              and a branding editor by accident. */}
+          {data.myRole === TeamRole.OWNER && (
+            <TeamDangerZone teamId={data.id} teamName={data.name} />
+          )}
         </div>
       ),
     },
@@ -246,6 +254,7 @@ function TeamSettings({
 }: {
   team: {
     id: string;
+    name: string;
     description: string | null;
     websiteUrl: string | null;
     homeBase: string | null;
@@ -255,6 +264,7 @@ function TeamSettings({
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [name, setName] = useState(team.name);
   const [description, setDescription] = useState(team.description ?? "");
   const [websiteUrl, setWebsiteUrl] = useState(team.websiteUrl ?? "");
   const [homeBase, setHomeBase] = useState(team.homeBase ?? "");
@@ -278,6 +288,21 @@ function TeamSettings({
   return (
     <Card className="max-w-2xl">
       <CardContent className="space-y-4 p-5">
+        <label className="block text-sm font-medium">
+          Team name
+          <input
+            className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            minLength={2}
+            maxLength={120}
+          />
+          <span className="mt-1 block text-xs font-normal text-brand-black/50">
+            Renaming changes the name on the door, not the address — your
+            existing links keep working.
+          </span>
+        </label>
         <label className="block text-sm font-medium">
           Home base <span className="text-brand-black/50">(optional)</span>
           <input
@@ -315,6 +340,7 @@ function TeamSettings({
             onClick={() =>
               update.mutate({
                 teamId: team.id,
+                name: name.trim(),
                 description: description.trim() || null,
                 websiteUrl: websiteUrl.trim() || null,
                 homeBase: homeBase.trim() || null,
@@ -331,3 +357,78 @@ function TeamSettings({
     </Card>
   );
 }
+
+/**
+ * Ending a team.
+ *
+ * Owner-only, and the counts are fetched before the button unlocks rather than
+ * described in prose. A team is the busiest thing on this platform — roster,
+ * garage, hiring, money — and "are you sure?" is not a question anybody can
+ * answer without knowing what is behind it.
+ */
+function TeamDangerZone({
+  teamId,
+  teamName,
+}: {
+  teamId: string;
+  teamName: string;
+}) {
+  const router = useRouter();
+  const impact = api.team.deletionImpact.useQuery(
+    { teamId },
+    { meta: { silenceError: true } },
+  );
+  const remove = api.team.delete.useMutation({
+    meta: { silenceError: true, successMessage: "Team deleted." },
+    onSuccess: () => router.push("/teams"),
+  });
+
+  const data = impact.data;
+
+  return (
+    <DangerZone
+      title={`Delete ${teamName}`}
+      description="Everything below goes with it, and none of it can be brought back."
+      isLoadingImpact={impact.isLoading}
+      impact={data ? { ...EMPTY_IMPACT, name: data.name } : undefined}
+      lines={
+        data && [
+          { label: "People on the roster", count: data.roster },
+          { label: "Cars", count: data.cars },
+          { label: "Stock lines", count: data.inventory },
+          { label: "Telemetry and setup files", count: data.files },
+          { label: "Invoices", count: data.invoices },
+          { label: "Pay runs", count: data.payRuns },
+          { label: "Sponsorship deals", count: data.sponsorships },
+          { label: "Job and seat postings", count: data.postings },
+          {
+            label: "Event entries",
+            count: data.registrations,
+            warn: "Entries sit in other organizers' events — deleting the team removes its cars from entry lists it does not own.",
+          },
+          {
+            label: "Race results",
+            count: data.results,
+            warn: "Results go with the entries they hang off, so championships this team raced in will change.",
+          },
+        ]
+      }
+      onDelete={(confirmName) => remove.mutate({ teamId, confirmName })}
+      isDeleting={remove.isPending}
+      error={impact.error?.message ?? remove.error?.message ?? null}
+    />
+  );
+}
+
+/**
+ * The legacy fixed shape, satisfied so the retype guard has a name to compare
+ * against. Every count a team actually has is passed through `lines`.
+ */
+const EMPTY_IMPACT = {
+  name: "",
+  registrations: 0,
+  results: 0,
+  penalties: 0,
+  volunteerShifts: 0,
+  media: 0,
+};

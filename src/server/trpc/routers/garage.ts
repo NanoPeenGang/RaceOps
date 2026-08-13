@@ -1583,6 +1583,92 @@ export const garageRouter = createTRPCRouter({
       });
     }),
 
+  /**
+   * What deleting a stock line would destroy.
+   *
+   * Shown before the button unlocks, because the ledger is the part people do
+   * not think about: the line goes, and with it every record of who took the
+   * last set and when. Retiring is almost always the better answer and is
+   * offered alongside.
+   */
+  itemDeletionImpact: protectedProcedure
+    .input(z.object({ itemId: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      const item = await ctx.db.inventoryItem.findUnique({
+        where: { id: input.itemId },
+        select: {
+          id: true,
+          teamId: true,
+          name: true,
+          quantity: true,
+          unit: true,
+        },
+      });
+      if (!item) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertGarageWrite(ctx.db, item.teamId, ctx.user.id);
+
+      const [movements, units, invoiceLines] = await Promise.all([
+        ctx.db.inventoryMovement.count({ where: { itemId: item.id } }),
+        ctx.db.inventoryUnit.count({ where: { itemId: item.id } }),
+        // These survive: the link is SET NULL, so an invoice already sent
+        // keeps its wording and its figures. Worth saying so — somebody about
+        // to delete a line is entitled to know the invoice is safe.
+        ctx.db.invoiceLine.count({ where: { inventoryItemId: item.id } }),
+      ]);
+
+      return { ...item, movements, units, invoiceLines };
+    }),
+
+  /**
+   * Removes a stock line and its whole history.
+   *
+   * Retiring (`updateItem` with `active: false`) is the usual answer: the line
+   * drops out of the pick lists and the ledger survives, which is what you
+   * want for a part the team has stopped carrying. Deleting is for a line that
+   * should never have existed — a duplicate, a typo, somebody else's stock
+   * entered on the wrong team — where leaving a retired row is just clutter
+   * that outlives the mistake.
+   *
+   * Movements and labelled units cascade. Invoice lines do not: the link is
+   * SET NULL, so a document already sent to a customer keeps its wording and
+   * its figures whatever happens to the shelf behind it.
+   */
+  deleteItem: protectedProcedure
+    .input(
+      z.object({
+        itemId: z.string().cuid(),
+        /**
+         * Required once there is history to lose.
+         *
+         * Not a nag — a line somebody added by mistake this morning has no
+         * ledger and deletes on one tap. This only asks when there is
+         * something a stocktake would later miss.
+         */
+        discardHistory: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const item = await ctx.db.inventoryItem.findUnique({
+        where: { id: input.itemId },
+        select: { id: true, teamId: true, name: true },
+      });
+      if (!item) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertGarageWrite(ctx.db, item.teamId, ctx.user.id);
+
+      const movements = await ctx.db.inventoryMovement.count({
+        where: { itemId: item.id },
+      });
+      if (movements > 0 && !input.discardHistory) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `${item.name} has ${movements} movement${movements === 1 ? "" : "s"} recorded against it. Deleting takes that history with it — confirm that, or retire the line to keep it.`,
+        });
+      }
+
+      await ctx.db.inventoryItem.delete({ where: { id: item.id } });
+      return { deleted: true, name: item.name, movementsRemoved: movements };
+    }),
+
   /** The ledger for one line, newest first. */
   movements: protectedProcedure
     .input(

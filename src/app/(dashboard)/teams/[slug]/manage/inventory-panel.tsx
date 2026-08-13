@@ -250,6 +250,9 @@ function ItemRow({
           >
             {open ? "Hide details" : `History (${item._count.movements})`}
           </button>
+          {/* On the row, not behind the toggle. An action nobody can find is
+              an action that does not exist. */}
+          {canWrite && <DeleteItem item={item} onDone={onChanged} />}
         </div>
 
         {open && (
@@ -619,6 +622,116 @@ function UnitsPanel({
       >
         {add.isPending ? "Making labels…" : `Make ${parsedCount || 0} label(s)`}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Removing a stock line for good.
+ *
+ * Retiring is almost always the better answer and the panel says so: a part
+ * the team has stopped carrying should drop out of the pick lists while its
+ * ledger survives, because "who took the last set" is the question this whole
+ * feature exists to answer.
+ *
+ * Deleting is for a line that should never have existed — a duplicate, a typo,
+ * somebody else's stock entered against the wrong team — where a retired row
+ * is clutter that outlives the mistake. The count of what goes with it is
+ * fetched before the button unlocks rather than guessed at.
+ */
+function DeleteItem({ item, onDone }: { item: StockItem; onDone: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const impact = api.garage.itemDeletionImpact.useQuery(
+    { itemId: item.id },
+    { enabled: confirming, meta: { silenceError: true } },
+  );
+  const remove = api.garage.deleteItem.useMutation({
+    meta: { silenceError: true, successMessage: "Stock line deleted." },
+    onSuccess: onDone,
+  });
+  const retire = api.garage.updateItem.useMutation({
+    meta: { successMessage: "Stock line retired." },
+    onSuccess: onDone,
+  });
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        className="hover:text-brand-red"
+        onClick={() => setConfirming(true)}
+      >
+        Delete
+      </button>
+    );
+  }
+
+  const counts = impact.data;
+
+  return (
+    <div className="w-full space-y-2 rounded-md border border-brand-red/40 p-3 text-sm">
+      <p className="font-medium">Delete {item.name}?</p>
+      {impact.isLoading && (
+        <p className="text-xs text-brand-black/60">
+          Checking what goes with it…
+        </p>
+      )}
+      {counts && (
+        <ul className="list-disc space-y-0.5 pl-5 text-xs text-brand-black/70">
+          <li>
+            {counts.movements} movement
+            {counts.movements === 1 ? "" : "s"} — the record of who took what,
+            and when.
+          </li>
+          {counts.units > 0 && (
+            <li>
+              {counts.units} labelled part{counts.units === 1 ? "" : "s"}, and
+              their printed codes stop resolving.
+            </li>
+          )}
+          {counts.invoiceLines > 0 && (
+            <li>
+              {counts.invoiceLines} invoice line
+              {counts.invoiceLines === 1 ? "" : "s"} keep their wording and
+              their figures — a document already sent does not change.
+            </li>
+          )}
+        </ul>
+      )}
+      <p className="text-xs text-brand-black/60">
+        If you have simply stopped carrying it, retire it instead — it leaves
+        the pick lists and the history stays.
+      </p>
+      {(remove.error || retire.error) && (
+        <p className="text-xs text-brand-red">
+          {remove.error?.message ?? retire.error?.message}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={remove.isPending || impact.isLoading}
+          onClick={() =>
+            remove.mutate({ itemId: item.id, discardHistory: true })
+          }
+        >
+          {remove.isPending ? "Deleting…" : "Delete it"}
+        </Button>
+        {item.active && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={retire.isPending}
+            onClick={() => retire.mutate({ itemId: item.id, active: false })}
+          >
+            Retire instead
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+          Keep it
+        </Button>
+      </div>
     </div>
   );
 }

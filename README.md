@@ -923,6 +923,32 @@ Alongside it, four things that were missing rather than inconsistent:
   The nav test had passed throughout, because it asked whether a route was
   *listed*, not whether anything rendered it at every width.
 
+**Renaming and deleting (done):** a team can be renamed from its Settings tab
+— the slug deliberately stays put, so links already shared, QR codes on printed
+passes and somebody's browser history all keep working. A rename changes the
+name on the door, not the address.
+
+Owners can delete a team outright, guarded by retyping its name, matching what
+series and events already had. The impact is counted before the button unlocks
+rather than described in prose, and two of those counts reach beyond the team:
+**event entries and the race results attached to them cascade**, so deleting a
+team removes its cars from entry lists it does not own and takes its finishes
+out of championships it did not run. That is the schema's existing behaviour
+and what deleting a series already does, but it is spelled out on the panel
+because an owner tidying up a defunct team will not otherwise imagine a
+championship somewhere else is about to change. Job postings are the exception
+— they are SET NULL, so an application somebody sent survives in their own
+history with no team attached.
+
+Stock lines can be deleted as well as retired, and the panel argues for
+retiring: a part the team has stopped carrying should leave the pick lists
+while its ledger survives, because "who took the last set" is the question the
+whole feature exists to answer. Deleting is for a line that should never have
+existed — a duplicate, a typo, somebody else's stock on the wrong team — and it
+asks before discarding movements. Invoice lines are untouched either way: the
+link is SET NULL, so a document already sent to a customer keeps its wording
+and its figures whatever happens to the shelf behind it.
+
 **Invoicing third-party work (done):** teams take in outside jobs — a corner
 rebuild for the garage next door, fabrication for a customer car, an engineer
 lent out for a weekend — and then invoice it a week later from notes, in a

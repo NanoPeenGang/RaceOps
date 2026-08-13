@@ -15,6 +15,21 @@ export interface DeletionImpact {
 }
 
 /**
+ * A line on the "this destroys" list.
+ *
+ * Callers pass their own, because what a deletion costs is different for each
+ * thing being deleted — a series loses rounds and standings, a team loses a
+ * roster, a garage and a commercial record. The original fixed shape made a
+ * team's impact read as a series' with most of it missing.
+ */
+export interface ImpactLine {
+  label: string;
+  count: number;
+  /** Draws attention to a line whose consequence reaches other people. */
+  warn?: string;
+}
+
+/**
  * Irreversible-delete panel. Spells out exactly what will be destroyed and
  * requires the operator to retype the name before the button unlocks.
  */
@@ -22,6 +37,7 @@ export function DangerZone({
   title,
   description,
   impact,
+  lines: customLines,
   isLoadingImpact,
   onDelete,
   isDeleting,
@@ -30,6 +46,8 @@ export function DangerZone({
   title: string;
   description: string;
   impact?: DeletionImpact;
+  /** Overrides the built-in series/event lines. */
+  lines?: ImpactLine[];
   isLoadingImpact?: boolean;
   onDelete: (confirmName: string) => void;
   isDeleting: boolean;
@@ -40,14 +58,26 @@ export function DangerZone({
 
   const matches = Boolean(impact) && typed === impact!.name;
 
-  const lines: Array<[string, number | undefined]> = [
-    ["Events", impact?.events],
-    ["Entries", impact?.registrations],
-    ["Results", impact?.results],
-    ["Penalties & appeals", impact?.penalties],
-    ["Volunteer shifts", impact?.volunteerShifts],
-    ["Media items", impact?.media],
-  ];
+  const lines: ImpactLine[] =
+    customLines ??
+    (
+      [
+        { label: "Events", count: impact?.events },
+        { label: "Entries", count: impact?.registrations },
+        { label: "Results", count: impact?.results },
+        { label: "Penalties & appeals", count: impact?.penalties },
+        { label: "Volunteer shifts", count: impact?.volunteerShifts },
+        { label: "Media items", count: impact?.media },
+      ] as Array<{ label: string; count: number | undefined }>
+    )
+      .filter((line): line is ImpactLine => line.count !== undefined)
+      .map((line) => ({
+        ...line,
+        warn:
+          line.label === "Penalties & appeals" && line.count > 0
+            ? "This includes the public penalty and appeal record, which cannot be recovered."
+            : undefined,
+      }));
 
   return (
     <Card className="border-brand-red/40">
@@ -73,20 +103,22 @@ export function DangerZone({
                   This permanently deletes:
                 </p>
                 <ul className="mt-2 space-y-1 text-sm text-brand-black/80">
-                  {lines
-                    .filter(([, count]) => count !== undefined)
-                    .map(([label, count]) => (
-                      <li key={label}>
-                        {label}: <strong>{count}</strong>
-                      </li>
-                    ))}
+                  {lines.map((line) => (
+                    <li key={line.label}>
+                      {line.label}: <strong>{line.count}</strong>
+                    </li>
+                  ))}
                 </ul>
-                {impact.penalties > 0 && (
-                  <p className="mt-2 text-xs text-brand-red">
-                    This includes the public penalty and appeal record, which
-                    cannot be recovered.
-                  </p>
-                )}
+                {/* Warnings sit under the list rather than beside a line, so
+                    a consequence that reaches other people is read as a
+                    sentence rather than skimmed as a number. */}
+                {lines
+                  .filter((line) => line.warn && line.count > 0)
+                  .map((line) => (
+                    <p key={line.label} className="mt-2 text-xs text-brand-red">
+                      {line.warn}
+                    </p>
+                  ))}
               </div>
             )}
             <label className="block text-sm font-medium">
