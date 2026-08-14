@@ -4,6 +4,7 @@ import {
   AccessRequestKind,
   AccessRequestStatus,
   NotificationType,
+  OrgRole,
   PlatformRole,
 } from "@prisma/client";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc/trpc";
@@ -13,6 +14,7 @@ import {
   canDecide,
   canWithdraw,
   checkRequest,
+  needsSubject,
   sortQueue,
 } from "@/lib/access-requests";
 import {
@@ -25,14 +27,24 @@ import {
   isPlatformOwner,
 } from "@/server/services/platform-admin";
 import { notify } from "@/server/services/notifications";
+import { TEAM_MANAGER_ROLES } from "@/lib/teams";
+import type { TRPCContext } from "@/server/trpc/trpc";
+
+/** Who can commit an organization to something on its behalf. */
+const ORG_APPLY_ROLES: OrgRole[] = [OrgRole.OWNER, OrgRole.ADMIN];
 
 /**
  * Applications to publish on the platform, and the queue that reviews them.
  *
  * Anyone can sign up, keep a profile, drive, crew and apply for seats without
- * ever coming here. This is only for the four things that put a name in front
- * of everybody else — a team, an organization, a championship, a sponsor
- * account — which are the surfaces spam actually uses.
+ * ever coming here. This is only for the things that put a name in front of
+ * everybody else — a team, an organization, a championship, a sponsor account,
+ * or permission for a team to advertise seats and jobs — which are the
+ * surfaces spam actually uses.
+ *
+ * Most kinds are granted to the person who asks. Recruiting is granted to the
+ * *team*, so a manager who applies and then leaves does not take the team's
+ * ability to hire with them.
  */
 
 const STAFF_SUMMARY = {
@@ -60,6 +72,8 @@ export const accessRouter = createTRPCRouter({
       orderBy: { createdAt: "desc" },
       include: {
         reviewedBy: { select: { profile: { select: { displayName: true } } } },
+        subjectTeam: { select: { id: true, name: true, slug: true } },
+        subjectOrganization: { select: { id: true, name: true, slug: true } },
       },
     });
 
@@ -87,6 +101,9 @@ export const accessRouter = createTRPCRouter({
         summary: z.string().min(1).max(4000),
         websiteUrl: z.string().url().max(2000).nullish(),
         experience: z.string().max(4000).nullish(),
+        /// Which team or organization the request is for. RECRUITING only.
+        subjectTeamId: z.string().cuid().nullish(),
+        subjectOrganizationId: z.string().cuid().nullish(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -95,8 +112,26 @@ export const accessRouter = createTRPCRouter({
         throw new TRPCError({ code: "BAD_REQUEST", message: problem.message });
       }
 
+      const subject = await resolveSubject(ctx.db, ctx.user.id, input);
+
       const existing = await ctx.db.accessRequest.findMany({
-        where: { requestedById: ctx.user.id },
+        where: {
+          requestedById: ctx.user.id,
+          // A subject-scoped kind is only blocked by a pending request for the
+          // *same* body — applying for a second team is a separate ask, not a
+          // duplicate of the first.
+          ...(subject.subjectTeamId || subject.subjectOrganizationId
+            ? {
+                OR: [
+                  { subjectTeamId: subject.subjectTeamId ?? undefined },
+                  {
+                    subjectOrganizationId:
+                      subject.subjectOrganizationId ?? undefined,
+                  },
+                ],
+              }
+            : {}),
+        },
         select: { kind: true, status: true, fulfilledEntityId: true },
       });
       if (!canApplyFor(input.kind, existing)) {
@@ -108,6 +143,13 @@ export const accessRouter = createTRPCRouter({
         });
       }
 
+      if (subject.alreadyApproved) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `${subject.name} is already approved for this.`,
+        });
+      }
+
       const created = await ctx.db.accessRequest.create({
         data: {
           kind: input.kind,
@@ -116,6 +158,8 @@ export const accessRouter = createTRPCRouter({
           summary: input.summary.trim(),
           websiteUrl: input.websiteUrl ?? null,
           experience: input.experience ?? null,
+          subjectTeamId: subject.subjectTeamId,
+          subjectOrganizationId: subject.subjectOrganizationId,
         },
       });
 
@@ -177,6 +221,10 @@ export const accessRouter = createTRPCRouter({
           reviewedBy: {
             select: { profile: { select: { displayName: true } } },
           },
+          // Which body the request is for. A reviewer deciding a recruiting
+          // application without knowing whose team it is has nothing to go on.
+          subjectTeam: { select: { id: true, name: true, slug: true } },
+          subjectOrganization: { select: { id: true, name: true, slug: true } },
         },
       });
 
@@ -348,7 +396,10 @@ export const accessRouter = createTRPCRouter({
           hasBootstrap: hasBootstrapAdmin(),
         });
         if (problem) {
-          throw new TRPCError({ code: "PRECONDITION_FAILED", message: problem });
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: problem,
+          });
         }
       }
 
@@ -359,6 +410,112 @@ export const accessRouter = createTRPCRouter({
       });
     }),
 });
+
+/**
+ * Works out which body a request is for, and whether the caller may speak for
+ * it.
+ *
+ * The authorization is the point. Without it anybody could apply on behalf of
+ * a team they have nothing to do with, and an approving admin would have no
+ * way of telling — the application would look identical to a real one.
+ */
+async function resolveSubject(
+  db: TRPCContext["db"],
+  userId: string,
+  input: {
+    kind: AccessRequestKind;
+    subjectTeamId?: string | null;
+    subjectOrganizationId?: string | null;
+  },
+): Promise<{
+  subjectTeamId: string | null;
+  subjectOrganizationId: string | null;
+  name: string;
+  alreadyApproved: boolean;
+}> {
+  if (!needsSubject(input.kind)) {
+    // Silently dropped rather than rejected: the other kinds create the thing
+    // they are about, so a stray id is a client bug, not a user's mistake.
+    return {
+      subjectTeamId: null,
+      subjectOrganizationId: null,
+      name: "",
+      alreadyApproved: false,
+    };
+  }
+
+  const bothOrNeither =
+    Boolean(input.subjectTeamId) === Boolean(input.subjectOrganizationId);
+  if (bothOrNeither) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Say which team or organization this is for.",
+    });
+  }
+
+  if (input.subjectTeamId) {
+    const membership = await db.teamMembership.findUnique({
+      where: {
+        teamId_userId: { teamId: input.subjectTeamId, userId },
+      },
+      select: { role: true, endDate: true, team: { select: { name: true } } },
+    });
+    if (
+      !membership ||
+      membership.endDate !== null ||
+      !TEAM_MANAGER_ROLES.includes(membership.role)
+    ) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Only a team's owner or managers can apply on its behalf.",
+      });
+    }
+    const approved = await db.accessRequest.findFirst({
+      where: {
+        kind: input.kind,
+        status: AccessRequestStatus.APPROVED,
+        subjectTeamId: input.subjectTeamId,
+      },
+      select: { id: true },
+    });
+    return {
+      subjectTeamId: input.subjectTeamId,
+      subjectOrganizationId: null,
+      name: membership.team.name,
+      alreadyApproved: approved !== null,
+    };
+  }
+
+  const organizationId = input.subjectOrganizationId!;
+  const staff = await db.organizationMembership.findUnique({
+    where: { organizationId_userId: { organizationId, userId } },
+    select: {
+      role: true,
+      organization: { select: { name: true } },
+    },
+  });
+  if (!staff || !ORG_APPLY_ROLES.includes(staff.role)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message:
+        "Only an organization's owners or admins can apply on its behalf.",
+    });
+  }
+  const approved = await db.accessRequest.findFirst({
+    where: {
+      kind: input.kind,
+      status: AccessRequestStatus.APPROVED,
+      subjectOrganizationId: organizationId,
+    },
+    select: { id: true },
+  });
+  return {
+    subjectTeamId: null,
+    subjectOrganizationId: organizationId,
+    name: staff.organization.name,
+    alreadyApproved: approved !== null,
+  };
+}
 
 /** Best-effort: a failed notification must not lose the application. */
 async function notifyOne(

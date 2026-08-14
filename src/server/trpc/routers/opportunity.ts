@@ -6,15 +6,11 @@ import {
   OpportunityStatus,
   OpportunityType,
   Prisma,
-  SubscriptionTier,
   TeamRole,
 } from "@prisma/client";
-import { isEntitledTo } from "@/server/services/billing";
+import { assertRecruitingAccess } from "@/server/services/platform-admin";
 import { notify } from "@/server/services/notifications";
-import {
-  canTeamTransition,
-  TEAM_SETTABLE_STATUSES,
-} from "@/lib/hiring";
+import { canTeamTransition, TEAM_SETTABLE_STATUSES } from "@/lib/hiring";
 import type { TRPCContext } from "@/server/trpc/trpc";
 
 const POSTING_ROLES: TeamRole[] = [TeamRole.OWNER, TeamRole.MANAGER];
@@ -71,7 +67,9 @@ export const opportunityRouter = createTRPCRouter({
         ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
         orderBy: { createdAt: "desc" },
         include: {
-          postedByTeam: { select: { id: true, name: true, slug: true, logoUrl: true } },
+          postedByTeam: {
+            select: { id: true, name: true, slug: true, logoUrl: true },
+          },
         },
       });
       let nextCursor: string | undefined;
@@ -124,19 +122,19 @@ export const opportunityRouter = createTRPCRouter({
             message: "Only team owners/managers can post for a team.",
           });
         }
-        // Paid tier (spec Section 5): team listings require the recruiter tier.
-        const entitled = await isEntitledTo(
-          ctx.db,
-          ctx.user.id,
-          SubscriptionTier.RECRUITER,
-        );
-        if (!entitled) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message:
-              "Posting team listings requires an active Recruiter subscription. Upgrade under Billing.",
-          });
-        }
+        /*
+         * Reviewed rather than paid for, while the platform is in testing.
+         *
+         * A seat advert reaches every driver here, so it is worth a human
+         * look — but the gate is an application to the platform admins, not a
+         * subscription. The Recruiter tier and everything behind it are left
+         * standing (`isEntitledTo`, the checkout, the webhooks) so charging
+         * for this again is a one-line change rather than a rebuild.
+         *
+         * Approval attaches to the team, so any manager can post once it is
+         * granted, and a team inside an approved organization inherits it.
+         */
+        await assertRecruitingAccess(ctx.db, ctx.user, teamId);
       }
       return ctx.db.opportunity.create({
         data: {
@@ -346,7 +344,11 @@ export const opportunityRouter = createTRPCRouter({
   /** Listings the caller posted (directly or via teams they manage). */
   myPostings: protectedProcedure.query(async ({ ctx }) => {
     const managedTeams = await ctx.db.teamMembership.findMany({
-      where: { userId: ctx.user.id, role: { in: POSTING_ROLES }, endDate: null },
+      where: {
+        userId: ctx.user.id,
+        role: { in: POSTING_ROLES },
+        endDate: null,
+      },
       select: { teamId: true },
     });
     return ctx.db.opportunity.findMany({

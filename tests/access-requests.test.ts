@@ -11,9 +11,11 @@ import {
   checkRequest,
   createsAnEntity,
   daysPending,
+  grantsRecruitingAccess,
   grantsSponsorAccess,
   isOverdue,
   isSpendable,
+  needsSubject,
   REVIEW_SLA_DAYS,
   sortQueue,
 } from "@/lib/access-requests";
@@ -53,6 +55,47 @@ describe("what an approval covers", () => {
     }
   });
 
+  it("does not treat a recruiting approval as something to spend", () => {
+    /*
+     * A team that hires once will hire again. Consuming the approval on the
+     * first advert would mean re-applying every time somebody leaves, which is
+     * the queue doing work for no benefit.
+     */
+    const recruiting = approved({ kind: AccessRequestKind.RECRUITING });
+    expect(isSpendable(recruiting)).toBe(false);
+    expect(grantsRecruitingAccess(recruiting)).toBe(true);
+  });
+
+  it("only grants recruiting from an approved recruiting application", () => {
+    expect(
+      grantsRecruitingAccess(
+        approved({
+          kind: AccessRequestKind.RECRUITING,
+          status: AccessRequestStatus.PENDING,
+        }),
+      ),
+    ).toBe(false);
+    // A team approval is permission to exist, not permission to advertise.
+    expect(grantsRecruitingAccess(approved())).toBe(false);
+  });
+
+  it("knows which kinds belong to a body rather than a person", () => {
+    /*
+     * The distinction the whole scoping rests on: recruiting attaches to the
+     * team, so a manager who applies and then leaves does not take the team's
+     * ability to hire with them.
+     */
+    expect(needsSubject(AccessRequestKind.RECRUITING)).toBe(true);
+    for (const kind of [
+      AccessRequestKind.TEAM,
+      AccessRequestKind.ORGANIZATION,
+      AccessRequestKind.SERIES,
+      AccessRequestKind.SPONSOR,
+    ]) {
+      expect(needsSubject(kind)).toBe(false);
+    }
+  });
+
   it("does not treat a sponsor approval as something to spend", () => {
     // Nothing is created, so there is nothing to consume it — the approval is
     // the grant, and spending it would silently revoke sponsor access.
@@ -78,6 +121,7 @@ describe("what an approval covers", () => {
     expect(createsAnEntity(AccessRequestKind.ORGANIZATION)).toBe(true);
     expect(createsAnEntity(AccessRequestKind.SERIES)).toBe(true);
     expect(createsAnEntity(AccessRequestKind.SPONSOR)).toBe(false);
+    expect(createsAnEntity(AccessRequestKind.RECRUITING)).toBe(false);
   });
 });
 

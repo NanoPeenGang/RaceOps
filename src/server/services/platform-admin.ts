@@ -183,6 +183,8 @@ const APPROVAL_REQUIRED: Record<AccessRequestKind, string> = {
     "Creating a championship needs approval first — apply from /apply and we will come back to you.",
   SPONSOR:
     "A sponsor account needs approval first — apply from /apply and we will come back to you.",
+  RECRUITING:
+    "Advertising seats and jobs needs approval for this team first — apply from /apply and we will come back to you.",
 };
 
 /** Marks an approval spent. Called inside the creating transaction. */
@@ -229,5 +231,57 @@ export async function assertSponsorAccess(
   throw new TRPCError({
     code: "FORBIDDEN",
     message: APPROVAL_REQUIRED.SPONSOR,
+  });
+}
+
+/**
+ * Whether a team may advertise seats and jobs.
+ *
+ * Approval attaches to the team, not to whoever asked for it, so any manager
+ * can post once it is granted and nobody takes the permission with them when
+ * they leave. A team inside an organization inherits that organization's
+ * approval: a club approved to recruit does not need its every entrant team
+ * approved separately, which would be the same conversation five times.
+ *
+ * Platform staff bypass it, as everywhere else.
+ */
+export async function hasRecruitingAccess(
+  db: PrismaClient,
+  user: Pick<User, "id" | "email" | "platformRole">,
+  teamId: string,
+): Promise<boolean> {
+  if (canReview(effectivePlatformRole(user))) return true;
+
+  const team = await db.team.findUnique({
+    where: { id: teamId },
+    select: { organizationId: true },
+  });
+  if (!team) return false;
+
+  const approved = await db.accessRequest.findFirst({
+    where: {
+      kind: AccessRequestKind.RECRUITING,
+      status: AccessRequestStatus.APPROVED,
+      OR: [
+        { subjectTeamId: teamId },
+        ...(team.organizationId
+          ? [{ subjectOrganizationId: team.organizationId }]
+          : []),
+      ],
+    },
+    select: { id: true },
+  });
+  return approved !== null;
+}
+
+export async function assertRecruitingAccess(
+  db: PrismaClient,
+  user: Pick<User, "id" | "email" | "platformRole">,
+  teamId: string,
+): Promise<void> {
+  if (await hasRecruitingAccess(db, user, teamId)) return;
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message: APPROVAL_REQUIRED.RECRUITING,
   });
 }

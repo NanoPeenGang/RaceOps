@@ -179,6 +179,16 @@ function ReviewCard({ request }: { request: QueueRow }) {
               <Badge variant="outline">
                 {ACCESS_KIND_LABELS[request.kind]}
               </Badge>
+              {/* Which body it is for, when the grant attaches to one. A
+                  recruiting application without the team named gives a
+                  reviewer nothing to weigh. */}
+              {(request.subjectTeam ?? request.subjectOrganization) && (
+                <Badge>
+                  for{" "}
+                  {request.subjectTeam?.name ??
+                    request.subjectOrganization?.name}
+                </Badge>
+              )}
               <Badge
                 variant={
                   request.status === AccessRequestStatus.APPROVED

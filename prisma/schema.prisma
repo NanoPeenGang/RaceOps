@@ -343,11 +343,12 @@ model Team {
    * Incremented atomically, which also removes the retry loop the max-scan
    * needed to survive two people issuing at the same moment.
    */
-  nextInvoiceNumber Int           @default(1)
+  nextInvoiceNumber Int             @default(1)
   transponders      Transponder[]
   organizationId    String?
-  organization      Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  organization      Organization?   @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   branding          Branding?
+  accessRequests    AccessRequest[] @relation("AccessRequestTeam")
 }
 
 enum SponsorshipStatus {
@@ -2769,12 +2770,13 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members    OrganizationMembership[]
-  staffRoles StaffRole[]
-  series     Series[]
-  teams      Team[]
-  channels   ChatChannel[]
-  branding   Branding?
+  members        OrganizationMembership[]
+  staffRoles     StaffRole[]
+  series         Series[]
+  teams          Team[]
+  channels       ChatChannel[]
+  branding       Branding?
+  accessRequests AccessRequest[]          @relation("AccessRequestOrganization")
 }
 
 /**
@@ -3813,6 +3815,14 @@ enum AccessRequestKind {
   /// Not a thing to create — a standing capability to pitch sponsorship and
   /// use the sponsor dashboard.
   SPONSOR
+  /**
+   * Permission for one team or organization to advertise seats and jobs.
+   * Scoped to the team rather than to the person who asked, which is the
+   * difference that matters: a manager who applies and then leaves should not
+   * take the team's ability to hire with them, and being approved for one team
+   * is not a licence to post on behalf of another.
+   */
+  RECRUITING
 }
 
 enum AccessRequestStatus {
@@ -3858,6 +3868,16 @@ model AccessRequest {
   /// "no" with no explanation is the thing that makes people re-apply blind.
   decisionNote String?   @db.Text
 
+  /**
+   * The team or organization an approval attaches to, for kinds that grant a
+   * capability to a body rather than to a person.
+   * Null for TEAM, ORGANIZATION and SERIES — those *create* the thing, so
+   * there is nothing to point at yet — and for SPONSOR, which is genuinely
+   * personal. Exactly one is set for RECRUITING, enforced by a CHECK.
+   */
+  subjectTeamId         String?
+  subjectOrganizationId String?
+
   /// Set when an approval is spent. Non-null means this request is used up.
   fulfilledEntityId String?
   fulfilledAt       DateTime?
@@ -3865,10 +3885,14 @@ model AccessRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  requestedBy User  @relation("AccessRequester", fields: [requestedById], references: [id], onDelete: Cascade)
-  reviewedBy  User? @relation("AccessReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  requestedBy         User          @relation("AccessRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  subjectTeam         Team?         @relation("AccessRequestTeam", fields: [subjectTeamId], references: [id], onDelete: Cascade)
+  subjectOrganization Organization? @relation("AccessRequestOrganization", fields: [subjectOrganizationId], references: [id], onDelete: Cascade)
+  reviewedBy          User?         @relation("AccessReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@index([status, kind, createdAt])
+  @@index([subjectTeamId, kind, status])
+  @@index([subjectOrganizationId, kind, status])
   @@index([requestedById, status])
   @@index([reviewedById])
 }

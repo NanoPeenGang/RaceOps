@@ -923,18 +923,26 @@ Alongside it, four things that were missing rather than inconsistent:
   The nav test had passed throughout, because it asked whether a route was
   *listed*, not whether anything rendered it at every width.
 
-**Paywalls only exist where they can be paid (done):** posting a job on behalf
-of a team required an active Recruiter subscription, and the check never asked
-whether the deployment had Stripe keys. Without them there is no checkout to
-complete and no webhook to write the subscription row, so the feature was not
-gated — it was gone, and the error pointed at a Billing page that could not
-help. The same defect applied to sponsor discovery.
+**Advertising seats is reviewed, not sold (while in testing):** posting on
+behalf of a team is gated by an application to the platform admins rather than
+by the Recruiter subscription. A seat advert reaches every driver here, so it
+is worth a human look — but a subscription was the wrong lock, not least
+because on a deployment with no Stripe keys there was no checkout to complete
+and no webhook to write the row, so the feature was not gated, it was gone.
 
-`hasActiveTier` stays factual, because the billing page has to keep saying
-plainly what is and is not subscribed. `isEntitledTo` is the policy every
-feature check now asks, and it has one rule on top: billing off, everything on;
-billing on, the subscription decides. Set `STRIPE_SECRET_KEY` and the tiers
-enforce exactly as before.
+The grant attaches to the **team**, not to whoever applied. A manager who
+applies and then leaves does not take the team's ability to hire with them,
+being approved for one team is not a licence to post for another, and a team
+inside an approved organization inherits it — a club should not have to have
+the same conversation once per entrant team. Enforced by a CHECK: a recruiting
+request carries exactly one subject, and no other kind carries any.
+
+The tier machinery is left standing — `isEntitledTo`, the checkout, the
+webhooks — so charging for this again is a one-line change rather than a
+rebuild. `hasActiveTier` stays factual so the billing page can keep saying
+plainly what is and is not subscribed, while `isEntitledTo` carries the policy
+for anything still sold: billing off, everything on; billing on, the
+subscription decides.
 
 **Renaming and deleting (done):** a team can be renamed from its Settings tab
 — the slug deliberately stays put, so links already shared, QR codes on printed

@@ -55,6 +55,24 @@ describe.skipIf(!ENABLED)("schedule & live timing (integration)", () => {
   let registrationIds: string[] = [];
 
   beforeAll(async () => {
+    /*
+     * Sweep this suite's own leftovers before starting.
+     *
+     * `session.liveNow` is a global feed capped at twenty, so a previous run
+     * that died before its cleanup — a dropped database connection is enough —
+     * leaves LIVE sessions behind that push this run's session off the end.
+     * The suite then fails for a reason that has nothing to do with the code,
+     * which is worse than useless: it trains people to re-run rather than read.
+     *
+     * Orphans are identifiable because deleting the series sets the event's
+     * seriesId to null, so a "Timing Round" with no series is debris.
+     */
+    if (ENABLED) {
+      await db.raceEvent.deleteMany({
+        where: { seriesId: null, name: "Timing Round" },
+      });
+    }
+
     owner = await makeUser(`stowner_${run}`);
     steward = await makeUser(`ststew_${run}`);
     outsider = await makeUser(`stout_${run}`);

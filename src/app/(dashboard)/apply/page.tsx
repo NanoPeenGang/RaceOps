@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { AccessRequestKind, AccessRequestStatus } from "@prisma/client";
+import {
+  AccessRequestKind,
+  AccessRequestStatus,
+  OrgRole,
+} from "@prisma/client";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/trpc/root";
 import { api } from "@/lib/trpc/client";
@@ -12,6 +16,7 @@ import {
   ACCESS_STATUS_LABELS,
   createsAnEntity,
   daysPending,
+  needsSubject,
   REVIEW_SLA_DAYS,
 } from "@/lib/access-requests";
 import { Badge } from "@/components/ui/badge";
@@ -147,6 +152,15 @@ function ApplyForm({
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [experience, setExperience] = useState("");
 
+  // Only asked for the kinds that are granted to a body rather than a person.
+  const teams = api.team.myManagedTeams.useQuery(undefined, {
+    enabled: needsSubject(kind),
+  });
+  const organizations = api.organization.mine.useQuery(undefined, {
+    enabled: needsSubject(kind),
+  });
+  const [subject, setSubject] = useState("");
+
   const apply = api.access.submit.useMutation({
     meta: {
       silenceError: true,
@@ -182,6 +196,44 @@ function ApplyForm({
               {ACCESS_KIND_CRITERIA[kind]}
             </p>
           </div>
+
+          {needsSubject(kind) && (
+            <label className="block text-sm font-medium">
+              Who is this for?
+              <select
+                className="mt-1 w-full rounded-md border border-brand-black/20 px-3 py-2 text-sm"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                required
+              >
+                <option value="">Pick a team or organization…</option>
+                {teams.data?.map((team) => (
+                  <option key={team.id} value={`team:${team.id}`}>
+                    {team.name}
+                  </option>
+                ))}
+                {/* Only the ones the caller can actually commit. Offering an
+                    organization they merely belong to would produce a refusal
+                    after the form was filled in. */}
+                {organizations.data
+                  ?.filter(
+                    (org) =>
+                      org.myRole === OrgRole.OWNER ||
+                      org.myRole === OrgRole.ADMIN,
+                  )
+                  .map((org) => (
+                    <option key={org.id} value={`org:${org.id}`}>
+                      {org.name} (organization)
+                    </option>
+                  ))}
+              </select>
+              <span className="mt-1 block text-xs font-normal text-brand-black/50">
+                Approval attaches to whichever you pick, so anyone who manages
+                it can post — and an organization&rsquo;s approval covers the
+                teams under it.
+              </span>
+            </label>
+          )}
 
           <label className="block text-sm font-medium">
             {kind === AccessRequestKind.SPONSOR ? "Business name" : "Name"}
@@ -236,7 +288,11 @@ function ApplyForm({
           )}
 
           <div className="flex gap-2">
-            <Button variant="primary" disabled={apply.isPending} type="submit">
+            <Button
+              variant="primary"
+              disabled={apply.isPending || (needsSubject(kind) && !subject)}
+              type="submit"
+            >
               {apply.isPending ? "Sending…" : "Send application"}
             </Button>
             <Button variant="outline" onClick={onDone}>

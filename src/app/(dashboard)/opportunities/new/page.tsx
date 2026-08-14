@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { OpportunityType } from "@prisma/client";
+import {
+  AccessRequestKind,
+  AccessRequestStatus,
+  OpportunityType,
+} from "@prisma/client";
 import { api } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page";
@@ -19,15 +23,28 @@ const TYPE_LABELS: Record<OpportunityType, string> = {
 export default function NewOpportunityPage() {
   const router = useRouter();
   const teams = api.team.myManagedTeams.useQuery();
-  // Whether posting for a team is actually gated here. On a deployment with no
-  // Stripe keys it is not, and a label announcing a tier nobody can buy is
-  // worse than no label — it reads as "you cannot do this".
-  const billing = api.billing.status.useQuery(undefined, {
+  /*
+   * Whether posting for a team still needs approving.
+   *
+   * Asked per team rather than per person, because the grant attaches to the
+   * team: somebody can manage two and be approved for one of them.
+   */
+  const access = api.access.mine.useQuery(undefined, {
     meta: { silenceError: true },
   });
-  const teamPostingGated = billing.data
-    ? !billing.data.entitlements.recruiter
-    : false;
+  const approvedTeamIds = new Set(
+    (access.data?.requests ?? [])
+      .filter(
+        (request) =>
+          request.kind === AccessRequestKind.RECRUITING &&
+          request.status === AccessRequestStatus.APPROVED,
+      )
+      .flatMap((request) =>
+        request.subjectTeam ? [request.subjectTeam.id] : [],
+      ),
+  );
+  const isStaff = access.data?.isStaff ?? false;
+  const teamApproved = (id: string) => isStaff || approvedTeamIds.has(id);
 
   const [type, setType] = useState<OpportunityType>(OpportunityType.SEAT);
   const [title, setTitle] = useState("");
@@ -144,7 +161,7 @@ export default function NewOpportunityPage() {
                 {teams.data?.map((team) => (
                   <option key={team.id} value={team.id}>
                     {team.name}
-                    {teamPostingGated ? " (needs the Recruiter tier)" : ""}
+                    {teamApproved(team.id) ? "" : " (needs approval)"}
                   </option>
                 ))}
               </select>
@@ -154,13 +171,14 @@ export default function NewOpportunityPage() {
                   nothing to post on behalf of yet.
                 </span>
               )}
-              {teamPostingGated && teamId && (
+              {teamId && !teamApproved(teamId) && (
                 <span className="mt-1 block text-xs font-normal text-brand-black/60">
-                  Posting for a team needs the Recruiter subscription.{" "}
-                  <Link href="/billing" className="underline">
-                    See Billing
+                  This team has not been approved to advertise yet — a seat
+                  advert reaches every driver here, so an admin looks first.{" "}
+                  <Link href="/apply" className="underline">
+                    Apply for it
                   </Link>
-                  . Posting as yourself is free.
+                  . Posting as yourself needs no approval.
                 </span>
               )}
             </label>

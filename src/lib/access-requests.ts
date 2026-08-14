@@ -20,6 +20,7 @@ export const ACCESS_KIND_LABELS: Record<AccessRequestKind, string> = {
   ORGANIZATION: "Organization",
   SERIES: "Championship",
   SPONSOR: "Sponsor account",
+  RECRUITING: "Hiring & seat adverts",
 };
 
 export const ACCESS_KIND_DESCRIPTIONS: Record<AccessRequestKind, string> = {
@@ -28,6 +29,8 @@ export const ACCESS_KIND_DESCRIPTIONS: Record<AccessRequestKind, string> = {
   SERIES: "A championship with a calendar, entries and standings.",
   SPONSOR:
     "Pitch sponsorship to teams directly and track your deals in one place.",
+  RECRUITING:
+    "Advertise race seats, crew jobs and volunteer shifts on behalf of a team or organization.",
 };
 
 /**
@@ -45,6 +48,8 @@ export const ACCESS_KIND_CRITERIA: Record<AccessRequestKind, string> = {
     "Is there a real championship behind this — a calendar, regulations, somebody to run it? A series page nobody organizes is a dead end for entrants.",
   SPONSOR:
     "Is there a real business here? A sponsor account can message every team on the platform, which is exactly what spam wants.",
+  RECRUITING:
+    "Is this a real outfit with something real to offer? A seat advert reaches every driver on the platform, and a fake one wastes the time of people who applied to it in good faith.",
 };
 
 export const ACCESS_STATUS_LABELS: Record<AccessRequestStatus, string> = {
@@ -54,7 +59,22 @@ export const ACCESS_STATUS_LABELS: Record<AccessRequestStatus, string> = {
   WITHDRAWN: "Withdrawn",
 };
 
-/** Kinds that produce a thing; SPONSOR is a standing grant instead. */
+/**
+ * Kinds granted to a team or organization rather than to the person asking.
+ *
+ * The distinction that matters for recruiting: a manager who applies and then
+ * leaves must not take the team's ability to hire with them, and being
+ * approved for one team is not a licence to post on behalf of another.
+ */
+export const SUBJECT_KINDS: readonly AccessRequestKind[] = [
+  AccessRequestKind.RECRUITING,
+];
+
+export function needsSubject(kind: AccessRequestKind): boolean {
+  return SUBJECT_KINDS.includes(kind);
+}
+
+/** Kinds that produce a thing; SPONSOR and RECRUITING are standing grants. */
 export const CREATING_KINDS: readonly AccessRequestKind[] = [
   AccessRequestKind.TEAM,
   AccessRequestKind.ORGANIZATION,
@@ -82,6 +102,20 @@ export function isSpendable(request: RequestRecord): boolean {
   if (request.status !== AccessRequestStatus.APPROVED) return false;
   if (!createsAnEntity(request.kind)) return false;
   return !request.fulfilledEntityId;
+}
+
+/**
+ * Whether an approval lets a team advertise.
+ *
+ * Never spent, like sponsor access: a team that hires once will hire again,
+ * and consuming the approval on the first advert would mean re-applying every
+ * time somebody leaves.
+ */
+export function grantsRecruitingAccess(request: RequestRecord): boolean {
+  return (
+    request.kind === AccessRequestKind.RECRUITING &&
+    request.status === AccessRequestStatus.APPROVED
+  );
 }
 
 /** Whether an approval grants standing sponsor access. */
