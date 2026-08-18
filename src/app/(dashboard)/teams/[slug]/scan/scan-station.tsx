@@ -173,7 +173,7 @@ export function ScanStation({
             onClick={() => setMode(option)}
             className={
               mode === option
-                ? "rounded-lg border-2 border-brand-red bg-brand-red px-4 py-5 text-lg font-bold text-white"
+                ? "rounded-lg border-2 border-brand-red bg-brand-red px-4 py-5 text-lg font-bold text-on-red"
                 : "rounded-lg border-2 border-brand-black/15 px-4 py-5 text-lg font-semibold text-brand-black/60"
             }
           >

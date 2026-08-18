@@ -150,9 +150,9 @@ function ToastViewport({
 }
 
 const TONE_STYLES: Record<ToastTone, string> = {
-  success: "border-brand-black/15 bg-white",
-  info: "border-brand-black/15 bg-white",
-  error: "border-brand-red/40 bg-white",
+  success: "border-brand-black/15 bg-surface",
+  info: "border-brand-black/15 bg-surface",
+  error: "border-brand-red/40 bg-surface",
 };
 
 function ToastCard({

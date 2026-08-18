@@ -94,7 +94,7 @@ export default function NewOpportunityPage() {
                   onClick={() => setType(t)}
                   className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                     type === t
-                      ? "border-brand-red bg-brand-red text-white"
+                      ? "border-brand-red bg-brand-red text-on-red"
                       : "border-brand-black/20 hover:border-brand-red"
                   }`}
                 >

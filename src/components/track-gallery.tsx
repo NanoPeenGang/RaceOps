@@ -98,6 +98,7 @@ export function TrackGallery({
               key={image.id}
               className="space-y-2 rounded-lg border border-brand-black/10 p-3"
             >
+              {/* White in both themes — see track-diagram: these are line-art maps. */}
               <div className="overflow-hidden rounded bg-white">
                 {/* User-supplied URLs on arbitrary hosts; next/image cannot
                     optimise those without allow-listing each one. */}

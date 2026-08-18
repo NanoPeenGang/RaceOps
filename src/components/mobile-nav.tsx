@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { api } from "@/lib/trpc/client";
 import { ACCOUNT_LINKS, ADMIN_LINKS, NAV_LINKS } from "@/lib/nav";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
  * Hamburger menu for < md screens — the desktop inline nav is hidden there,
@@ -32,7 +33,7 @@ export function MobileNav() {
       </button>
 
       {open && (
-        <nav className="absolute inset-x-0 top-16 z-50 border-b border-brand-black/10 bg-brand-offwhite shadow-lg">
+        <nav className="absolute inset-x-0 top-16 z-50 border-b border-brand-black/10 bg-surface shadow-lg">
           <ul className="mx-auto max-w-6xl px-4 py-3">
             {NAV_LINKS.map((link) => (
               <li key={link.href}>
@@ -47,7 +48,10 @@ export function MobileNav() {
             ))}
             {isSignedIn && (
               <>
-                <li aria-hidden className="my-2 border-t border-brand-black/10" />
+                <li
+                  aria-hidden
+                  className="my-2 border-t border-brand-black/10"
+                />
                 {ACCOUNT_LINKS.map((link) => (
                   <li key={link.href}>
                     <Link
@@ -63,7 +67,10 @@ export function MobileNav() {
             )}
             {access.data?.isStaff && (
               <>
-                <li aria-hidden className="my-2 border-t border-brand-black/10" />
+                <li
+                  aria-hidden
+                  className="my-2 border-t border-brand-black/10"
+                />
                 {ADMIN_LINKS.map((link) => (
                   <li key={link.href}>
                     <Link
@@ -77,6 +84,10 @@ export function MobileNav() {
                 ))}
               </>
             )}
+            <li aria-hidden className="my-2 border-t border-brand-black/10" />
+            <li>
+              <ThemeToggle className="pb-2" />
+            </li>
           </ul>
         </nav>
       )}

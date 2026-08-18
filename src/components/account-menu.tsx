@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { api } from "@/lib/trpc/client";
 import { ACCOUNT_LINKS, ADMIN_LINKS } from "@/lib/nav";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
  * The account destinations, on desktop.
@@ -68,7 +69,7 @@ export function AccountMenu() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-brand-black/10 bg-brand-offwhite py-1 shadow-lg"
+          className="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-brand-black/10 bg-surface py-1 shadow-lg"
         >
           {links.map((link) => (
             <Link
@@ -80,6 +81,11 @@ export function AccountMenu() {
               {link.label}
             </Link>
           ))}
+          {/* Last, and behind a divider: appearance is a setting, not a
+              destination, and putting it among the links would have people
+              reading past it looking for a page. */}
+          <div className="my-1 border-t border-brand-black/10" />
+          <ThemeToggle />
         </div>
       )}
     </div>

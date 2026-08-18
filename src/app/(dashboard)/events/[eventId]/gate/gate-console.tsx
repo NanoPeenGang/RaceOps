@@ -219,7 +219,7 @@ function Verdict({
 }) {
   if (error) {
     return (
-      <div className="rounded-lg bg-brand-black p-5 text-center text-white">
+      <div className="rounded-lg bg-brand-black p-5 text-center text-on-ink">
         <p className="text-xl font-bold">Could not check</p>
         <p className="mt-1 text-sm opacity-90">{error}</p>
       </div>
@@ -248,7 +248,7 @@ function Verdict({
   const styles = {
     ok: "bg-green-600 text-white",
     warn: "bg-amber-500 text-white",
-    stop: "bg-brand-red text-white",
+    stop: "bg-brand-red text-on-red",
   }[tone];
 
   return (

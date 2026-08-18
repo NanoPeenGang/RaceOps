@@ -28,8 +28,8 @@ export function OfflineIndicator() {
         <div
           className={`rounded-lg border p-3 shadow-lg ${
             summary.parked > 0
-              ? "border-brand-red/40 bg-white"
-              : "border-brand-black/15 bg-white"
+              ? "border-brand-red/40 bg-surface"
+              : "border-brand-black/15 bg-surface"
           }`}
         >
           <div className="flex flex-wrap items-center justify-between gap-2">

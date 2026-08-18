@@ -140,7 +140,7 @@ export function ServicePanel({ teamId }: { teamId: string }) {
 }
 
 const URGENCY_TONE: Record<ServiceUrgency, string> = {
-  overdue: "bg-brand-red text-white",
+  overdue: "bg-brand-red text-on-red",
   "due-soon": "bg-amber-500 text-white",
   scheduled: "bg-brand-black/10 text-brand-black",
   unknown: "bg-brand-black/5 text-brand-black/60",

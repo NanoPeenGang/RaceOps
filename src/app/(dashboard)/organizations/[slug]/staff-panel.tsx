@@ -383,7 +383,7 @@ function RoleForm({
             Colour
             <input
               type="color"
-              className="mt-1 h-9 w-16 cursor-pointer rounded border border-brand-black/20 bg-white"
+              className="mt-1 h-9 w-16 cursor-pointer rounded border border-brand-black/20 bg-surface"
               value={color}
               onChange={(e) => setColor(e.target.value.toUpperCase())}
             />

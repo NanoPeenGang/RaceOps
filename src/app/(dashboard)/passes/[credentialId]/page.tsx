@@ -147,7 +147,7 @@ export default async function PassDetailPage({
         {pass.walletAvailable ? (
           <a
             href={`/api/passes/${pass.id}`}
-            className="inline-flex items-center gap-2 rounded-md bg-brand-black px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-black/85"
+            className="inline-flex items-center gap-2 rounded-md bg-brand-black px-4 py-2.5 text-sm font-medium text-on-ink hover:bg-brand-black/85"
           >
             Add to Apple Wallet
           </a>

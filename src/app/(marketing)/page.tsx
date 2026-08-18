@@ -33,7 +33,11 @@ export default async function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       {/* Hero                                                             */}
       {/* ---------------------------------------------------------------- */}
-      <section className="relative overflow-hidden bg-brand-black text-white">
+      {/* Pinned dark in both themes. This band is a brand statement rather
+          than app chrome — everything inside it is written against a literal
+          dark ground (text-white/70, border-white/25), and letting it invert
+          would produce white-on-pale rather than a light hero. */}
+      <section className="relative overflow-hidden bg-[#0a0a0a] text-white">
         {/*
           Checkered-flag nod from the brand mark. Masked so it fades out toward
           the headline instead of ending on a hard vertical seam.
@@ -45,8 +49,7 @@ export default async function LandingPage() {
             backgroundImage:
               "repeating-conic-gradient(#fff 0% 25%, transparent 0% 50%)",
             backgroundSize: "28px 28px",
-            maskImage:
-              "linear-gradient(to right, transparent, #000 60%, #000)",
+            maskImage: "linear-gradient(to right, transparent, #000 60%, #000)",
             WebkitMaskImage:
               "linear-gradient(to right, transparent, #000 60%, #000)",
           }}
@@ -62,8 +65,8 @@ export default async function LandingPage() {
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-white/70">
             Run a championship. Run a race weekend. Run a team. Find a seat, a
             crew job, a marshal post or a sponsor. RaceOps is one place for
-            every side of the sport — and it works the same whether your grid
-            is on a sim or on a circuit.
+            every side of the sport — and it works the same whether your grid is
+            on a sim or on a circuit.
           </p>
 
           <div className="mt-10 flex flex-wrap gap-3">
@@ -218,7 +221,7 @@ export default async function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       {/* Closing CTA                                                      */}
       {/* ---------------------------------------------------------------- */}
-      <section className="bg-brand-black text-white">
+      <section className="bg-[#0a0a0a] text-white">
         <div className="mx-auto max-w-6xl px-4 py-20 text-center">
           <h2 className="mx-auto max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">
             Bring your paddock onto one platform

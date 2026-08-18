@@ -263,7 +263,7 @@ function ColourField({
           <input
             type="color"
             aria-label={`${label} swatch`}
-            className="h-9 w-9 shrink-0 cursor-pointer rounded border border-brand-black/20 bg-white"
+            className="h-9 w-9 shrink-0 cursor-pointer rounded border border-brand-black/20 bg-surface"
             value={normalized ?? inheritedFrom ?? "#D91E1E"}
             onChange={(e) => onChange(e.target.value.toUpperCase())}
           />

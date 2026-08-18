@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { RealWorldRole, SimRole } from "@prisma/client";
+import { RealWorldRole, SimRole, ThemePreference } from "@prisma/client";
 import {
   createTRPCRouter,
   protectedProcedure,
@@ -48,6 +48,42 @@ export const profileRouter = createTRPCRouter({
       });
       if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
       return profile;
+    }),
+
+  /**
+   * The caller's own profile, for the things the app itself needs.
+   *
+   * Deliberately thin. `byUserId` is the public read; this is the private one,
+   * and today it exists so the theme provider can find out what somebody chose
+   * on another device without pulling their whole profile down on every page.
+   */
+  me: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.db.profile.findUnique({
+      where: { userId: ctx.user.id },
+      select: { theme: true },
+    });
+  }),
+
+  /**
+   * Remembers the theme across devices.
+   *
+   * Its own procedure rather than a field on `update`, because it is written
+   * on a click rather than on a form submit — routing it through the profile
+   * form would mean a theme toggle could not be offered anywhere else, and it
+   * belongs in the account menu.
+   *
+   * Silent when there is no profile yet. Somebody who has signed up but not
+   * finished onboarding still gets to pick a theme; it just lives in their
+   * browser until there is a row to write it to.
+   */
+  setTheme: protectedProcedure
+    .input(z.object({ theme: z.nativeEnum(ThemePreference) }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.profile.updateMany({
+        where: { userId: ctx.user.id },
+        data: { theme: input.theme },
+      });
+      return { theme: input.theme };
     }),
 
   update: protectedProcedure

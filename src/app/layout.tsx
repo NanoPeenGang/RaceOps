@@ -3,6 +3,8 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Header } from "@/components/header";
 import { TRPCProvider } from "@/lib/trpc/provider";
 import { ToastProvider } from "@/components/ui/toast";
+import { ThemeProvider } from "@/components/theme-provider";
+import { themeBootScript } from "@/lib/theme";
 import { OfflineProvider } from "@/components/offline-provider";
 import { OfflineIndicator } from "@/components/offline-indicator";
 import { ServiceWorkerRegistration } from "@/components/service-worker";
@@ -43,19 +45,31 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/*
+          Runs before anything else paints.
+          A theme applied after hydration is a theme applied one painted frame
+          too late, and on a dark-mode phone that frame is a face full of white
+          at a night race. `suppressHydrationWarning` on <html> is required
+          because this script legitimately changes an attribute React put there.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
+      </head>
       <body className="min-h-screen antialiased">
         <ClerkProvider>
           {/* Outside the tRPC provider, which reads it to report every failed
               mutation — so the toast context has to exist first. */}
           <ToastProvider>
             <TRPCProvider>
-              <OfflineProvider>
-                <Header />
-                {children}
-                <OfflineIndicator />
-                <ServiceWorkerRegistration />
-              </OfflineProvider>
+              <ThemeProvider>
+                <OfflineProvider>
+                  <Header />
+                  {children}
+                  <OfflineIndicator />
+                  <ServiceWorkerRegistration />
+                </OfflineProvider>
+              </ThemeProvider>
             </TRPCProvider>
           </ToastProvider>
         </ClerkProvider>

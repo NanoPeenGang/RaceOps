@@ -1,20 +1,76 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+ * Colour
+ *
+ * The three brand tokens are **semantic, not literal**, and that is what makes
+ * a dark theme possible without touching thirteen hundred call sites.
+ * `brand-black` means *ink* — whatever the foreground is — and `brand-offwhite`
+ * means *paper*. In the light theme ink is near-black on near-white; in the
+ * dark theme they swap. Every `text-brand-black/60` in the app inverts for
+ * free, opacity modifier and all, because Tailwind emits
+ * `var(--color-brand-black)` and the cascade re-resolves it.
+ *
+ * The names are kept as they are on purpose. Renaming them to ink/paper would
+ * be more honest and would also be a thirteen-hundred-line diff landing in the
+ * same commit as the feature, which is how a rename becomes a bug hunt.
+ *
+ * Anything that must stay a literal colour — a QR code, a printed label, a
+ * team's own branding — does not use these.
+ * ------------------------------------------------------------------------ */
+
 @theme {
   /* RaceOps brand palette (derived from logo — see docs/BRAND.md) */
   --color-brand-black: #0a0a0a;
   --color-brand-red: #d91e1e;
   --color-brand-offwhite: #fafafa;
+
+  /* Paper for anything raised off the background: cards, menus, toasts. */
+  --color-surface: #ffffff;
+
+  /*
+   * Text that sits *on* a filled ink or red block — a primary button, a badge.
+   *
+   * These cannot be `white`, because both fills invert: in dark, `brand-black`
+   * is a pale grey and `brand-red` is lifted for legibility against the page,
+   * and white text on either is unreadable. Pairing every fill with its own
+   * foreground is the only version of this that survives the swap.
+   */
+  --color-on-ink: #fafafa;
+  --color-on-red: #ffffff;
 }
 
-:root {
-  --background: #fafafa;
-  --foreground: #0a0a0a;
+/*
+ * Dark.
+ *
+ * Ink is not pure white and paper is not pure black. A #fff-on-#000 interface
+ * is what produces halation — the smearing readers get on high-contrast dark
+ * text — and it is worse for exactly the people who turn dark mode on. The
+ * surface is *lighter* than the page here, which is the opposite of the light
+ * theme and correct: raised things catch light.
+ *
+ * Red is lifted, because #d91e1e on a dark ground fails contrast at body size
+ * while looking fine on white. Same hue, more luminance.
+ */
+:root[data-theme="dark"] {
+  --color-brand-black: #ececee;
+  --color-brand-offwhite: #121316;
+  --color-brand-red: #ff5f57;
+  --color-surface: #1b1d21;
+  /* Both fills are light in dark mode, so their text goes dark. */
+  --color-on-ink: #121316;
+  --color-on-red: #2a0b09;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-brand-offwhite);
+  color: var(--color-brand-black);
 }
 
 /* ---------------------------------------------------------------------------

@@ -167,8 +167,8 @@ function Verdict({
 }) {
   const styles = {
     valid: "bg-green-600 text-white",
-    invalid: "bg-brand-red text-white",
-    unknown: "bg-brand-black text-white",
+    invalid: "bg-brand-red text-on-red",
+    unknown: "bg-brand-black text-on-ink",
   }[tone];
 
   return (

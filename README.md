@@ -923,6 +923,43 @@ Alongside it, four things that were missing rather than inconsistent:
   The nav test had passed throughout, because it asked whether a route was
   *listed*, not whether anything rendered it at every width.
 
+**Dark theme (done):** light, dark, or whatever the device says, picked from
+the account menu on desktop and the same menu on a phone. It defaults to
+following the device, because most people set that once at the operating system
+and expect everything to obey it.
+
+It works because the three brand tokens are **semantic rather than literal**.
+`brand-black` means *ink* and `brand-offwhite` means *paper*; in dark they swap,
+and all 1300-odd existing `text-brand-black/60` usages invert for free, opacity
+modifier included, because Tailwind emits `var(--color-brand-black)` and the
+cascade re-resolves it. The names are kept as they are on purpose — renaming
+them to ink/paper would be more honest and also a 1300-line diff landing in the
+same commit as the feature.
+
+Three details that are not obvious:
+
+- **The preference is applied by an inline script before first paint.** A theme
+  applied after hydration is one painted frame too late, and on a dark-mode
+  phone that frame is a face full of white at a night race. It falls back to
+  light rather than throwing, because it runs where an exception leaves the page
+  unstyled.
+- **Every filled block carries its own foreground.** `bg-brand-red text-white`
+  reads fine in light and is unreadable in dark, because the fill lifts for
+  legibility against the page while the text stays white. `text-on-red` and
+  `text-on-ink` invert with their fills.
+- **Ink is not pure white and paper is not pure black.** A #fff-on-#000
+  interface produces halation — the smearing readers get on high-contrast dark
+  text — and it is worst for exactly the people who turn dark mode on.
+
+Stored twice, doing two jobs: in the browser so the boot script can read it
+synchronously, and on the profile so the choice follows somebody to a new
+device. The browser copy wins on load, since it is the one already applied.
+
+Circuit maps, QR codes, upload previews and the landing hero stay literal in
+both themes — the content dictates their colour, not the interface — and
+`tests/theme-coverage.test.ts` holds that line, with the exemptions listed and
+a check that none of them is stale.
+
 **Advertising seats is reviewed, not sold (while in testing):** posting on
 behalf of a team is gated by an application to the platform admins rather than
 by the Recruiter subscription. A seat advert reaches every driver here, so it

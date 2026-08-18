@@ -106,7 +106,7 @@ function Inbox() {
                     {thread.lastMessage?.body ?? "No messages yet"}
                   </span>
                   {thread.unread > 0 && (
-                    <span className="shrink-0 rounded-full bg-brand-red px-1.5 text-xs font-semibold text-white">
+                    <span className="shrink-0 rounded-full bg-brand-red px-1.5 text-xs font-semibold text-on-red">
                       {thread.unread}
                     </span>
                   )}

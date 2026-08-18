@@ -128,7 +128,10 @@ export function ImageUpload({
             aspect === "wide"
               ? "aspect-[4/1]"
               : aspect === "map"
-                ? "max-h-64 w-full bg-white"
+                // White regardless of theme: a preview of an image with a
+                  // transparent background has to show what it will look like
+                  // where it is used, not where it is being uploaded.
+                  ? "max-h-64 w-full bg-white"
                 : "h-24 w-24"
           }`}
         >

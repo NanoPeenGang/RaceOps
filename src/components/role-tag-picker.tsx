@@ -52,7 +52,7 @@ export function RoleTagPicker<T extends string>({
                   onClick={() => onChange(toggleRole(selected, role))}
                   className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                     isSelected
-                      ? "border-brand-red bg-brand-red text-white"
+                      ? "border-brand-red bg-brand-red text-on-red"
                       : atCap
                         ? "cursor-not-allowed border-brand-black/10 text-brand-black/40"
                         : "border-brand-black/20 hover:border-brand-red"

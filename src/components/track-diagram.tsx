@@ -36,6 +36,8 @@ export function TrackDiagram({
           src={photo.url}
           alt={photo.caption ?? `Map of the ${layout.name} layout`}
           loading="lazy"
+          // Deliberately white in both themes: circuit maps are line art drawn in
+          // dark ink on transparency, and on a dark ground they vanish.
           className="w-full rounded-lg border border-brand-black/10 bg-white object-contain"
         />
         {(photo.caption || photo.credit) && (

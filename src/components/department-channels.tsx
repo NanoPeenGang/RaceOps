@@ -149,7 +149,7 @@ export function DepartmentChannels({
               type="button"
               className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
                 openId === room.id
-                  ? "border-brand-red bg-brand-red text-white"
+                  ? "border-brand-red bg-brand-red text-on-red"
                   : "border-brand-black/20 hover:bg-brand-black/5"
               }`}
               onClick={() =>
@@ -435,7 +435,7 @@ function RolePicker<T extends string>({
             type="button"
             className={`rounded-full border px-3 py-1 text-xs transition-colors ${
               selected.includes(option)
-                ? "border-brand-red bg-brand-red text-white"
+                ? "border-brand-red bg-brand-red text-on-red"
                 : "border-brand-black/20 hover:bg-brand-black/5"
             }`}
             onClick={() => onToggle(option)}

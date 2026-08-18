@@ -195,6 +195,15 @@ model User {
   @@index([verificationStatus])
 }
 
+/// What a person wants the interface to look like.
+enum ThemePreference {
+  /// Follow the device. The default, because most people set this once at the
+  /// operating system and expect everything to obey it.
+  SYSTEM
+  LIGHT
+  DARK
+}
+
 model Profile {
   id             String          @id @default(cuid())
   userId         String          @unique
@@ -212,6 +221,14 @@ model Profile {
   realWorldRoles RealWorldRole[]
   // Per-platform sim stats, e.g. { "iracing": { "iRating": 3200, "sr": "A 4.2", "licenseClass": "A" } }
   simStats       Json?
+  /**
+   * Light, dark, or whatever the device says.
+   * Kept on the profile as well as in the browser so it follows somebody
+   * between a laptop and the phone they use trackside — the device copy is
+   * what avoids a flash of the wrong theme on first paint, and this is what
+   * makes the choice survive a new device.
+   */
+  theme          ThemePreference @default(SYSTEM)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
