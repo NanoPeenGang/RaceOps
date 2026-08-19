@@ -130,6 +130,12 @@ describe.skipIf(!ENABLED)("schedule & live timing (integration)", () => {
 
   afterAll(async () => {
     if (!ENABLED) return;
+    /*
+     * Events first. `RaceEvent.seriesId` is SET NULL, so deleting the series
+     * orphans its rounds rather than removing them — and an orphaned round
+     * keeps its sessions, including any still marked LIVE.
+     */
+    await db.raceEvent.deleteMany({ where: { seriesId } });
     await db.series.deleteMany({ where: { id: seriesId } });
     await db.user.deleteMany({
       where: {

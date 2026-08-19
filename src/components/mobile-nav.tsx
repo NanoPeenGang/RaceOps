@@ -33,8 +33,29 @@ export function MobileNav() {
       </button>
 
       {open && (
-        <nav className="absolute inset-x-0 top-16 z-50 border-b border-brand-black/10 bg-surface shadow-lg">
+        <nav
+          /*
+           * Scrollable, and measured in `dvh` rather than `vh`.
+           *
+           * There are twenty destinations in here plus the theme picker, which
+           * is taller than a phone screen — without a height and an overflow
+           * the bottom third was simply clipped, with no way to reach it.
+           *
+           * `dvh` is the part that is easy to get wrong: `vh` on mobile is the
+           * viewport with the browser's chrome *hidden*, so a `100vh` panel
+           * puts its last item behind the URL bar and the fix looks like it
+           * did not work. `overscroll-contain` stops a flick at the end of the
+           * list scrolling the page behind it instead.
+           */
+          className="absolute inset-x-0 top-16 z-50 max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-b border-brand-black/10 bg-surface shadow-lg"
+        >
           <ul className="mx-auto max-w-6xl px-4 py-3">
+            <li
+              aria-hidden
+              className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-brand-black/40"
+            >
+              Browse
+            </li>
             {NAV_LINKS.map((link) => (
               <li key={link.href}>
                 <Link

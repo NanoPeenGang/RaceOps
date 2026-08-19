@@ -69,7 +69,10 @@ export function AccountMenu() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-brand-black/10 bg-surface py-1 shadow-lg"
+          // Same reasoning as the mobile menu: eleven links and a theme picker
+          // will not fit a short laptop window, and a clipped menu with no
+          // scroll is a link that does not exist.
+          className="absolute right-0 z-50 mt-2 max-h-[calc(100dvh-5rem)] w-56 overflow-y-auto overscroll-contain rounded-lg border border-brand-black/10 bg-surface py-1 shadow-lg"
         >
           {links.map((link) => (
             <Link

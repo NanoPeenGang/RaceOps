@@ -93,7 +93,36 @@ describe.skipIf(!ENABLED)("officials' log (integration)", () => {
   });
 
   afterAll(async () => {
-    if (ENABLED) await db.$disconnect();
+    if (!ENABLED) return;
+    /*
+     * This suite used to disconnect and nothing else, so every run left a
+     * series behind with a session still marked LIVE. Those accumulate for
+     * ever, and `session.liveNow` is a global feed capped at twenty — so after
+     * enough runs the *schedule* suite started failing, because its own live
+     * session was pushed off the end of a list full of this one's debris.
+     *
+     * A leak in one suite surfacing as a failure in another is the worst kind
+     * of flake: the file that fails is not the file that is wrong.
+     */
+    /*
+     * Events first. `RaceEvent.seriesId` is SET NULL, so deleting the series
+     * orphans its rounds rather than removing them — and an orphaned round
+     * keeps its sessions, including any still marked LIVE.
+     */
+    await db.raceEvent.deleteMany({ where: { seriesId } });
+    await db.series.deleteMany({ where: { id: seriesId } });
+    await db.user.deleteMany({
+      where: {
+        authProviderId: {
+          in: [
+            `clerk_logown_${run}`,
+            `clerk_logrc_${run}`,
+            `clerk_logent_${run}`,
+          ],
+        },
+      },
+    });
+    await db.$disconnect();
   });
 
   it("logs session and flag changes as they happen", async () => {

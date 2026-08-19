@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -44,10 +44,7 @@ export function Tabs(props: TabsProps) {
     <Suspense
       fallback={
         <div
-          className={cn(
-            "h-10 border-b border-brand-black/10",
-            props.className,
-          )}
+          className={cn("h-10 border-b border-brand-black/10", props.className)}
         />
       }
     >
@@ -86,42 +83,81 @@ function TabsInner({ tabs, param = "tab", className }: TabsProps) {
 
   const current = visible.find((tab) => tab.id === optimistic) ?? visible[0];
 
+  /*
+   * Whether the bar is wider than its box, remeasured on resize and whenever
+   * the set of tabs changes. Assuming it overflows would put a permanent fade
+   * over the last tab on a desktop where everything already fits.
+   */
+  const barRef = useRef<HTMLDivElement>(null);
+  const [overflowing, setOverflowing] = useState(false);
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const measure = () => setOverflowing(bar.scrollWidth > bar.clientWidth + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [visible.length]);
+
   return (
     <div className={className}>
-      <div
-        role="tablist"
-        aria-orientation="horizontal"
-        // Horizontally scrollable rather than wrapped: on a phone a wrapped
-        // tab bar can take half the screen before any content appears.
-        className="-mx-1 flex gap-1 overflow-x-auto border-b border-brand-black/10 px-1"
-      >
-        {visible.map((tab) => {
-          const isActive = tab.id === optimistic;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              id={`tab-${tab.id}`}
-              aria-selected={isActive}
-              aria-controls={`panel-${tab.id}`}
-              onClick={() => select(tab.id)}
-              className={cn(
-                "shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-                isActive
-                  ? "border-brand-red text-brand-black"
-                  : "border-transparent text-brand-black/60 hover:text-brand-black",
-              )}
-            >
-              {tab.label}
-              {tab.badge !== undefined && tab.badge !== null && (
-                <span className="ml-1.5 rounded-full bg-brand-black/10 px-1.5 py-0.5 text-xs tabular-nums">
-                  {tab.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      {/*
+        Wrapped so the bar can carry a fade at its right edge.
+
+        The bar scrolls rather than wraps — a wrapped set of seven tabs takes
+        half a phone screen before any content appears — but a scrollable strip
+        with a hard edge looks like a complete list that happens to end, so the
+        tabs past the fold were simply not found. The gradient is the one thing
+        that says "there is more this way"; it is hidden once the bar fits, so
+        it never lies about content that is not there.
+      */}
+      <div className="relative">
+        <div
+          ref={barRef}
+          role="tablist"
+          aria-orientation="horizontal"
+          className="-mx-1 flex gap-1 overflow-x-auto border-b border-brand-black/10 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {visible.map((tab) => {
+            const isActive = tab.id === optimistic;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                id={`tab-${tab.id}`}
+                aria-selected={isActive}
+                aria-controls={`panel-${tab.id}`}
+                onClick={() => select(tab.id)}
+                className={cn(
+                  "shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+                  isActive
+                    ? "border-brand-red text-brand-black"
+                    : "border-transparent text-brand-black/60 hover:text-brand-black",
+                )}
+              >
+                {tab.label}
+                {tab.badge !== undefined && tab.badge !== null && (
+                  <span className="ml-1.5 rounded-full bg-brand-black/10 px-1.5 py-0.5 text-xs tabular-nums">
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {/*
+          Fades the right edge while there is more to reach. `aria-hidden` and
+          `pointer-events-none`: it is a hint about scrolling, not a control,
+          and it must never sit between a thumb and a tab.
+        */}
+        {overflowing && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-brand-offwhite to-transparent"
+          />
+        )}
       </div>
 
       {current && (
