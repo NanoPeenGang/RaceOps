@@ -6,6 +6,7 @@ import { useUser } from "@clerk/nextjs";
 import { api } from "@/lib/trpc/client";
 import { ACCOUNT_LINKS, ADMIN_LINKS, NAV_LINKS } from "@/lib/nav";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useCommandPalette } from "@/components/command-palette";
 
 /**
  * Hamburger menu for < md screens — the desktop inline nav is hidden there,
@@ -14,6 +15,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const { isSignedIn } = useUser();
+  const palette = useCommandPalette();
   // Only fetched once the menu is open, and only for signed-in visitors —
   // a nav item is not worth a request on every page load.
   const access = api.access.mine.useQuery(undefined, {
@@ -50,6 +52,32 @@ export function MobileNav() {
           className="absolute inset-x-0 top-16 z-50 max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-b border-brand-black/10 bg-surface shadow-lg"
         >
           <ul className="mx-auto max-w-6xl px-4 py-3">
+            {/* First, because scrolling twenty destinations to find one is
+                the thing this menu is worst at and typing its name is not. */}
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  palette.open();
+                }}
+                className="flex w-full items-center gap-2 rounded-md border border-brand-black/10 px-3 py-2.5 text-left text-sm text-brand-black/60 hover:bg-brand-black/5"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                  className="h-4 w-4 shrink-0"
+                >
+                  <circle cx="10.6" cy="10.6" r="6.6" />
+                  <path d="m20 20-4.7-4.7" />
+                </svg>
+                Search or jump to&hellip;
+              </button>
+            </li>
             <li
               aria-hidden
               className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-brand-black/40"

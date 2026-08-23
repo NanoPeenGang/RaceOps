@@ -41,3 +41,83 @@ export const ACCOUNT_LINKS = [
 export const ADMIN_LINKS = [
   { href: "/admin/access", label: "Access applications" },
 ] as const;
+
+/* -------------------------------------------------------------------------
+ * Consoles
+ *
+ * The tab strips of the three management consoles, named here so that things
+ * which need to *talk about* those pages — the command palette, and anything
+ * that comes after it — do not have to re-type the list and drift from it.
+ *
+ * The console pages still build their own tabs, because a tab carries content
+ * and a visibility rule and a badge, none of which belong in a nav constant.
+ * What is shared is the part that has to agree: the id in the query string
+ * and the label a person reads. `tests/nav-consoles.test.ts` fails if the two
+ * ever disagree.
+ * ---------------------------------------------------------------------- */
+
+export interface ConsoleTab {
+  /** The `?tab=` value. Changing one breaks saved links, so treat as an id. */
+  id: string;
+  label: string;
+}
+
+export const TEAM_CONSOLE_TABS: readonly ConsoleTab[] = [
+  { id: "roster", label: "Roster" },
+  { id: "hiring", label: "Hiring" },
+  { id: "money", label: "Money" },
+  { id: "garage", label: "Garage" },
+  { id: "racing", label: "Racing" },
+  { id: "comms", label: "Comms" },
+  { id: "settings", label: "Settings" },
+] as const;
+
+export const EVENT_CONSOLE_TABS: readonly ConsoleTab[] = [
+  { id: "weekend", label: "Race weekend" },
+  { id: "entries", label: "Entries" },
+  { id: "paddock", label: "Paddock & tech" },
+  { id: "control", label: "Race control" },
+  { id: "results", label: "Results" },
+  { id: "volunteers", label: "Volunteers" },
+  { id: "comms", label: "Documents & notices" },
+  { id: "settings", label: "Settings" },
+] as const;
+
+export const SERIES_CONSOLE_TABS: readonly ConsoleTab[] = [
+  { id: "calendar", label: "Calendar" },
+  { id: "regulations", label: "Regulations" },
+  { id: "staff", label: "Staff & roles" },
+  { id: "comms", label: "Notices & media" },
+  { id: "settings", label: "Look and feel" },
+] as const;
+
+/**
+ * Console pages that are not tabs.
+ *
+ * These are real routes sitting beside a console rather than inside it, and
+ * they are exactly the pages that go missing: the gate screen is not linked
+ * from the event console at all, and the scan station is reachable only from
+ * inside the garage tab. Being addressable by name is the cheapest fix
+ * available until the navigation itself changes.
+ */
+export interface ConsoleSubPage {
+  /** Appended to the console's base path. */
+  segment: string;
+  label: string;
+  /** Words somebody might type instead of the label. */
+  keywords?: readonly string[];
+}
+
+export const TEAM_CONSOLE_PAGES: readonly ConsoleSubPage[] = [
+  { segment: "scan", label: "Scan station", keywords: ["barcode", "qr", "inventory", "parts"] },
+  { segment: "labels", label: "Part label sheet", keywords: ["qr", "print", "barcode", "stickers"] },
+] as const;
+
+export const EVENT_CONSOLE_PAGES: readonly ConsoleSubPage[] = [
+  { segment: "timing", label: "Live timing", keywords: ["laps", "sectors", "leaderboard"] },
+  { segment: "incidents", label: "Incidents", keywords: ["stewards", "contact", "report"] },
+  { segment: "penalties", label: "Penalties", keywords: ["stewards", "sanctions"] },
+  { segment: "bulletin", label: "Bulletins", keywords: ["notices", "announcements"] },
+  { segment: "gate", label: "Gate check-in", keywords: ["credentials", "wristbands", "passes", "entry"] },
+  { segment: "broadcast", label: "Broadcast overlay", keywords: ["commentary", "stream", "tv"] },
+] as const;

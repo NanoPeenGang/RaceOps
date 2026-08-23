@@ -11,6 +11,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { MobileNav } from "@/components/mobile-nav";
 import { AccountMenu } from "@/components/account-menu";
 import { NAV_LINKS } from "@/lib/nav";
+import { CommandTrigger } from "@/components/command-palette";
 
 export function Header() {
   return (
@@ -52,6 +53,10 @@ export function Header() {
             ))}
           </nav>
         </div>
+        {/* The shortest path to any of the forty-five pages under the
+            dashboard. Hidden on the narrowest screens, where it would crowd
+            out the logo — the mobile menu carries its own. */}
+        <CommandTrigger className="mx-2 hidden w-full max-w-[320px] flex-1 sm:flex lg:max-w-[190px]" />
         <div className="flex items-center gap-2 sm:gap-3">
           <Show when="signed-out">
             <SignInButton mode="modal">

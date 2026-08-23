@@ -1185,6 +1185,43 @@ pipeline. The CSV/JSON import above is the shipped stopgap.
 cross-cutting: the AI gateway exists with the production security posture.
 Discord guild sync is deferred until OAuth credentials are available.
 
+### Finding things: the command palette
+
+Press <kbd>⌘K</kbd> (or <kbd>Ctrl</kbd>+<kbd>K</kbd>) anywhere, or use the
+search box in the header. It is also the first item in the mobile menu.
+
+This exists because the app has forty-five pages under `(dashboard)` and
+twenty top-level destinations, ten of them behind an account menu. Features
+have shipped and then been reported as missing more than once — not broken,
+just unreachable without knowing where to look. Typing the name of a thing is
+the shortest path to it that does not require reorganising the app first.
+
+What it searches, in order:
+
+| Group | What is in it |
+| --- | --- |
+| Recently opened | The last five things you jumped to, per browser |
+| Switch to | Your teams, series, organizations and race weekends |
+| Jump to | Every console tab and page you can reach, named |
+| Do something | Actions with a real address of their own |
+| Found on RaceOps | Name search across events, series, teams and tracks |
+
+Three pieces, split by what breaks them:
+
+- `src/lib/command-palette.ts` — matching and ranking. The scorer computes a
+  full alignment rather than walking greedily, because greedy gets `sc` wrong
+  the moment two commands both start with `s`. Nothing here touches React.
+- `src/lib/command-set.ts` — what commands exist, given who you are. Every
+  command points at a route that exists; there is no entry for "create an
+  invoice" because creating one happens inside a panel and has no address.
+- `src/server/trpc/routers/command.ts` — `contexts` (yours, fetched once and
+  matched locally) and `search` (the long tail, queried after two characters).
+
+The console tab lists live in `src/lib/nav.ts` as well as in the console pages
+themselves, because a real tab also carries content, a visibility rule and a
+badge. `tests/nav-consoles.test.ts` fails if the two ever disagree, and also
+if any command points at a route that no longer exists.
+
 ### Integration tests
 
 Router-level tests run against a real Postgres and are opt-in, so CI (which

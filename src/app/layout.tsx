@@ -4,6 +4,7 @@ import { Header } from "@/components/header";
 import { TRPCProvider } from "@/lib/trpc/provider";
 import { ToastProvider } from "@/components/ui/toast";
 import { ThemeProvider } from "@/components/theme-provider";
+import { CommandPaletteProvider } from "@/components/command-palette";
 import { themeBootScript } from "@/lib/theme";
 import { OfflineProvider } from "@/components/offline-provider";
 import { OfflineIndicator } from "@/components/offline-indicator";
@@ -64,8 +65,14 @@ export default function RootLayout({
             <TRPCProvider>
               <ThemeProvider>
                 <OfflineProvider>
-                  <Header />
-                  {children}
+                  {/* Inside the tRPC and Clerk providers because the palette
+                      asks who you are and what you can reach; outside the
+                      header so ⌘K works on every page, not only where the
+                      search box is rendered. */}
+                  <CommandPaletteProvider>
+                    <Header />
+                    {children}
+                  </CommandPaletteProvider>
                   <OfflineIndicator />
                   <ServiceWorkerRegistration />
                 </OfflineProvider>
