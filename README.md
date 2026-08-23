@@ -1283,6 +1283,30 @@ the date windows as pure functions. "This weekend" means the weekend you are
 in, not the next one — asked on a Saturday morning, the question is what is on
 now.
 
+### The management consoles: a rail, not a strip
+
+The team, race weekend and series consoles put their tabs down the left on a
+desktop instead of along the top. Eight tabs in a strip scroll on anything
+narrower than a laptop, which is how a tab gets shipped and then reported as
+missing; down the side they are all visible at once.
+
+The room a strip does not have is the point. Every console has real routes
+sitting *beside* it rather than inside it — the gate screen, live timing,
+penalties, the scan station, the label sheet — and several were linked from
+nowhere at all. The rail has somewhere to put them, under a heading that says
+what they are.
+
+Below `lg` it falls back to the horizontal strip, which is still the right
+shape on a phone: a sidebar there takes a third of the screen before any
+content appears. The sibling pages render for phones too, as chips under the
+panel — showing them only inside the desktop rail would put the gate screen
+back exactly where it was.
+
+`Console` is a drop-in for `Tabs` and takes the same `TabDefinition[]`; the
+query-string handling and the strip are shared between them rather than
+copied. `tests/console-rail.test.ts` fails if a console goes back to `<Tabs>`
+or stops linking the pages beside it.
+
 ### Integration tests
 
 Router-level tests run against a real Postgres and are opt-in, so CI (which

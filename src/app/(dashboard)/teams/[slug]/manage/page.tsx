@@ -26,7 +26,9 @@ import { PayrollPanel } from "./payroll-panel";
 import { DepartmentChannels } from "@/components/department-channels";
 import { BrandingEditor } from "@/components/branding-editor";
 import { DangerZone } from "@/components/danger-zone";
-import { Tabs, type TabDefinition } from "@/components/ui/tabs";
+import { type TabDefinition } from "@/components/ui/tabs";
+import { Console } from "@/components/ui/console";
+import { TEAM_CONSOLE_PAGES } from "@/lib/nav";
 import { attentionItems, tabBadge, type TeamAttention } from "@/lib/attention";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page";
@@ -217,7 +219,14 @@ export default function TeamManagePage({
           opening the tab it points at. */}
       {attention && <AttentionStrip attention={attention} />}
 
-      <Tabs tabs={tabs} />
+      <Console
+        tabs={tabs}
+        pagesLabel="Team pages"
+        pages={TEAM_CONSOLE_PAGES.map((page) => ({
+          href: `/teams/${slug}/${page.segment}`,
+          label: page.label,
+        }))}
+      />
     </div>
   );
 }

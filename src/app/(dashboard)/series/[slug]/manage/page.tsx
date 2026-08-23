@@ -16,7 +16,7 @@ import { DocumentsPanel } from "@/components/documents-panel";
 import { MediaPanel } from "@/components/media-panel";
 import { DangerZone } from "@/components/danger-zone";
 import { BrandingEditor } from "@/components/branding-editor";
-import { Tabs } from "@/components/ui/tabs";
+import { Console } from "@/components/ui/console";
 import { SeriesStaffPanel } from "./staff-panel";
 import { useRouter } from "next/navigation";
 import { PageSkeleton } from "@/components/ui/skeleton";
@@ -138,7 +138,9 @@ export default function SeriesDashboardPage({
         />
       )}
 
-      <Tabs
+      <Console
+        pagesLabel="Series pages"
+        pages={[{ href: `/series/${slug}/standings`, label: "Standings" }]}
         tabs={[
           {
             id: "calendar",

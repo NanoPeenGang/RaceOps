@@ -36,7 +36,8 @@ import { DangerZone } from "@/components/danger-zone";
 import { VenuePanel } from "@/components/venue-panel";
 import { BrandingEditor } from "@/components/branding-editor";
 import { useRouter } from "next/navigation";
-import { Tabs } from "@/components/ui/tabs";
+import { Console } from "@/components/ui/console";
+import { EVENT_CONSOLE_PAGES } from "@/lib/nav";
 import { PageHeader } from "@/components/ui/page";
 import { ListSkeleton, PageSkeleton } from "@/components/ui/skeleton";
 
@@ -159,7 +160,12 @@ export default function ManageEventPage({
         </Link>
       </div>
 
-      <Tabs
+      <Console
+        pagesLabel="Race weekend pages"
+        pages={EVENT_CONSOLE_PAGES.map((page) => ({
+          href: `/events/${eventId}/${page.segment}`,
+          label: page.label,
+        }))}
         tabs={[
           {
             id: "weekend",

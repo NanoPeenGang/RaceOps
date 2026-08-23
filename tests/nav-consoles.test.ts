@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   ACCOUNT_LINKS,
   ADMIN_LINKS,
+  DIRECTORY_LINKS,
   EVENT_CONSOLE_PAGES,
   EVENT_CONSOLE_TABS,
   NAV_LINKS,
@@ -72,7 +73,7 @@ describe("every command points at a route that exists", () => {
     expect(routeExists("/home")).toBe(true);
   });
 
-  for (const link of [...NAV_LINKS, ...ACCOUNT_LINKS, ...ADMIN_LINKS]) {
+  for (const link of [...NAV_LINKS, ...DIRECTORY_LINKS, ...ACCOUNT_LINKS, ...ADMIN_LINKS]) {
     it(`${link.label} → ${link.href}`, () => {
       expect(routeExists(link.href)).toBe(true);
     });
