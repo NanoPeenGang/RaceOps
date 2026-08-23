@@ -7,6 +7,8 @@ import { api } from "@/lib/trpc/client";
 import { ACCOUNT_LINKS, ADMIN_LINKS, NAV_LINKS } from "@/lib/nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useCommandPalette } from "@/components/command-palette";
+import { useInContext } from "@/components/context-switcher";
+import { cn } from "@/lib/utils";
 
 /**
  * Hamburger menu for < md screens — the desktop inline nav is hidden there,
@@ -16,6 +18,13 @@ export function MobileNav() {
   const [open, setOpen] = useState(false);
   const { isSignedIn } = useUser();
   const palette = useCommandPalette();
+  /*
+   * Normally the desktop header carries the directory links and this button
+   * hides above `lg`. Inside a team, a series or a race weekend the header
+   * gives that space to the context switcher instead, and then this is the
+   * only thing carrying the directory — so it stops hiding.
+   */
+  const inContext = useInContext();
   // Only fetched once the menu is open, and only for signed-in visitors —
   // a nav item is not worth a request on every page load.
   const access = api.access.mine.useQuery(undefined, {
@@ -23,7 +32,7 @@ export function MobileNav() {
   });
 
   return (
-    <div className="lg:hidden">
+    <div className={cn(!inContext && "lg:hidden")}>
       <button
         type="button"
         aria-label={open ? "Close menu" : "Open menu"}

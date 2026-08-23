@@ -1222,6 +1222,36 @@ themselves, because a real tab also carries content, a visibility rule and a
 badge. `tests/nav-consoles.test.ts` fails if the two ever disagree, and also
 if any command points at a route that no longer exists.
 
+### Knowing where you are: the context switcher
+
+Inside a team, a series or a race weekend, the header stops showing the nine
+directory links and shows what you are operating instead — a switcher naming
+the thing, with your other contexts one click away.
+
+The two take turns because there is only room for one. Measured against the
+real compiled stylesheet, the header has about thirty pixels of slack at every
+width once the logo, the links, the search box and the account cluster have
+taken their share; a switcher needs closer to two hundred. That constraint is
+also the argument: while you are browsing, the directory *is* the navigation;
+the moment you are inside something, that thing is.
+
+Nothing becomes unreachable when the links step aside. The menu button stops
+hiding itself on desktop at exactly that point and carries all of them, and
+⌘K finds any of them by name. `tests/header-context.test.ts` asserts both.
+
+Two behaviours worth knowing:
+
+- **Switching keeps your place.** From a team's Roster, switching to another
+  team lands on *its* Roster rather than its front door. That only holds when
+  both consoles have the tab — a team's Garage has no equivalent in a race
+  weekend, so that goes to the front door instead.
+- **It stays quiet on someone else's page.** Looking at a team you are not in
+  is browsing, not operating, so the switcher does not appear and claim you
+  are somewhere you are not.
+
+`src/lib/app-context.ts` holds all of it as pure functions over a pathname:
+what context a URL is in, where a switch should land, and how the menu groups.
+
 ### Integration tests
 
 Router-level tests run against a real Postgres and are opt-in, so CI (which

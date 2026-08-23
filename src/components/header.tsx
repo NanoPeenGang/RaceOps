@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/notification-bell";
 import { MobileNav } from "@/components/mobile-nav";
 import { AccountMenu } from "@/components/account-menu";
-import { NAV_LINKS } from "@/lib/nav";
 import { CommandTrigger } from "@/components/command-palette";
+import { HeaderContext } from "@/components/context-switcher";
 
 export function Header() {
   return (
@@ -41,17 +41,9 @@ export function Header() {
               className="hidden h-8 w-auto sm:block md:h-9"
             />
           </Link>
-          <nav className="hidden items-center gap-5 lg:flex">
-            {NAV_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="text-sm font-medium text-brand-black/70 transition-colors hover:text-brand-red"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+          {/* Either the directory links or the switcher for whatever you are
+              inside. There is only room for one — see the component. */}
+          <HeaderContext />
         </div>
         {/* The shortest path to any of the forty-five pages under the
             dashboard. Hidden on the narrowest screens, where it would crowd
