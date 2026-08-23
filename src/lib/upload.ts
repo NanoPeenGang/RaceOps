@@ -27,6 +27,20 @@ export interface PurposeRules {
   maxBytes: number;
   /** Longest edge to downscale to before upload. Null leaves it alone. */
   maxEdge: number | null;
+  /**
+   * What may actually be stored. The server signs against this and nothing
+   * else, so it is the real rule.
+   */
+  store: readonly string[];
+  /**
+   * What the file picker offers, which is deliberately wider.
+   *
+   * These two used to be one list, and that is what stopped an iPhone camera
+   * roll from working: photos are HEIC by default, and a picker that does not
+   * name HEIC greys every one of them out. Offering it does not mean storing
+   * it — a HEIC is transcoded to JPEG in the browser before upload, because a
+   * HEIC sitting in the bucket renders in Safari and nowhere else.
+   */
   accept: readonly string[];
 }
 
@@ -40,18 +54,75 @@ const IMAGE_TYPES = [
   "image/gif",
 ] as const;
 
+/**
+ * Camera formats that have to be converted before they can be stored.
+ *
+ * HEIC/HEIF is what an iPhone writes unless somebody has changed the setting,
+ * and Apple platforms are the only ones that can display it. Android phones
+ * are starting to do the same.
+ *
+ * `image/heic-sequence` is a live photo, which decodes to its still frame.
+ * Extensions are listed alongside the types further down, because Windows and
+ * some Android builds report no MIME type at all for a `.heic` and a filter
+ * matching on nothing would leave those files greyed out too.
+ */
+export const TRANSCODE_TYPES = [
+  "image/heic",
+  "image/heif",
+  "image/heic-sequence",
+  "image/heif-sequence",
+] as const;
+
+/** Extensions, for the pickers and platforms that ignore MIME types. */
+const CAMERA_EXTENSIONS = [".heic", ".heif"] as const;
+
+/** Everything the picker should offer for an image field. */
+const IMAGE_PICKER_TYPES = [
+  ...IMAGE_TYPES,
+  ...TRANSCODE_TYPES,
+  ...CAMERA_EXTENSIONS,
+] as const;
+
+/**
+ * Whether a picked file has to be converted before it can be uploaded.
+ *
+ * Matches on the extension as well as the type, because the browsers that get
+ * HEIC wrong are exactly the ones that report it as octet-stream or as
+ * nothing at all.
+ */
+export function needsTranscode(file: { type: string; name?: string }): boolean {
+  if ((TRANSCODE_TYPES as readonly string[]).includes(file.type)) return true;
+  const name = (file.name ?? "").toLowerCase();
+  return CAMERA_EXTENSIONS.some((extension) => name.endsWith(extension));
+}
+
+const GARAGE_TYPES = [
+  "application/octet-stream",
+  "application/zip",
+  "application/x-zip-compressed",
+  "application/json",
+  "application/pdf",
+  "text/csv",
+  "text/plain",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+
 export const UPLOAD_RULES: Record<UploadPurpose, PurposeRules> = {
   avatar: {
     label: "Profile picture",
     maxBytes: 5 * 1024 * 1024,
     maxEdge: 512,
-    accept: IMAGE_TYPES,
+    store: IMAGE_TYPES,
+    accept: IMAGE_PICKER_TYPES,
   },
   logo: {
     label: "Logo",
     maxBytes: 5 * 1024 * 1024,
     maxEdge: 1024,
-    accept: IMAGE_TYPES,
+    store: IMAGE_TYPES,
+    accept: IMAGE_PICKER_TYPES,
   },
   banner: {
     label: "Banner",
@@ -59,7 +130,8 @@ export const UPLOAD_RULES: Record<UploadPurpose, PurposeRules> = {
     // display sharp without shipping a 12-megapixel phone photo.
     maxBytes: 15 * 1024 * 1024,
     maxEdge: 2560,
-    accept: IMAGE_TYPES,
+    store: IMAGE_TYPES,
+    accept: IMAGE_PICKER_TYPES,
   },
   diagram: {
     label: "Track map",
@@ -68,7 +140,8 @@ export const UPLOAD_RULES: Record<UploadPurpose, PurposeRules> = {
     // banner, which is decoration and can afford to be huge.
     maxBytes: 10 * 1024 * 1024,
     maxEdge: 2048,
-    accept: IMAGE_TYPES,
+    store: IMAGE_TYPES,
+    accept: IMAGE_PICKER_TYPES,
   },
   media: {
     label: "Photo or video",
@@ -76,12 +149,19 @@ export const UPLOAD_RULES: Record<UploadPurpose, PurposeRules> = {
     // Race photography is the point; re-encoding it in a canvas would be
     // vandalism. Videos cannot be downscaled client-side at all.
     maxEdge: null,
-    accept: [...IMAGE_TYPES, "video/mp4", "video/quicktime", "video/webm"],
+    store: [...IMAGE_TYPES, "video/mp4", "video/quicktime", "video/webm"],
+    accept: [
+      ...IMAGE_PICKER_TYPES,
+      "video/mp4",
+      "video/quicktime",
+      "video/webm",
+    ],
   },
   document: {
     label: "Document",
     maxBytes: 25 * 1024 * 1024,
     maxEdge: null,
+    store: ["application/pdf"],
     accept: ["application/pdf"],
   },
   garage: {
@@ -96,18 +176,10 @@ export const UPLOAD_RULES: Record<UploadPurpose, PurposeRules> = {
      * it is a list at all: both execute script when opened from the bucket's
      * origin, and neither is telemetry.
      */
-    accept: [
-      "application/octet-stream",
-      "application/zip",
-      "application/x-zip-compressed",
-      "application/json",
-      "application/pdf",
-      "text/csv",
-      "text/plain",
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-    ],
+    store: GARAGE_TYPES,
+    // Nothing here is a camera format, so the picker has nothing extra to
+    // offer and the two lists are genuinely the same.
+    accept: GARAGE_TYPES,
   },
 };
 
@@ -115,7 +187,9 @@ export function isAllowedType(
   purpose: UploadPurpose,
   contentType: string,
 ): boolean {
-  return UPLOAD_RULES[purpose].accept.includes(contentType);
+  // `store`, not `accept`: the picker is allowed to be generous, the bucket
+  // is not. This is the function the server signs against.
+  return UPLOAD_RULES[purpose].store.includes(contentType);
 }
 
 /** Human size for an error a person has to act on. */
@@ -145,7 +219,7 @@ export function checkUpload(
   if (!isAllowedType(purpose, file.type)) {
     return {
       reason: "type",
-      message: `${rules.label} must be ${describeTypes(rules.accept)}.`,
+      message: `${rules.label} must be ${describeTypes(rules.store)}.`,
     };
   }
   if (file.size > rules.maxBytes) {

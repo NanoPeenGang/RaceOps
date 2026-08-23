@@ -1307,6 +1307,36 @@ query-string handling and the strip are shared between them rather than
 copied. `tests/console-rail.test.ts` fails if a console goes back to `<Tabs>`
 or stops linking the pages beside it.
 
+### Uploading photos from a phone
+
+The media gallery on an event, series or team takes photos straight from a
+camera roll — many at once — as well as a pasted link. It used to ask for a URL
+and nothing else, which meant uploading the picture somewhere else first.
+
+Two details are what make a camera roll actually usable, and both are easy to
+get backwards:
+
+- **No `capture` attribute.** It reads like the attribute you want on a phone
+  and does the opposite: `capture` opens the camera *instead of* the library,
+  so a photo taken last weekend becomes unreachable. Left off, iOS and Android
+  both offer Photo Library, Take Photo and Browse.
+- **HEIC is offered but never stored.** An iPhone writes HEIC, and a picker
+  that does not name it greys out every photo somebody is looking at. But a
+  HEIC in the bucket renders in Safari and nowhere else, so it is converted to
+  JPEG in the browser before upload. `PurposeRules` therefore has two lists:
+  `accept` (what the picker offers) and `store` (what the server will sign).
+  The server signs against `store` only.
+
+Chrome and Firefox cannot decode HEIC at all. Rather than failing later with
+"must be a JPEG, PNG, WebP, AVIF or GIF" about a photo the person is looking
+at, `UndecodableImageError` says what to do: open the site in Safari, or set
+iPhone Settings → Camera → Formats to "Most Compatible".
+
+Photos upload one at a time on purpose. Thirty in parallel over paddock wifi
+is thirty stalled requests and no finished pictures; sequentially the early
+ones land and stay landed, and each attaches as it finishes rather than at the
+end of the batch.
+
 ### Integration tests
 
 Router-level tests run against a real Postgres and are opt-in, so CI (which

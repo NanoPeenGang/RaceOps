@@ -5,6 +5,7 @@ import { MediaVisibility } from "@prisma/client";
 import { api } from "@/lib/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PhotoUpload } from "@/components/photo-upload";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
 
@@ -53,7 +54,9 @@ export function MediaPanel({
     onSuccess: () => {
       setUrl("");
       setMediaTitle("");
-      setShowForm(false);
+      // Deliberately not closing the form. Attaching now happens once per
+      // photo in a batch, and closing on the first success would hide the
+      // progress list while twenty more were still uploading.
       invalidate();
     },
   });
@@ -81,6 +84,37 @@ export function MediaPanel({
       <CardContent className="space-y-4">
         {showForm && canManage && (
           <div className="space-y-3 rounded-lg border border-brand-black/10 p-3">
+            {/*
+              Picking photos comes first, and pasting a link second, because
+              the photos are on the phone in somebody's hand. This panel used
+              to ask for a URL and nothing else, which meant uploading a
+              picture somewhere else first and coming back with a link.
+
+              Each photo attaches as it lands rather than at the end, so a
+              batch that dies halfway through a paddock's wifi keeps the ones
+              that made it.
+            */}
+            <PhotoUpload
+              label="Choose photos"
+              onUploaded={(photo) =>
+                attach.mutate({
+                  url: photo.url,
+                  kind: photo.contentType.startsWith("video/") ? "video" : "image",
+                  title: mediaTitle.trim() || photo.name || undefined,
+                  visibility,
+                  scope,
+                })
+              }
+            />
+
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-brand-black/10" />
+              <span className="text-[11px] uppercase tracking-wide text-brand-black/40">
+                or link to one
+              </span>
+              <span className="h-px flex-1 bg-brand-black/10" />
+            </div>
+
             <label className="block text-sm font-medium">
               Media URL
               <input

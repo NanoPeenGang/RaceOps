@@ -3,17 +3,24 @@
 import { useRef, useState } from "react";
 import { api } from "@/lib/trpc/client";
 import { prepareUpload } from "@/lib/image-resize";
-import { checkUpload, formatBytes, UPLOAD_RULES, type UploadPurpose } from "@/lib/upload";
+import {
+  checkUpload,
+  formatBytes,
+  needsTranscode,
+  UPLOAD_RULES,
+  type UploadPurpose,
+} from "@/lib/upload";
 import { Button } from "@/components/ui/button";
 
 /**
  * Pick a file from a phone or a computer and upload it.
  *
- * Three things make this work away from a desk. The file input accepts a
- * camera capture, so on a phone it offers "Take photo" alongside the library.
- * Images are downscaled in the browser first, so a 6 MB camera JPEG becomes a
- * few hundred kilobytes before it touches circuit wifi. And the bytes go
- * straight to object storage rather than through the app.
+ * Three things make this work away from a desk. The input carries no
+ * `capture` attribute, which is what lets a phone offer the camera roll at
+ * all — `capture` would open the camera *instead of* the library. Images are
+ * downscaled in the browser first, so a 6 MB camera JPEG becomes a few
+ * hundred kilobytes before it touches circuit wifi. And the bytes go straight
+ * to object storage rather than through the app.
  *
  * Where no bucket is configured, this falls back to pasting a link — the
  * platform has always worked that way and must keep working.
@@ -55,12 +62,19 @@ export function ImageUpload({
     setError(null);
     setBusy(true);
     try {
-      // Checked before the resize so an obviously wrong file fails instantly
-      // with a message about the file the person actually picked.
-      const rejection = checkUpload(purpose, file);
-      if (rejection && rejection.reason === "type") {
-        setError(rejection.message);
-        return;
+      /*
+       * Checked before the resize so an obviously wrong file fails instantly
+       * with a message about the file the person actually picked — but not
+       * for a camera format, which is deliberately not storable as picked and
+       * becomes a JPEG a few lines below. Checking those here would reject
+       * every iPhone photo before anything had a chance to convert it.
+       */
+      if (!needsTranscode(file)) {
+        const rejection = checkUpload(purpose, file);
+        if (rejection && rejection.reason === "type") {
+          setError(rejection.message);
+          return;
+        }
       }
 
       setProgress("Preparing…");
