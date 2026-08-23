@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, PageHeader, Section } from "@/components/ui/page";
+import { ExploreLink } from "@/components/explore-link";
 import { TRACK_KIND_LABELS, formatLength } from "@/lib/tracks";
 import { TrackDiagram } from "@/components/track-diagram";
 import { formatTurns } from "@/lib/track-diagram";
@@ -73,6 +74,8 @@ export default function TracksPage() {
           </Button>
         }
       />
+
+      <ExploreLink type="track" what="every track" />
 
       {adding && <AddTrackForm onCreated={() => setAdding(false)} />}
 

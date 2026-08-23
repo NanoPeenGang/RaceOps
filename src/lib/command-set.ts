@@ -15,6 +15,7 @@
 import {
   ACCOUNT_LINKS,
   ADMIN_LINKS,
+  DIRECTORY_LINKS,
   EVENT_CONSOLE_PAGES,
   EVENT_CONSOLE_TABS,
   NAV_LINKS,
@@ -89,6 +90,8 @@ export const EMPTY_CONTEXTS: PaletteContexts = {
  */
 const NAV_ICONS: Record<string, CommandIcon> = {
   Home: "home",
+  Explore: "grid",
+  "Discover people": "users",
   Discover: "users",
   Events: "calendar",
   Series: "flag",
@@ -328,6 +331,9 @@ export function buildCommands(contexts: PaletteContexts): Command[] {
   // --- everywhere else ----------------------------------------------------
   const globalLinks = [
     ...NAV_LINKS,
+    // Still typeable even though they are no longer in the header: somebody
+    // who knows the tracks page exists should not have to learn that it moved.
+    ...DIRECTORY_LINKS,
     ...ACCOUNT_LINKS,
     ...(contexts.isPlatformStaff ? ADMIN_LINKS : []),
   ];

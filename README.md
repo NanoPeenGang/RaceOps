@@ -1252,6 +1252,37 @@ Two behaviours worth knowing:
 `src/lib/app-context.ts` holds all of it as pure functions over a pathname:
 what context a URL is in, where a switch should land, and how the menu groups.
 
+### Browsing: Explore
+
+`/explore` is one faceted search across events, series, teams and tracks.
+Everything lives in the query string, so a search survives a reload and can be
+sent to somebody — "endurance racing in Georgia next month" is a link, not a
+set of instructions.
+
+The header went from nine destinations to six: Events, Series, Teams and
+Tracks were four index pages running the same query with the filter nailed
+down. **The pages are still there and still at their own URLs** — each carries
+things a search cannot, like creating a team or seeing your own entries. What
+collapsed is how you browse, not the pages. They stay listed in the mobile
+menu under Explore, they link to it from their own headers, and ⌘K still finds
+them by name; `tests/nav.test.ts` fails if the menu ever stops rendering them.
+
+Two behaviours worth knowing:
+
+- **Two modes, deliberately.** Narrowed to a single type it paginates like the
+  directory it replaces; across everything it shows the best few of each, since
+  thirty events with the teams below the fold is the events directory with
+  extra steps. It always reports the true count so "see all 41" is honest.
+- **A filter that cannot apply drops the type instead of zeroing it.** A track
+  has no date and a team has no discipline, so filtering by "this weekend"
+  searches events only and the rail says so, rather than returning nothing and
+  leaving somebody wondering whether the data is missing.
+
+`src/lib/explore.ts` holds the filter state, the query-string round-trip and
+the date windows as pure functions. "This weekend" means the weekend you are
+in, not the next one — asked on a Saturday morning, the question is what is on
+now.
+
 ### Integration tests
 
 Router-level tests run against a real Postgres and are opt-in, so CI (which

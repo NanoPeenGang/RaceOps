@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader, Section } from "@/components/ui/page";
+import { ExploreLink } from "@/components/explore-link";
 
 export default function TeamsPage() {
   const utils = api.useUtils();
@@ -34,6 +35,8 @@ export default function TeamsPage() {
   return (
     <div className="space-y-8">
       <PageHeader title="Teams" />
+
+      <ExploreLink type="team" what="every team" />
 
       {myTeams.data && myTeams.data.length > 0 && (
         <Section title="My teams">

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ACCOUNT_LINKS, ADMIN_LINKS, NAV_LINKS } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_LINKS, DIRECTORY_LINKS, NAV_LINKS } from "@/lib/nav";
 
 /**
  * Guards the regression where dashboard routes existed but were unreachable
@@ -35,11 +35,29 @@ function topLevelRoutes(): string[] {
 describe("navigation coverage", () => {
   const reachable = new Set<string>([
     ...NAV_LINKS.map((l) => l.href),
+    // The four directories Explore replaced as a browse surface. They left
+    // the header, not the app: the menu still lists them under Explore, and
+    // the test below is what keeps that true.
+    ...DIRECTORY_LINKS.map((l) => l.href),
     ...ACCOUNT_LINKS.map((l) => l.href),
     // Staff-only, and rendered conditionally — but still has to be in the
     // mobile menu, or the queue is desktop-only.
     ...ADMIN_LINKS.map((l) => l.href),
   ]);
+
+  it("really does render the directories it counts as reachable", () => {
+    /*
+     * Without this, the line above is a way of declaring a route reachable
+     * rather than a way of checking it. The menu is the only place the four
+     * directories are linked now, so if it stops rendering them they are
+     * gone — reachable only by typing the URL or by name in ⌘K.
+     */
+    const source = readFileSync(
+      join(process.cwd(), "src/components/mobile-nav.tsx"),
+      "utf8",
+    );
+    expect(source).toContain("DIRECTORY_LINKS.map");
+  });
 
   it("exposes every top-level dashboard route in the shared nav", () => {
     const missing = topLevelRoutes().filter((route) => {

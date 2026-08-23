@@ -1,15 +1,38 @@
 /** Shared nav definitions for the desktop header and the mobile menu. */
 
+/*
+ * Nine destinations became six.
+ *
+ * Events, Series, Teams and Tracks were four index pages running the same
+ * query with the filter nailed down, and somebody after "endurance racing in
+ * Georgia next month" had to run that search four times and hold the answers
+ * in their head. Explore does it once.
+ *
+ * The four pages are still there and still at their own URLs — each carries
+ * things a search cannot, like creating a team or seeing your own entries —
+ * they are simply no longer how you browse. Explore links into each of them,
+ * and ⌘K finds any of them by name.
+ */
 export const NAV_LINKS = [
   { href: "/home", label: "Home" },
-  { href: "/search", label: "Discover" },
+  { href: "/explore", label: "Explore" },
+  { href: "/search", label: "Discover people" },
+  { href: "/opportunities", label: "Opportunities" },
+  { href: "/reports", label: "Reports" },
+  { href: "/strategy", label: "Pit Wall" },
+] as const;
+
+/**
+ * The directory pages Explore replaced as a browse surface.
+ *
+ * Named so the command palette can still offer them and so the mobile menu
+ * can group them under Explore rather than dropping them entirely.
+ */
+export const DIRECTORY_LINKS = [
   { href: "/events", label: "Events" },
   { href: "/series", label: "Series" },
   { href: "/teams", label: "Teams" },
   { href: "/tracks", label: "Tracks" },
-  { href: "/opportunities", label: "Opportunities" },
-  { href: "/reports", label: "Reports" },
-  { href: "/strategy", label: "Pit Wall" },
 ] as const;
 
 /** Signed-in-only destinations. */

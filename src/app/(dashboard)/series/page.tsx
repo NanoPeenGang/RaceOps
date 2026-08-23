@@ -10,6 +10,7 @@ import { Form } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
 import { EmptyState, PageHeader, Section } from "@/components/ui/page";
+import { ExploreLink } from "@/components/explore-link";
 
 export default function SeriesPage() {
   const utils = api.useUtils();
@@ -30,6 +31,8 @@ export default function SeriesPage() {
           </>
         }
       />
+
+      <ExploreLink type="series" what="every series" />
 
       {showForm && (
         <CreateSeriesForm

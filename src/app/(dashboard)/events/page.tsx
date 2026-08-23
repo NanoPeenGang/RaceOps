@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EVENT_STATUS_LABELS, REGISTRATION_STATUS_LABELS } from "@/lib/events";
 import { ListSkeleton } from "@/components/ui/skeleton";
 import { PageHeader, Section } from "@/components/ui/page";
+import { ExploreLink } from "@/components/explore-link";
 
 export default function EventsPage() {
   const events = api.event.listPublished.useQuery({});
@@ -20,6 +21,8 @@ export default function EventsPage() {
         title="Events"
         description="Enter a race, or sign up to work one."
       />
+
+      <ExploreLink type="event" what="every event" />
 
       <LiveNow />
 

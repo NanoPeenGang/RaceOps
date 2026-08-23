@@ -39,6 +39,7 @@ import { payrollRouter } from "@/server/trpc/routers/payroll";
 import { accessRouter } from "@/server/trpc/routers/access";
 import { sponsorRouter } from "@/server/trpc/routers/sponsor";
 import { commandRouter } from "@/server/trpc/routers/command";
+import { exploreRouter } from "@/server/trpc/routers/explore";
 
 export const appRouter = createTRPCRouter({
   user: userRouter,
@@ -80,6 +81,7 @@ export const appRouter = createTRPCRouter({
   payroll: payrollRouter,
   access: accessRouter,
   command: commandRouter,
+  explore: exploreRouter,
   sponsor: sponsorRouter,
 });
 

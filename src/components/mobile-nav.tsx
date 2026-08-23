@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { api } from "@/lib/trpc/client";
-import { ACCOUNT_LINKS, ADMIN_LINKS, NAV_LINKS } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_LINKS, DIRECTORY_LINKS, NAV_LINKS } from "@/lib/nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useCommandPalette } from "@/components/command-palette";
 import { useInContext } from "@/components/context-switcher";
@@ -99,6 +99,20 @@ export function MobileNav() {
                   href={link.href}
                   onClick={() => setOpen(false)}
                   className="block rounded-md px-3 py-3 text-base font-medium text-brand-black/80 hover:bg-brand-black/5 hover:text-brand-red"
+                >
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+            {/* Indented under Explore rather than dropped: Explore is how you
+                browse now, but somebody who knows the tracks page exists
+                should not have to discover that it moved. */}
+            {DIRECTORY_LINKS.map((link) => (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  className="block rounded-md py-2.5 pl-7 pr-3 text-sm font-medium text-brand-black/60 hover:bg-brand-black/5 hover:text-brand-red"
                 >
                   {link.label}
                 </Link>
