@@ -1,0 +1,4 @@
+# The seeded canvas: ~2.4 MB of editor payload with the artboards embedded in
+# it. Regenerate it from the sources here rather than tracking it — see README.
+paddock-console.html
+__pycache__/

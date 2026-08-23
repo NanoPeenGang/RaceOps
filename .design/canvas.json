@@ -1,0 +1,19 @@
+{
+  "artboards": [
+    { "file": "TodayVsProposed.dc.html", "title": "Today vs proposed", "x": 0, "y": 0, "w": 1600, "h": 900 },
+    { "file": "Main.dc.html", "title": "Team console — Garage / Invoices", "x": 0, "y": 1060, "w": 1440, "h": 900 },
+    { "file": "ContextSwitcher.dc.html", "title": "Context switcher, open", "x": 1560, "y": 1060, "w": 1440, "h": 900 },
+    { "file": "RaceWeekend.dc.html", "title": "Race weekend — Race control / Incidents", "x": 0, "y": 2080, "w": 1440, "h": 900 },
+    { "file": "Explore.dc.html", "title": "Explore — one faceted search", "x": 1560, "y": 2080, "w": 1440, "h": 940 },
+    { "file": "CommandPalette.dc.html", "title": "Command palette (⌘K)", "x": 0, "y": 3140, "w": 1440, "h": 900 },
+    { "file": "Trackside.dc.html", "title": "Trackside — phone in the hot pits", "x": 1560, "y": 3140, "w": 390, "h": 844 }
+  ],
+  "annotations": [
+    { "id": "thesis", "x": 1680, "y": 70, "w": 300, "text": "The thesis.\n\nNothing here is a repaint. Same cards, same tokens, same dark theme — those are new and consistent. What changes is what sits above them.\n\nEvery artboard uses the real design system: #0a0a0a ink, #d91e1e signal red, 12px card radius, 20px card padding, the app's own type ramp." },
+    { "id": "findable", "x": -370, "y": 1100, "w": 300, "text": "Invoices is the test case.\n\nIt shipped, then got reported as missing twice — the mark-paid and delete controls sat behind a \"5 lines\" toggle, inside a panel, inside a tab.\n\nHere it is a page with its own address. Nothing was rewritten to make that true." },
+    { "id": "nesting", "x": -370, "y": 2120, "w": 300, "text": "Race control is where the nesting is worst today: eight console tabs, plus six sibling pages (timing, incidents, penalties, bulletins, broadcast, gate) that live outside the tab strip.\n\nGate is currently not linked from the console at all.\n\nAs a rail they are all just entries." },
+    { "id": "kbd", "x": -370, "y": 3180, "w": 300, "text": "Cheapest stage, biggest immediate win: ⌘K can ship on its own, on top of today's structure, and it fixes findability for all 45 pages without moving any of them." },
+    { "id": "mobile", "x": 2010, "y": 3160, "w": 280, "text": "Trackside is a different job from the desktop console: gloves, sunlight, one hand, no signal.\n\nBottom bar, 44px minimum targets, scan in the centre. No fake status bar — the real one paints over it." }
+  ],
+  "launch": { "view": "canvas" }
+}
